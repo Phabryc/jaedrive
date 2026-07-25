@@ -19,11 +19,20 @@ export function vehicleTitle(brand: string | null, model: string | null, powertr
   return [brand, model, powertrainLabel(powertrain)].filter(Boolean).join(" ");
 }
 
-// Immagine stilizzata per modello - in attesa dei riferimenti reali (vedi
-// jaedrive_project memory), nessuna immagine e' ancora disponibile: vehicleImageFor()
-// ritorna sempre null e il componente che la usa mostra un badge testuale al suo posto,
-// mai un placeholder generico spacciato per "il modello vero".
-const MODEL_IMAGES: Record<string, string> = {};
+// Silhouette stilizzate (2026-07-26) derivate dai render ufficiali forniti dall'utente -
+// NON le foto originali (non di proprieta' dell'utente, mai spedite cosi' come sono):
+// riempimento piatto a 2 toni (carrozzeria + vetri/gomme/ombra) con contorno, generato da
+// una sogliatura di luminanza sulla maschera alpha del cutout originale - trasformativo,
+// non una riproduzione fotografica. Tutte gia' orientate nello stesso verso (3/4
+// anteriore-sinistra, muso a sinistra). File in /public/vehicles/, serviti da Vite.
+const MODEL_IMAGES: Record<string, string> = {
+  JAECOO_5: "/vehicles/jaecoo_5.png",
+  JAECOO_7: "/vehicles/jaecoo_7.png",
+  JAECOO_8: "/vehicles/jaecoo_8.png",
+  OMODA_5: "/vehicles/omoda_5.png",
+  OMODA_7: "/vehicles/omoda_7.png",
+  OMODA_9: "/vehicles/omoda_9.png",
+};
 
 export function vehicleImageFor(brand: string | null, model: string | null): string | null {
   if (!brand || !model) return null;
