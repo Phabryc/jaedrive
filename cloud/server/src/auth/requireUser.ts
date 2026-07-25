@@ -18,30 +18,42 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
     return reply.code(401).send({ error: "Invalid or expired token" });
   }
 
-  // Best-effort prefill from the identity provider, only on first creation - present for
-  // Google sign-in (decoded.name/decoded.picture), absent for plain email/password (where
-  // the user completes these in the web onboarding gate instead, see RequireProfile.tsx).
-  // Never overwritten on later logins so it doesn't clobber a user's own edits.
+  // Best-effort prefill from the identity provider - present for Google sign-in
+  // (decoded.name/decoded.picture), absent for plain email/password (where the user
+  // completes these in the web onboarding gate instead, see RequireProfile.tsx).
   const nameParts = decoded.name ? decoded.name.trim().split(/\s+/) : [];
   const firstName = nameParts.length > 0 ? nameParts[0] : null;
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
+  const photoUrl = typeof decoded.picture === "string" ? decoded.picture : null;
 
-  const user = await prisma.user.upsert({
-    where: { firebaseUid: decoded.uid },
-    update: {
-      email: decoded.email ?? undefined,
-      lastLoginAt: new Date(),
-    },
-    create: {
-      firebaseUid: decoded.uid,
-      email: decoded.email ?? null,
-      displayName: decoded.name ?? null,
-      firstName,
-      lastName,
-      photoUrl: typeof decoded.picture === "string" ? decoded.picture : null,
-      lastLoginAt: new Date(),
-    },
-  });
+  const existing = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+
+  const user = existing
+    ? await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          email: decoded.email ?? undefined,
+          lastLoginAt: new Date(),
+          // Backfill only fields still null - never overwrite a value the user (or an
+          // earlier login) already set, but DO fill in accounts that were created before
+          // this prefill existed, or that were missing it for any other reason (e.g. this
+          // row's very first login happened before Google's claims were being read).
+          firstName: existing.firstName ?? firstName ?? undefined,
+          lastName: existing.lastName ?? lastName ?? undefined,
+          photoUrl: existing.photoUrl ?? photoUrl ?? undefined,
+        },
+      })
+    : await prisma.user.create({
+        data: {
+          firebaseUid: decoded.uid,
+          email: decoded.email ?? null,
+          displayName: decoded.name ?? null,
+          firstName,
+          lastName,
+          photoUrl,
+          lastLoginAt: new Date(),
+        },
+      });
 
   req.authUser = user;
 }
