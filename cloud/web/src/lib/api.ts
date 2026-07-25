@@ -31,8 +31,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface Profile {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  nationality: string | null;
+  photoUrl: string | null;
+  profileComplete: boolean;
+}
+
 export const api = {
-  me: () => request<{ id: string; email: string | null; displayName: string | null }>("/me"),
+  me: () => request<Profile>("/me"),
+
+  updateProfile: (data: { firstName: string; lastName: string; nationality: string }) =>
+    request<Profile>("/me", { method: "PATCH", body: JSON.stringify(data) }),
 
   vehicles: () => request<Vehicle[]>("/vehicles"),
 

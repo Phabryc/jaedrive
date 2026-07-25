@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
-import { useAuth } from "../lib/AuthContext";
+import { useProfile } from "../lib/ProfileContext";
+import { COUNTRIES } from "../lib/countries";
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { profile } = useProfile();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const countryName = COUNTRIES.find((c) => c.code === profile?.nationality)?.name ?? profile?.nationality;
 
   function reload() {
     api.vehicles().then(setVehicles);
@@ -32,9 +34,21 @@ export default function Settings() {
     <AppShell>
       <h1 className="mb-6 text-xl font-semibold">Impostazioni</h1>
 
-      <section className="mb-8 rounded-lg border border-surface-border bg-surface p-4">
-        <p className="mb-1 text-sm font-medium">Account</p>
-        <p className="text-sm text-onsurface-variant">{user?.email}</p>
+      <section className="mb-8 flex items-center gap-4 rounded-lg border border-surface-border bg-surface p-4">
+        {profile?.photoUrl ? (
+          <img src={profile.photoUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-border text-sm font-medium text-onsurface-variant">
+            {(profile?.firstName?.[0] ?? "") + (profile?.lastName?.[0] ?? "")}
+          </div>
+        )}
+        <div>
+          <p className="text-sm font-medium">
+            {profile?.firstName} {profile?.lastName}
+          </p>
+          <p className="text-sm text-onsurface-variant">{profile?.email}</p>
+          {countryName && <p className="text-xs text-onsurface-variant">{countryName}</p>}
+        </div>
       </section>
 
       <section>
