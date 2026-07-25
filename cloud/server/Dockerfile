@@ -16,6 +16,10 @@ ENV VITE_FIREBASE_API_KEY=$VITE_FIREBASE_API_KEY \
 RUN npm run build
 
 FROM node:20-alpine AS server-deps
+# Alpine ships no OpenSSL by default - Prisma's schema/query engine binaries need libssl to
+# even start, otherwise they crash before printing valid JSON (the exact
+# "Could not parse schema engine response" error this fixes).
+RUN apk add --no-cache openssl
 WORKDIR /app/server
 COPY server/package*.json ./
 RUN npm ci
@@ -24,6 +28,7 @@ RUN npx prisma generate
 RUN npm run build
 
 FROM node:20-alpine
+RUN apk add --no-cache openssl
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=server-deps /app/server/node_modules ./server/node_modules
