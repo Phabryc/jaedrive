@@ -27,7 +27,11 @@ export default function Trips() {
     api
       .trips(vehicleId, {
         page,
-        kind: kind || undefined,
+        // Un giorno selezionato forza sempre "solo percorsi GPS": i trip manuali sono
+        // accumulatori che possono restare aperti per giorni/settimane, non hanno un vero
+        // "quel giorno" - il calendario stesso li esclude gia' dall'aggregazione (vedi
+        // /stats/calendar), la lista deve restare coerente con quello che mostra.
+        kind: dayFilter ? "auto" : kind || undefined,
         from: dayFilter ? `${dayFilter}T00:00:00.000Z` : undefined,
         to: dayFilter ? `${dayFilter}T23:59:59.999Z` : undefined,
       })
@@ -57,6 +61,7 @@ export default function Trips() {
               key={f.value}
               onClick={() => {
                 setKind(f.value);
+                setDayFilter(null); // un giorno selezionato forza "auto" - cambiare tipo lo svuota
                 setPage(1);
               }}
               className={`rounded-md border px-3 py-1 text-xs ${

@@ -357,8 +357,12 @@ export async function userRoutes(app: FastifyInstance) {
     const from = new Date(Date.UTC(y, 0, 1));
     const to = new Date(Date.UTC(y + 1, 0, 1));
 
+    // Solo AUTO: i trip manuali sono accumulatori che l'utente puo' resettare dopo giorni o
+    // settimane, il loro startedAt/endedAt non rappresenta un vero "quel giorno" - inclusi
+    // sfaserebbero pesantemente km/durata/consumo attribuiti a un singolo giorno (l'utente
+    // ha segnalato proprio il conteggio ore alla guida come il caso piu' evidente).
     const trips = await prisma.trip.findMany({
-      where: { vehicleId: id, startedAt: { gte: from, lt: to } },
+      where: { vehicleId: id, kind: "auto", startedAt: { gte: from, lt: to } },
       select: { startedAt: true, endedAt: true, km: true, liters: true, avgConsumption: true },
     });
 

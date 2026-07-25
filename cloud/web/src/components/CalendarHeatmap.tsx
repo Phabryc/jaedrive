@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
+import { IconRoute, IconGauge, IconFuel, IconClock } from "./icons";
 
 const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
-const WEEKDAY_LABELS = ["L", "M", "M", "G", "V", "S", "D"];
-const CELL = 30; // px, lato di ogni casella - calendario compatto invece che a piena larghezza
-const GAP = 3;
+const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+const CELL = 42; // px, lato di ogni casella - compatto ma leggibile, non a piena larghezza
+const GAP = 5;
 
 interface DayStat {
   date: string;
@@ -92,16 +93,18 @@ export function CalendarHeatmap({
 
   const gridWidth = CELL * 7 + GAP * 6;
 
+  const selectedStat = selectedDate ? byDate.get(selectedDate) : undefined;
+
   return (
     <div className="rounded-lg border border-surface-border bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between" style={{ maxWidth: gridWidth + 16, margin: "0 auto 12px" }}>
+      <div className="mb-4 flex items-center justify-between" style={{ maxWidth: gridWidth + 16, margin: "0 auto 16px" }}>
         <p className="text-sm font-medium">Giorni guidati</p>
-        <div className="flex items-center gap-1.5 text-xs text-onsurface-variant">
-          <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-1.5 py-0.5 hover:text-onsurface">
+        <div className="flex items-center gap-2 text-xs text-onsurface-variant">
+          <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
             ←
           </button>
-          <span className="w-16 text-center tabular-nums text-[11px]">{MONTH_NAMES[month].slice(0, 3)} {year}</span>
-          <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-1.5 py-0.5 hover:text-onsurface">
+          <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{MONTH_NAMES[month]} {year}</span>
+          <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
             →
           </button>
         </div>
@@ -115,7 +118,7 @@ export function CalendarHeatmap({
           style={{ gridTemplateColumns: `repeat(7, ${CELL}px)`, gap: GAP, width: gridWidth }}
         >
           {WEEKDAY_LABELS.map((w, i) => (
-            <div key={i} className="text-center text-[9px] text-onsurface-variant">
+            <div key={i} className="text-center text-[11px] text-onsurface-variant">
               {w}
             </div>
           ))}
@@ -124,7 +127,7 @@ export function CalendarHeatmap({
             const stat = byDate.get(date);
             const dayNum = Number(date.slice(8, 10));
             const km = stat?.km ?? 0;
-            const bg = km > 0 ? `rgba(0,191,255,${0.12 + 0.68 * (km / maxKm)})` : "rgba(255,255,255,0.03)";
+            const bg = km > 0 ? `rgba(0,191,255,${0.14 + 0.66 * (km / maxKm)})` : "rgba(255,255,255,0.04)";
             const isSelected = date === selectedDate;
             const title = stat
               ? `${stat.km.toFixed(1)} km · ${stat.tripCount} ${stat.tripCount === 1 ? "viaggio" : "viaggi"}${
@@ -136,18 +139,18 @@ export function CalendarHeatmap({
                 key={date}
                 title={title}
                 onClick={() => onSelectDate(isSelected ? null : date)}
-                className="flex flex-col items-center justify-center rounded transition"
+                className="flex flex-col items-center justify-center gap-0.5 rounded-md transition"
                 style={{
                   width: CELL,
                   height: CELL,
                   backgroundColor: bg,
-                  outline: isSelected ? "2px solid #00BFFF" : undefined,
-                  outlineOffset: -2,
+                  outline: isSelected ? "2px solid #00BFFF" : "1px solid rgba(255,255,255,0.06)",
+                  outlineOffset: -1,
                 }}
               >
-                <span className="text-[8px] leading-none text-onsurface-variant">{dayNum}</span>
+                <span className="text-[10px] leading-none text-onsurface-variant">{dayNum}</span>
                 {stat?.avgConsumption != null && (
-                  <span className="text-[9px] font-semibold leading-tight tabular-nums text-onsurface">
+                  <span className="text-[11px] font-semibold leading-none tabular-nums text-onsurface">
                     {stat.avgConsumption.toFixed(1)}
                   </span>
                 )}
@@ -158,33 +161,41 @@ export function CalendarHeatmap({
       )}
 
       {selectedDate && (
-        <div className="mx-auto mt-4" style={{ maxWidth: gridWidth + 120 }}>
+        <div className="mx-auto mt-5" style={{ maxWidth: gridWidth + 140 }}>
           <p className="mb-2 text-center text-xs text-onsurface-variant">{formatDayFull(selectedDate)}</p>
-          {(() => {
-            const stat = byDate.get(selectedDate);
-            if (!stat || stat.tripCount === 0) {
-              return <p className="text-center text-sm text-onsurface-variant">Nessun viaggio questo giorno.</p>;
-            }
-            return (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <DayStatTile label="Km percorsi" value={stat.km.toFixed(1)} />
-                <DayStatTile label="Consumo medio" value={stat.avgConsumption != null ? `${stat.avgConsumption.toFixed(1)} km/l` : "–"} />
-                <DayStatTile label="Carburante" value={`${stat.liters.toFixed(2)} L`} />
-                <DayStatTile label="Tempo alla guida" value={formatDuration(stat.durationMin)} />
-              </div>
-            );
-          })()}
+          {!selectedStat || selectedStat.tripCount === 0 ? (
+            <p className="text-center text-sm text-onsurface-variant">Nessun viaggio questo giorno.</p>
+          ) : (
+            <div className="flex items-stretch rounded-lg border border-surface-border bg-bg/40 p-3">
+              <DayStatBlock icon={<IconRoute size={18} />} value={`${selectedStat.km.toFixed(1)} km`} label="Percorsi" />
+              <Divider />
+              <DayStatBlock
+                icon={<IconGauge size={18} />}
+                value={selectedStat.avgConsumption != null ? `${selectedStat.avgConsumption.toFixed(1)} km/l` : "–"}
+                label="Consumo medio"
+              />
+              <Divider />
+              <DayStatBlock icon={<IconFuel size={18} />} value={`${selectedStat.liters.toFixed(2)} L`} label="Carburante" />
+              <Divider />
+              <DayStatBlock icon={<IconClock size={18} />} value={formatDuration(selectedStat.durationMin)} label="Alla guida" />
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function DayStatTile({ label, value }: { label: string; value: string }) {
+function Divider() {
+  return <div className="h-14 w-px bg-surface-border" />;
+}
+
+function DayStatBlock({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-md border border-surface-border bg-bg/40 px-2 py-2 text-center">
-      <p className="text-sm font-semibold tabular-nums text-onsurface">{value}</p>
-      <p className="text-[10px] text-onsurface-variant">{label}</p>
+    <div className="flex flex-1 flex-col items-center gap-1.5 py-1">
+      <span className="text-accent">{icon}</span>
+      <span className="text-[15px] font-bold tabular-nums text-onsurface">{value}</span>
+      <span className="text-[11px] text-onsurface-variant">{label}</span>
     </div>
   );
 }
