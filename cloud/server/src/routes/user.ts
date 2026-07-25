@@ -5,6 +5,17 @@ import { generateDeviceToken, sha256Hex } from "../lib/tokens.js";
 
 const TRIPS_PAGE_SIZE = 20;
 
+// Data "Ultimo aggiornamento"/"Last updated" del testo legale corrente (vedi
+// cloud/web/src/legal/*.md) - un'unica versione per la coppia EULA+Privacy Policy,
+// accettate insieme in un solo checkbox durante l'onboarding. Bump quando uno dei due
+// documenti cambia in modo sostanziale: profileComplete torna false per chi aveva
+// accettato una versione precedente, forzando una nuova accettazione.
+const CURRENT_LEGAL_VERSION = "2026-07-26";
+
+function isProfileComplete(u: { firstName: string | null; lastName: string | null; legalAcceptedAt: Date | null; legalVersion: string | null }) {
+  return Boolean(u.firstName && u.lastName && u.legalAcceptedAt && u.legalVersion === CURRENT_LEGAL_VERSION);
+}
+
 async function loadOwnedVehicle(userId: string, vehicleId: string) {
   return prisma.vehicle.findFirst({ where: { id: vehicleId, userId } });
 }
@@ -22,7 +33,9 @@ export async function userRoutes(app: FastifyInstance) {
       lastName: u.lastName,
       photoUrl: u.photoUrl,
       // Drives the web app's onboarding gate (RequireProfile.tsx).
-      profileComplete: Boolean(u.firstName && u.lastName),
+      profileComplete: isProfileComplete(u),
+      legalVersion: u.legalVersion,
+      currentLegalVersion: CURRENT_LEGAL_VERSION,
       createdAt: u.createdAt,
     });
   });
@@ -33,19 +46,22 @@ export async function userRoutes(app: FastifyInstance) {
       schema: {
         body: {
           type: "object",
-          required: ["firstName", "lastName"],
+          required: ["firstName", "lastName", "acceptLegal"],
           properties: {
             firstName: { type: "string", minLength: 1, maxLength: 80 },
             lastName: { type: "string", minLength: 1, maxLength: 80 },
+            // const: true - rifiuta con 400 qualunque valore diverso da true (non basta
+            // che la chiave sia presente, deve essere esplicitamente accettato).
+            acceptLegal: { const: true },
           },
         },
       },
     },
     async (req, reply) => {
-      const { firstName, lastName } = req.body as { firstName: string; lastName: string };
+      const { firstName, lastName } = req.body as { firstName: string; lastName: string; acceptLegal: true };
       const updated = await prisma.user.update({
         where: { id: req.authUser!.id },
-        data: { firstName, lastName },
+        data: { firstName, lastName, legalAcceptedAt: new Date(), legalVersion: CURRENT_LEGAL_VERSION },
       });
       return reply.send({
         id: updated.id,
@@ -53,7 +69,7 @@ export async function userRoutes(app: FastifyInstance) {
         firstName: updated.firstName,
         lastName: updated.lastName,
         photoUrl: updated.photoUrl,
-        profileComplete: true,
+        profileComplete: isProfileComplete(updated),
       });
     },
   );

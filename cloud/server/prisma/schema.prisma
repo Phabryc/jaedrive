@@ -33,6 +33,15 @@ model User {
   lastName     String?  @map("last_name")
   photoUrl     String?  @map("photo_url")
 
+  // Accettazione di EULA/Privacy Policy, gia' incorporata nello stesso step di onboarding
+  // obbligatorio (vedi RequireProfile.tsx/Onboarding.tsx) invece di un gate separato.
+  // legalVersion e' la data "Ultimo aggiornamento" del testo accettato (vedi
+  // cloud/web/src/legal/*.md) - un futuro cambio sostanziale dei testi fa scattare una
+  // nuova accettazione bumpando CURRENT_LEGAL_VERSION lato server, che rende
+  // profileComplete false finche' l'utente non riaccetta la versione aggiornata.
+  legalAcceptedAt DateTime? @map("legal_accepted_at")
+  legalVersion    String?   @map("legal_version")
+
   vehicles         Vehicle[]
   pairingsClaimed  PairingRequest[]
 
