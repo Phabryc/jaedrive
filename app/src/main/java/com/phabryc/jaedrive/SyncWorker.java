@@ -62,17 +62,24 @@ public class SyncWorker extends Worker {
     }
 
     private JSONObject buildPayload(TripRecord r) throws JSONException {
+        // Un'auto solo ICE non ha trazione elettrica: i segnali sottostanti restano IS_NULL
+        // per sempre su di lei (vedi VehicleCatalog.EnergyCapability), ma per chiarezza non
+        // ci affidiamo solo a quello - escludiamo esplicitamente questi campi dal payload.
+        VehicleCatalog.EnergyCapability cap = VehicleCatalog.capabilityFor(Prefs.getVehiclePowertrain(getApplicationContext()));
+        boolean electric = cap != VehicleCatalog.EnergyCapability.ICE; // null (non ancora impostata) -> true, per non perdere dati potenzialmente validi
+
         JSONObject payload = new JSONObject();
         if (r.clientUuid != null) payload.put("clientUuid", r.clientUuid);
         payload.put("kind", kindFor(r));
         payload.put("startedAt", isoUtc(r.startTime));
         if (r.endTime > 0) payload.put("endedAt", isoUtc(r.endTime));
         if (r.label != null) payload.put("label", r.label);
+        if (r.startLabel != null) payload.put("startLabel", r.startLabel);
         payload.put("km", r.kmDelta);
         if (r.litersDelta != null) payload.put("liters", r.litersDelta);
         if (r.avgConsumption != null) payload.put("avgConsumption", r.avgConsumption);
-        if (r.kmEv != null) payload.put("kmEv", r.kmEv);
-        if (r.kmHev != null) payload.put("kmHev", r.kmHev);
+        if (electric && r.kmEv != null) payload.put("kmEv", r.kmEv);
+        if (electric && r.kmHev != null) payload.put("kmHev", r.kmHev);
 
         // Solo i trip AUTO hanno una traccia GPX - da li' sia il file grezzo da allegare
         // (gpxRaw) sia il breakdown EV/serie/parallelo/altro, ricalcolato dagli stessi punti
@@ -87,13 +94,17 @@ public class SyncWorker extends Worker {
                     // Trip comunque caricabile senza traccia allegata, meglio di niente.
                 }
                 List<TripPoint> gpxPoints = GpxReader.readPoints(gpxFile);
-                double[] breakdown = EnergyFlowUtil.computeUploadBreakdown(gpxPoints);
-                if (breakdown != null) {
-                    payload.put("pctEv", breakdown[0]);
-                    payload.put("pctSeries", breakdown[1]);
-                    payload.put("pctParallel", breakdown[2]);
-                    payload.put("pctOther", breakdown[3]);
+                if (electric) {
+                    double[] breakdown = EnergyFlowUtil.computeUploadBreakdown(gpxPoints);
+                    if (breakdown != null) {
+                        payload.put("pctEv", breakdown[0]);
+                        payload.put("pctSeries", breakdown[1]);
+                        payload.put("pctParallel", breakdown[2]);
+                        payload.put("pctOther", breakdown[3]);
+                    }
                 }
+                // Il drive mode (ECO/NORMAL/SPORT) si applica a qualunque motorizzazione,
+                // non solo alle ibride - vedi la tabella dati/motorizzazione in memoria.
                 double[] driveModeBreakdown = computeDriveModeBreakdown(gpxPoints);
                 if (driveModeBreakdown != null) {
                     payload.put("pctEco", driveModeBreakdown[0]);

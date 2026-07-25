@@ -117,6 +117,7 @@
     <string name="label_vehicle_brand">MARCA</string>
     <string name="label_vehicle_model">MODELLO</string>
     <string name="label_vehicle_powertrain">MOTORIZZAZIONE</string>
+    <string name="label_footer_range">Autonomia:</string>
 
     <!-- Log -->
     <string name="label_save_log">SALVA LOG SU USB</string>

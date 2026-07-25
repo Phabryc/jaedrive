@@ -69,9 +69,13 @@ public class MainActivity extends AppCompatActivity {
     // Dashboard
     private TextView tvGear, tvSpeed;
     private TextView tvTripStatusBadge, tvTripAvg, tvTripKm, tvTripLiters;
-    private TextView tvFooterMode, tvFooterSoc, tvFooterFuel, tvFooterFlow;
+    private TextView tvFooterMode, tvFooterSoc, tvFooterFuel, tvFooterFlow, tvFooterRange;
     private ImageView iconFooterMode;
     private View dotFooterFlow;
+    // Visibilita' gestita da refreshEnergyCapabilityUi() in base alla motorizzazione
+    // configurata (vedi VehicleCatalog.EnergyCapability) - niente SOC/flusso energia su
+    // un'auto solo ICE, autonomia mostrata solo su ibride/elettriche.
+    private View rowFooterSoc, sepFooterSoc, rowFooterFlow, sepFooterFlow, rowFooterRange;
     private TextView tvManualLabelA, tvManualLabelB;
     private TextView tvManualKmA, tvManualAvgA, tvManualLitersA;
     private TextView tvManualKmB, tvManualAvgB, tvManualLitersB;
@@ -220,6 +224,12 @@ public class MainActivity extends AppCompatActivity {
         tvFooterFlow = findViewById(R.id.tv_footer_flow);
         dotFooterFlow = findViewById(R.id.dot_footer_flow);
         if (dotFooterFlow.getBackground() != null) dotFooterFlow.setBackground(dotFooterFlow.getBackground().mutate());
+        tvFooterRange = findViewById(R.id.tv_footer_range);
+        rowFooterSoc = findViewById(R.id.row_footer_soc);
+        sepFooterSoc = findViewById(R.id.sep_footer_soc);
+        rowFooterFlow = findViewById(R.id.row_footer_flow);
+        sepFooterFlow = findViewById(R.id.sep_footer_flow);
+        rowFooterRange = findViewById(R.id.row_footer_range);
         liveDot = findViewById(R.id.live_dot);
 
         tvManualLabelA = findViewById(R.id.tv_manual_label_a);
@@ -406,6 +416,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int KEY_DRIVE_MODE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DRIVE_MODE);
     private static final int KEY_DISPLAY_SOC = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DISPLAY_SOC);
+    private static final int KEY_DISPLAY_MILEAGE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DISPLAY_MILEAGE);
     private static final int KEY_FUEL_PERCENT = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_FUEL_PERCENT);
     private static final int KEY_ENERGY_FLOW = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_FLOW);
     private static final int KEY_VIN = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_VIN);
@@ -1510,6 +1521,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupVehicleSection() {
         refreshVehicleCard();
+        refreshEnergyCapabilityUi();
         findViewById(R.id.card_vehicle).setOnClickListener(v -> showVehicleOnboardingDialog(false));
     }
 
@@ -1517,6 +1529,7 @@ public class MainActivity extends AppCompatActivity {
         if (!Prefs.isVehicleInfoSet(this)) return;
         tvVehicleModel.setText(VehicleCatalog.displayName(
             Prefs.getVehicleBrand(this), Prefs.getVehicleModel(this), Prefs.getVehiclePowertrain(this)));
+        refreshEnergyCapabilityUi();
     }
 
     // Invia marca/modello/motorizzazione al cloud se l'auto e' gia' associata - chiamata sia
@@ -1587,7 +1600,7 @@ public class MainActivity extends AppCompatActivity {
             }
             powertrainLabel.setVisibility(View.VISIBLE);
             powertrainContainer.setVisibility(View.VISIBLE);
-            for (String pt : VehicleCatalog.powertrainsFor(selected[0], selected[1])) {
+            for (String pt : VehicleCatalog.powertrainsForOnboarding(selected[0], selected[1])) {
                 TextView chip = buildOnboardingChip(VehicleCatalog.powertrainLabel(pt), pt.equals(selected[2]));
                 chip.setOnClickListener(v -> {
                     selected[2] = pt;
@@ -2330,6 +2343,30 @@ public class MainActivity extends AppCompatActivity {
             tvFooterFlow.setText(energyFlowLabel(flowRaw[0]));
             tvFooterFlow.setTextColor(color);
         }
+        int[] rangeRaw = vdbValues.get(KEY_DISPLAY_MILEAGE);
+        if (rangeRaw != null) {
+            int range = VDInfoClient.decodeLastTwoAsInt(rangeRaw);
+            tvFooterRange.setText(String.format(Locale.ITALY, "%d km", range));
+        }
+    }
+
+    // Mostra/nasconde SOC batteria, flusso energia e autonomia in base alla motorizzazione
+    // scelta in onboarding (vedi VehicleCatalog.EnergyCapability) - un'auto solo ICE non ha
+    // trazione elettrica, quei segnali VDB restano IS_NULL per sempre su di lei: meglio non
+    // mostrare affatto la card/riga che lasciarla per sempre vuota. Richiamata dopo ogni
+    // conferma/modifica dell'onboarding (vedi refreshVehicleCard()) e una volta all'avvio.
+    private void refreshEnergyCapabilityUi() {
+        VehicleCatalog.EnergyCapability cap = VehicleCatalog.capabilityFor(Prefs.getVehiclePowertrain(this));
+        // Motorizzazione non ancora impostata (primissimo avvio, prima dell'onboarding
+        // obbligatorio): mostriamo tutto per non nascondere dati potenzialmente validi
+        // finche' non sappiamo che l'auto e' solo ICE.
+        boolean showElectric = cap == null || cap != VehicleCatalog.EnergyCapability.ICE;
+        int visSoc = showElectric ? View.VISIBLE : View.GONE;
+        rowFooterSoc.setVisibility(visSoc);
+        sepFooterSoc.setVisibility(visSoc);
+        rowFooterFlow.setVisibility(visSoc);
+        sepFooterFlow.setVisibility(visSoc);
+        rowFooterRange.setVisibility(visSoc);
     }
 
     // Etichetta breve per il badge "flusso energia" nella hero card, stessi 5 bucket

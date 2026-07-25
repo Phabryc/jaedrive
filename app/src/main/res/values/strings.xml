@@ -114,6 +114,7 @@
     <string name="label_vehicle_brand">BRAND</string>
     <string name="label_vehicle_model">MODEL</string>
     <string name="label_vehicle_powertrain">POWERTRAIN</string>
+    <string name="label_footer_range">Range:</string>
 
     <!-- Log -->
     <string name="label_save_log">SAVE LOG TO USB</string>

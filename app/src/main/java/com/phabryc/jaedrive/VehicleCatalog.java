@@ -1,6 +1,8 @@
 package com.phabryc.jaedrive;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 // Catalogo marca/modello/motorizzazione per l'onboarding obbligatorio (vedi
@@ -69,11 +71,53 @@ public class VehicleCatalog {
         return pts != null ? pts : new String[0];
     }
 
+    // Come powertrainsFor(), ma senza BEV: non ancora selezionabile in onboarding (nessun
+    // supporto dati implementato per le elettriche pure - vedi EnergyCapability), tenuto
+    // pero' nel catalogo/nei dati sopra perche' la gamma reale la include comunque.
+    public static String[] powertrainsForOnboarding(String brand, String model) {
+        String[] all = powertrainsFor(brand, model);
+        List<String> filtered = new ArrayList<>();
+        for (String pt : all) {
+            if (!PT_BEV.equals(pt)) filtered.add(pt);
+        }
+        return filtered.toArray(new String[0]);
+    }
+
     public static String displayName(String brand, String model, String powertrain) {
         StringBuilder sb = new StringBuilder();
         if (brand != null) sb.append(brand);
         if (model != null) sb.append(" ").append(model);
         if (powertrain != null) sb.append(" ").append(powertrainLabel(powertrain));
         return sb.toString().trim();
+    }
+
+    // Categorizzazione usata per decidere quali segnali VDB pollare/quali card mostrare
+    // (app) e quali sezioni mostrare (web) - vedi jaedrive_project memory per la tabella
+    // completa dati/motorizzazione. H = ibrido non ricaricabile da rete, P = plug-in hybrid
+    // (assunzione confermata dall'utente, 2026-07-26).
+    public enum EnergyCapability {
+        ICE,    // nessuna batteria di trazione: niente SOC/energy-flow/regen/autonomia elettrica
+        HYBRID, // SHS_H/SHS_P/SHS_P_4WD: tutto quello gia' costruito per l'auto dell'utente
+        BEV,    // batteria pura, nessun carburante - tenuto qui ma non ancora selezionabile
+    }
+
+    public static EnergyCapability capabilityFor(String powertrain) {
+        if (powertrain == null) return null;
+        switch (powertrain) {
+            case PT_ICE_2WD:
+            case PT_ICE_4WD:
+                return EnergyCapability.ICE;
+            case PT_BEV:
+                return EnergyCapability.BEV;
+            default: // PT_SHS_H, PT_SHS_P, PT_SHS_P_4WD
+                return EnergyCapability.HYBRID;
+        }
+    }
+
+    // Batteria ricaricabile da rete (non solo da rigenerazione/motore) - oggi non usato per
+    // mostrare/nascondere nulla (il consumo elettrico non e' stato trovato come segnale
+    // diretto su NewEnergyID, vedi VDInfoClient), tenuto pronto per quando lo sara'.
+    public static boolean isPluggable(String powertrain) {
+        return PT_SHS_P.equals(powertrain) || PT_SHS_P_4WD.equals(powertrain) || PT_BEV.equals(powertrain);
     }
 }

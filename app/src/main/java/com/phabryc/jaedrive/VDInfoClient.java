@@ -44,6 +44,16 @@ public class VDInfoClient {
     public static final int ID_EV_MILEAGE      = 0x36;
     public static final int ID_HEV_MILEAGE     = 0x32;
     public static final int ID_DISPLAY_SOC     = 0x2c;
+    // CONFERMATO REALE: stesso dispatcher di ID_ENERGY_RECYCLE_LEVEL (SVSetting.apk,
+    // updateUIStatus), ramo cmdId=0x2a - combina i PRIMI due elementi dell'array come intero
+    // a 16 bit big-endian ((arr[0]&0xff)<<8 | (arr[1]&0xff)), nessuna scala applicata
+    // (cast diretto a float), poi passato a un metodo che aggiorna il testo "autonomia" in
+    // UI - "Display Mileage" segue la stessa convenzione di nome di "Display SOC" (il
+    // numero mostrato sul cruscotto, non un totalizzatore). Usiamo comunque
+    // decodeLastTwoAsInt() (equivalente a "primi due" solo se l'array ha esattamente 2
+    // elementi, come sembra il caso qui - non ancora confermato sul campo per questo ID
+    // specifico se l'array e' piu' lungo).
+    public static final int ID_DISPLAY_MILEAGE = 0x2a;
     public static final int ID_VEHICLE_MODE_ID = 0x78;
     // Confermato REALE (non solo "registrato ma senza caller"): il dispatcher UI di
     // SVSetting.apk (smali_classes2/com/desaysv/present/a/a/f$1.smali, metodo
@@ -119,6 +129,7 @@ public class VDInfoClient {
         {MODULE_NEW_ENERGY, ID_EV_MILEAGE},
         {MODULE_NEW_ENERGY, ID_HEV_MILEAGE},
         {MODULE_NEW_ENERGY, ID_DISPLAY_SOC},
+        {MODULE_NEW_ENERGY, ID_DISPLAY_MILEAGE},
         {MODULE_NEW_ENERGY, ID_ENERGY_RECYCLE_LEVEL},
         // ID_VEHICLE_MODE_ID rimosso: confermato sul campo che restituisce sempre
         // IS_NULL su questa auto (non supportato), inutile intasare il log.
