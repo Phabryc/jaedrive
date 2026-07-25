@@ -62,6 +62,19 @@ public class VDInfoClient {
     public static final int ID_AVERAGE_OIL_CONSUMPTION_RECENTLY_50KM = 0x24;
     public static final int ID_FUEL_PERCENT        = 0x44;
     public static final int ID_INSTANTANEOUS_CONSUMPTION = 0x46;
+    // CONFERMATO con un vero chiamante: com.desay.launcher.common.b.b (helper condiviso in
+    // SVSetting.apk) chiama getItemValue(0x50004, 0x5f), scompone il risultato bit a bit in
+    // un array di 4 booleani (uno per ruota) e lo passa a onTirePressureWarning(ZZZZ) per
+    // accendere le icone di allarme gomme nell'app Settings - stesso livello di evidenza di
+    // ID_ENERGY_RECYCLE_LEVEL. Formato esatto dell'array VALUE restituito da IVDBus.get()
+    // (quanti elementi, quale contiene il bitfield) non confermato per la nostra chiamata
+    // "get" grezza - loggato raw per ora, vedi MainActivity.renderTirePressureWarning().
+    public static final int ID_TIRE_PRESSURE_WARNING = 0x5f;
+    // Stessa classe/modulo, subito dopo il warning nell'enum - presumibilmente il valore
+    // numerico vero (PSI/kPa) per ruota, ma NESSUN caller trovato in nessuno dei 6 APK
+    // decompilati - stessa situazione in cui erano VIN_ALT/MODEL_CODE/BRAND prima di
+    // provarli. Potrebbe restituire IS_NULL o un valore reale, non lo sappiamo senza test.
+    public static final int ID_TIRE_PRESSURE = 0x8c;
     // Trovato nel decompile di SVVDSCarInfo.apk (com.desaysv.ivi.extra.project.carinfo.ReadOnlyID),
     // stesso modulo READONLY_INFO gia' confermato funzionante per i segnali carburante. Nessun
     // caller di riferimento trovato nei decompile per capire il formato esatto del valore
@@ -116,6 +129,8 @@ public class VDInfoClient {
         {MODULE_READONLY_INFO, ID_AVERAGE_OIL_CONSUMPTION_RECENTLY_50KM},
         {MODULE_READONLY_INFO, ID_FUEL_PERCENT},
         {MODULE_READONLY_INFO, ID_INSTANTANEOUS_CONSUMPTION},
+        {MODULE_READONLY_INFO, ID_TIRE_PRESSURE_WARNING},
+        {MODULE_READONLY_INFO, ID_TIRE_PRESSURE},
         {MODULE_READONLY_INFO, ID_VIN},
         {MODULE_DOANOSE, ID_VIN_ALT},
         {MODULE_DOANOSE, ID_MODEL_CODE},

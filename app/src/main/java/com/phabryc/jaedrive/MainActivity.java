@@ -407,6 +407,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int KEY_VIN_ALT = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_VIN_ALT);
     private static final int KEY_MODEL_CODE = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_MODEL_CODE);
     private static final int KEY_BRAND = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_BRAND);
+    private static final int KEY_TIRE_PRESSURE_WARNING = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE_WARNING);
+    private static final int KEY_TIRE_PRESSURE = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE);
 
     // Azzeramento irreversibile (il progresso accumulato dall'ultimo reset va perso, solo
     // archiviato nello Storico) - conferma esplicita prima di procedere, stesso pattern
@@ -2092,6 +2094,8 @@ public class MainActivity extends AppCompatActivity {
                     if (key == KEY_VIN_ALT) renderVin(value, true);
                     if (key == KEY_MODEL_CODE) renderModelInfo(value, false);
                     if (key == KEY_BRAND) renderModelInfo(value, true);
+                    if (key == KEY_TIRE_PRESSURE_WARNING) renderTirePressureWarning(value);
+                    if (key == KEY_TIRE_PRESSURE) renderTirePressureRaw(value);
                 });
                 // L'accumulo km (ID_TRIP) e l'aggiornamento carburante per TripConsumption/
                 // ManualTripComputer avvengono SOLO in TrackingService (unica fonte, gira
@@ -2193,6 +2197,23 @@ public class MainActivity extends AppCompatActivity {
         String combined = ((resolvedBrand != null ? resolvedBrand : "") + " "
             + (resolvedModelCode != null ? resolvedModelCode : "")).trim();
         if (!combined.isEmpty()) tvVehicleModel.setText(combined);
+    }
+
+    // Sperimentale (2026-07-25): ID_TIRE_PRESSURE_WARNING ha un vero chiamante confermato nel
+    // decompile (com.desay.launcher.common.b.b -> onTirePressureWarning(ZZZZ), un booleano
+    // per ruota via scomposizione bit a bit di un intero) ma non sappiamo ancora come
+    // IVDBus.get() impacchetta quell'intero nell'array VALUE che riceviamo qui (quante
+    // posizioni, quale contiene il bitfield) - nessuna UI dedicata finche' non emerge un
+    // pattern chiaro dal log di un giro in auto reale, solo log grezzo per ora.
+    private void renderTirePressureWarning(int[] raw) {
+        appendLog("[VDB] TIRE_PRESSURE_WARNING raw=" + Arrays.toString(raw));
+    }
+
+    // ID_TIRE_PRESSURE: nessun caller trovato in nessuno dei 6 APK decompilati - stessa
+    // situazione sperimentale di VIN_ALT/MODEL_CODE/BRAND prima di provarli. Solo log
+    // grezzo, per capire dal campo se restituisce IS_NULL o un valore reale.
+    private void renderTirePressureRaw(int[] raw) {
+        appendLog("[VDB] TIRE_PRESSURE raw=" + Arrays.toString(raw));
     }
 
     private String driveModeLabel(int v) {
