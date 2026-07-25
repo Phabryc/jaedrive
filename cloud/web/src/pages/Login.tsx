@@ -8,6 +8,7 @@ import {
 import { auth, googleProvider } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { ApiError } from "../lib/api";
+import jdLogo from "../assets/jd_logo.png";
 
 export default function Login() {
   const { user, loading } = useAuth();
@@ -54,7 +55,7 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm rounded-xl border border-surface-border bg-surface p-6">
-        <h1 className="mb-1 text-xl font-semibold text-accent">JaeDrive</h1>
+        <img src={jdLogo} alt="JaeDrive" className="mb-4 h-10 w-auto" />
         <p className="mb-6 text-sm text-onsurface-variant">
           {mode === "signin" ? "Accedi al tuo account" : "Crea un nuovo account"}
         </p>
