@@ -25,8 +25,11 @@ public class GpxReader {
 
             boolean inTrkpt = false;
             boolean inEnergyFlow = false;
+            boolean inBatteryPct = false;
+            boolean inFuelPct = false;
             double lat = 0, lon = 0;
             int energyFlow = -1;
+            float batteryPct = -1f, fuelPct = -1f;
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 switch (eventType) {
@@ -35,10 +38,16 @@ public class GpxReader {
                         if ("trkpt".equals(name)) {
                             inTrkpt = true;
                             energyFlow = -1;
+                            batteryPct = -1f;
+                            fuelPct = -1f;
                             lat = parseOrZero(parser.getAttributeValue(null, "lat"));
                             lon = parseOrZero(parser.getAttributeValue(null, "lon"));
-                        } else if (inTrkpt && isEnergyFlowTag(name)) {
+                        } else if (inTrkpt && isExtensionTag(name, "energyFlow")) {
                             inEnergyFlow = true;
+                        } else if (inTrkpt && isExtensionTag(name, "batteryPct")) {
+                            inBatteryPct = true;
+                        } else if (inTrkpt && isExtensionTag(name, "fuelPct")) {
+                            inFuelPct = true;
                         }
                         break;
                     }
@@ -48,15 +57,29 @@ public class GpxReader {
                                 energyFlow = Integer.parseInt(parser.getText().trim());
                             } catch (Exception ignored) {
                             }
+                        } else if (inBatteryPct) {
+                            try {
+                                batteryPct = Float.parseFloat(parser.getText().trim());
+                            } catch (Exception ignored) {
+                            }
+                        } else if (inFuelPct) {
+                            try {
+                                fuelPct = Float.parseFloat(parser.getText().trim());
+                            } catch (Exception ignored) {
+                            }
                         }
                         break;
                     }
                     case XmlPullParser.END_TAG: {
                         String name = parser.getName();
-                        if (isEnergyFlowTag(name)) {
+                        if (isExtensionTag(name, "energyFlow")) {
                             inEnergyFlow = false;
+                        } else if (isExtensionTag(name, "batteryPct")) {
+                            inBatteryPct = false;
+                        } else if (isExtensionTag(name, "fuelPct")) {
+                            inFuelPct = false;
                         } else if ("trkpt".equals(name) && inTrkpt) {
-                            points.add(new TripPoint(lat, lon, energyFlow));
+                            points.add(new TripPoint(lat, lon, energyFlow, batteryPct, fuelPct));
                             inTrkpt = false;
                         }
                         break;
@@ -82,9 +105,10 @@ public class GpxReader {
         }
     }
 
-    // L'estensione e' scritta come <jd:energyFlow> (vedi TrackingService.buildGpx()):
-    // confrontiamo anche solo il nome locale, in caso il parser non normalizzi il prefisso.
-    private static boolean isEnergyFlowTag(String name) {
-        return name != null && (name.equals("energyFlow") || name.endsWith(":energyFlow"));
+    // Le estensioni sono scritte come <jd:energyFlow>/<jd:batteryPct>/<jd:fuelPct> (vedi
+    // TrackingService.buildGpx()): confrontiamo anche solo il nome locale, in caso il
+    // parser non normalizzi il prefisso.
+    private static boolean isExtensionTag(String name, String localName) {
+        return name != null && (name.equals(localName) || name.endsWith(":" + localName));
     }
 }

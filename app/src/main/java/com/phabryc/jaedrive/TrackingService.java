@@ -92,6 +92,15 @@ public class TrackingService extends Service {
     // legacy start_km/end_km di TripRecord (mai mostrati in UI, tenuti solo per
     // compatibilita' di schema col database gia' presente sul dispositivo).
     private static final int KEY_TRIP_KM = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TRIP);
+    // % batteria/carburante campionati per punto GPS insieme a energyFlow, scritti come
+    // estensioni <jd:batteryPct>/<jd:fuelPct> nel GPX (vedi buildGpx()) - stessa formula di
+    // decodifica gia' confermata sul campo e usata da MainActivity per la barra di stato
+    // (updateFooterStatus()): combine a 16 bit big-endian, /100 per il SOC, /10 per il
+    // carburante. -1 finche' non arriva la prima lettura.
+    private static final int KEY_DISPLAY_SOC = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DISPLAY_SOC);
+    private static final int KEY_FUEL_PERCENT = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_FUEL_PERCENT);
+    private float lastKnownSocPct = -1f;
+    private float lastKnownFuelPct = -1f;
     private int lastKnownKm = -1;
     // Solo per i campi legacy start_fuel_raw/end_fuel_raw di TripRecord (mai mostrati in
     // UI) - il consumo vero e' un accumulatore, vedi lastFuelLiters/handleFuel().
@@ -114,12 +123,15 @@ public class TrackingService extends Service {
         public void onLocationChanged(Location location) {
             // Il 5o elemento e' il valore ENERGY_FLOW campionato nello stesso istante del
             // punto GPS (-1 se non ancora disponibile), usato per colorare la traccia per
-            // segmento e calcolare le percentuali EV/serie/parallelo del viaggio.
+            // segmento e calcolare le percentuali EV/serie/parallelo del viaggio. 6o e 7o:
+            // % batteria e % carburante nello stesso istante (-1 se non ancora disponibili).
             points.add(new double[]{
                 location.getLatitude(), location.getLongitude(),
                 location.hasAltitude() ? location.getAltitude() : 0.0,
                 (double) location.getTime(),
-                (double) lastKnownEnergyFlow
+                (double) lastKnownEnergyFlow,
+                (double) lastKnownSocPct,
+                (double) lastKnownFuelPct
             });
             updateNotification("Registrazione percorso: " + points.size() + " punti");
             if (points.size() % 5 == 0) {
@@ -235,6 +247,10 @@ public class TrackingService extends Service {
                     lastKnownEnergyFlow = value[0];
                 } else if (key == KEY_TRIP_KM) {
                     handleTripKm(value);
+                } else if (key == KEY_DISPLAY_SOC && value.length >= 2) {
+                    lastKnownSocPct = (value[0] * 256 + value[1]) / 100.0f;
+                } else if (key == KEY_FUEL_PERCENT && value.length >= 2) {
+                    lastKnownFuelPct = (value[0] * 256 + value[1]) / 10.0f;
                 }
                 tryMigrateManualLegacy();
             }
@@ -669,12 +685,16 @@ public class TrackingService extends Service {
         for (double[] p : points) {
             String iso = Instant.ofEpochMilli((long) p[3]).toString();
             int energyFlow = p.length > 4 ? (int) p[4] : -1;
+            double socPct = p.length > 5 ? p[5] : -1;
+            double fuelPct = p.length > 6 ? p[6] : -1;
             sb.append(String.format(Locale.US,
                 "    <trkpt lat=\"%.6f\" lon=\"%.6f\"><ele>%.1f</ele><time>%s</time>",
                 p[0], p[1], p[2], iso));
-            if (energyFlow >= 0) {
-                sb.append("<extensions><jd:energyFlow>").append(energyFlow).append("</jd:energyFlow></extensions>");
-            }
+            StringBuilder ext = new StringBuilder();
+            if (energyFlow >= 0) ext.append("<jd:energyFlow>").append(energyFlow).append("</jd:energyFlow>");
+            if (socPct >= 0) ext.append(String.format(Locale.US, "<jd:batteryPct>%.1f</jd:batteryPct>", socPct));
+            if (fuelPct >= 0) ext.append(String.format(Locale.US, "<jd:fuelPct>%.1f</jd:fuelPct>", fuelPct));
+            if (ext.length() > 0) sb.append("<extensions>").append(ext).append("</extensions>");
             sb.append("</trkpt>\n");
         }
         sb.append("  </trkseg></trk>\n</gpx>\n");
