@@ -1,5 +1,5 @@
 import { auth } from "./firebase";
-import type { Vehicle, TripDetail, TripsPage } from "./types";
+import type { Vehicle, TripDetail, TripsPage, VehicleStats, VehicleCalendarStats } from "./types";
 
 class ApiError extends Error {
   constructor(
@@ -70,6 +70,17 @@ export const api = {
   trip: (id: string) => request<TripDetail>(`/trips/${id}`),
 
   deleteTrip: (id: string) => request<void>(`/trips/${id}`, { method: "DELETE" }),
+
+  stats: (vehicleId: string, params: { from?: string; to?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.from) qs.set("from", params.from);
+    if (params.to) qs.set("to", params.to);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<VehicleStats>(`/vehicles/${vehicleId}/stats${suffix}`);
+  },
+
+  statsCalendar: (vehicleId: string, year?: number) =>
+    request<VehicleCalendarStats>(`/vehicles/${vehicleId}/stats/calendar${year ? `?year=${year}` : ""}`),
 };
 
 export { ApiError };

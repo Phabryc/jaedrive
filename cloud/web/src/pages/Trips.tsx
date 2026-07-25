@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import type { TripsPage } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { TripRow } from "../components/TripRow";
+import { VehicleStatsPanel } from "../components/VehicleStatsPanel";
 
 const KIND_FILTERS = [
   { value: "", label: "Tutti" },
@@ -28,6 +29,8 @@ export default function Trips() {
 
   return (
     <AppShell>
+      {vehicleId && <VehicleStatsPanel vehicleId={vehicleId} />}
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Viaggi</h1>
         <div className="flex gap-2">

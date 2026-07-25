@@ -1,10 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { TripDetail as TripDetailType } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { TripMap } from "../components/TripMap";
-import { BUCKET_COLOR } from "../lib/energyFlow";
+import { BUCKET_COLOR, type EnergyBucket } from "../lib/energyFlow";
+import { parseGpxPoints, cumulativeDistanceKm } from "../lib/gpx";
+import { BatteryFuelChart, SpeedChart, ElevationChart } from "../components/TripTimelineCharts";
+import { ExperimentalTripCharts } from "../components/ExperimentalTripCharts";
+import { CategoryBand } from "../components/CategoryBand";
+
+const DRIVE_MODE_COLOR: Record<string, string> = { "0": "#2E7D32", "1": "#00BFFF", "2": "#C62828" };
+const DRIVE_MODE_LABEL: Record<string, string> = { "0": "ECO", "1": "NORMAL", "2": "SPORT" };
 
 const KIND_LABEL: Record<TripDetailType["kind"], string> = {
   auto: "Percorso GPS",
@@ -21,6 +28,11 @@ export default function TripDetail() {
   useEffect(() => {
     if (id) api.trip(id).then(setTrip);
   }, [id]);
+
+  // Calcolati sempre (regole degli hook: mai dopo un return condizionale) - vuoti finche'
+  // il trip non e' ancora caricato o non ha una traccia GPX (es. viaggio manuale).
+  const points = useMemo(() => (trip?.gpxRaw ? parseGpxPoints(trip.gpxRaw) : []), [trip?.gpxRaw]);
+  const distancesKm = useMemo(() => cumulativeDistanceKm(points), [points]);
 
   async function handleDelete() {
     if (!trip || !confirm("Eliminare questo viaggio? L'operazione non può essere annullata.")) return;
@@ -94,6 +106,29 @@ export default function TripDetail() {
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {points.length > 1 && (
+        <div className="mt-4 flex flex-col gap-4">
+          <CategoryBand<EnergyBucket>
+            title="Modalità energia nel tempo"
+            distancesKm={distancesKm}
+            values={points.map((p) => p.bucket)}
+            colorMap={BUCKET_COLOR}
+            labelMap={{ EV: "EV", SERIES: "SERIES", PARALLEL: "PARALLEL", CHR: "CHR", IDLE: "IDLE" }}
+          />
+          <CategoryBand
+            title="Modalità di guida"
+            distancesKm={distancesKm}
+            values={points.map((p) => (p.driveMode != null ? String(p.driveMode) : null))}
+            colorMap={DRIVE_MODE_COLOR}
+            labelMap={DRIVE_MODE_LABEL}
+          />
+          <BatteryFuelChart points={points} distancesKm={distancesKm} />
+          <SpeedChart points={points} distancesKm={distancesKm} />
+          <ElevationChart points={points} distancesKm={distancesKm} />
+          <ExperimentalTripCharts points={points} distancesKm={distancesKm} />
         </div>
       )}
     </AppShell>
