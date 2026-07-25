@@ -2,8 +2,14 @@
 <!-- Dialogo di associazione auto->account cloud, stesso stile "glass card" degli altri
      dialoghi custom (vedi MainActivity.showConfirmDialog/showEditLabelDialog). Quattro
      sezioni alternative (VIN manuale / stato-caricamento / codice+QR / errore), una sola
-     visibile per volta - vedi MainActivity.showPairingDialog(). -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     visibile per volta - vedi MainActivity.showPairingDialog(). Avvolto in uno ScrollView
+     perche' su schermi bassi (es. head unit auto, spesso larghi ma non altissimi) il
+     contenuto della sezione VIN puo' superare l'altezza visibile del dialog - confermato sul
+     campo: senza scroll il pulsante "usa un identificativo generato" restava irraggiungibile. -->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+<LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -66,10 +72,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/dialog_pairing_use_guid"
-            android:textColor="@color/on_surface_variant"
-            android:textSize="15sp"
+            android:textColor="@color/primary"
+            android:textSize="17sp"
+            android:textStyle="bold"
             android:gravity="center"
-            android:paddingVertical="14dp"
+            android:paddingVertical="16dp"
+            android:layout_marginTop="4dp"
             android:clickable="true"
             android:focusable="true"/>
     </LinearLayout>
@@ -185,3 +193,4 @@
         android:clickable="true"
         android:focusable="true"/>
 </LinearLayout>
+</ScrollView>
