@@ -1,8 +1,11 @@
-// Striscia categorica lungo la distanza del viaggio (drive mode, o modalita' energyFlow) -
-// stesso principio gia' stabilito per la traccia sulla mappa (parseGpxTrack/TripMap):
-// segmenti a taglio netto raggruppando le run contigue dello stesso valore, SENZA gap tra
-// un segmento e l'altro (rappresentano un percorso fisico continuo, non barre separate -
-// un gap qui spezzerebbe visivamente una strada che non si e' davvero interrotta).
+import { computeRunSegments } from "../lib/segments";
+
+// Striscia categorica lungo la distanza del viaggio (drive mode) - stesso principio gia'
+// stabilito per la traccia sulla mappa (parseGpxTrack/TripMap): segmenti a taglio netto
+// raggruppando le run contigue dello stesso valore, SENZA gap tra un segmento e l'altro
+// (rappresentano un percorso fisico continuo, non barre separate - un gap qui spezzerebbe
+// visivamente una strada che non si e' davvero interrotta).
+
 export interface CategoryBandProps<T extends string> {
   title: string;
   distancesKm: number[];
@@ -13,21 +16,7 @@ export interface CategoryBandProps<T extends string> {
 
 export function CategoryBand<T extends string>({ title, distancesKm, values, colorMap, labelMap }: CategoryBandProps<T>) {
   const totalKm = distancesKm[distancesKm.length - 1] ?? 0;
-
-  type Segment = { value: T; fromKm: number; toKm: number };
-  const segments: Segment[] = [];
-  for (let i = 0; i < values.length; i++) {
-    const v = values[i];
-    if (v == null) continue;
-    const km = distancesKm[i] ?? 0;
-    const last = segments[segments.length - 1];
-    if (last && last.value === v) {
-      last.toKm = km;
-    } else {
-      segments.push({ value: v, fromKm: km, toKm: km });
-    }
-  }
-
+  const segments = computeRunSegments(distancesKm, values);
   const present = Array.from(new Set(segments.map((s) => s.value)));
 
   if (segments.length === 0 || totalKm <= 0) return null;

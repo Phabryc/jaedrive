@@ -4,19 +4,16 @@ import { api } from "../lib/api";
 import type { TripDetail as TripDetailType } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { TripMap } from "../components/TripMap";
-import { BUCKET_COLOR, type EnergyBucket } from "../lib/energyFlow";
+import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { parseGpxPoints, cumulativeDistanceKm } from "../lib/gpx";
 import { BatteryFuelChart, SpeedChart, ElevationChart } from "../components/TripTimelineCharts";
 import { ExperimentalTripCharts } from "../components/ExperimentalTripCharts";
 import { CategoryBand } from "../components/CategoryBand";
-
-const DRIVE_MODE_COLOR: Record<string, string> = { "0": "#2E7D32", "1": "#00BFFF", "2": "#C62828" };
-const DRIVE_MODE_LABEL: Record<string, string> = { "0": "ECO", "1": "NORMAL", "2": "SPORT" };
+import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
 
 const KIND_LABEL: Record<TripDetailType["kind"], string> = {
   auto: "Percorso GPS",
-  manual_a: "Trip A",
-  manual_b: "Trip B",
+  manual: "Viaggio manuale",
 };
 
 export default function TripDetail() {
@@ -88,40 +85,26 @@ export default function TripDetail() {
       </div>
 
       {hasBreakdown && (
-        <div className="mt-4 rounded-lg border border-surface-border bg-surface p-4">
-          <p className="mb-3 text-sm font-medium">Ripartizione energia</p>
-          <div className="flex h-3 overflow-hidden rounded-full">
-            {breakdown.map((b) => (
-              <div
-                key={b.key}
-                style={{ width: `${b.value ?? 0}%`, backgroundColor: BUCKET_COLOR[b.key] }}
-              />
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-onsurface-variant">
-            {breakdown.map((b) => (
-              <span key={b.key} className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: BUCKET_COLOR[b.key] }} />
-                {b.key} {b.value != null ? `${b.value.toFixed(0)}%` : "–"}
-              </span>
-            ))}
-          </div>
+        <div className="mt-4 flex items-stretch rounded-lg border border-surface-border bg-surface p-4">
+          {breakdown.map((b, i) => (
+            <div key={b.key} className="flex flex-1 items-center">
+              <div className="flex flex-1 flex-col items-center gap-2 py-1">
+                <span className="h-4 w-4 rounded-full" style={{ backgroundColor: BUCKET_COLOR[b.key] }} />
+                <span className="text-lg font-bold tabular-nums">{(b.value ?? 0).toFixed(0)}%</span>
+                <span className="text-sm text-onsurface-variant">{BUCKET_LABEL[b.key]}</span>
+              </div>
+              {i < breakdown.length - 1 && <div className="h-14 w-px bg-surface-border" />}
+            </div>
+          ))}
         </div>
       )}
 
       {points.length > 1 && (
         <div className="mt-4 flex flex-col gap-4">
-          <CategoryBand<EnergyBucket>
-            title="Modalità energia nel tempo"
-            distancesKm={distancesKm}
-            values={points.map((p) => p.bucket)}
-            colorMap={BUCKET_COLOR}
-            labelMap={{ EV: "EV", SERIES: "SERIES", PARALLEL: "PARALLEL", CHR: "CHR", IDLE: "IDLE" }}
-          />
           <CategoryBand
             title="Modalità di guida"
             distancesKm={distancesKm}
-            values={points.map((p) => (p.driveMode != null ? String(p.driveMode) : null))}
+            values={points.map((p) => (p.driveMode != null ? (String(p.driveMode) as "0" | "1" | "2") : null))}
             colorMap={DRIVE_MODE_COLOR}
             labelMap={DRIVE_MODE_LABEL}
           />

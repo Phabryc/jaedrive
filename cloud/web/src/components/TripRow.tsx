@@ -3,8 +3,7 @@ import type { TripSummary } from "../lib/types";
 
 const KIND_LABEL: Record<TripSummary["kind"], string> = {
   auto: "Percorso GPS",
-  manual_a: "Trip A",
-  manual_b: "Trip B",
+  manual: "Viaggio manuale",
 };
 
 function formatRange(startedAt: string, endedAt: string | null): string {

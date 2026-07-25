@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import { api } from "../lib/api";
 import type { VehicleStats } from "../lib/types";
-import { BUCKET_COLOR } from "../lib/energyFlow";
+import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { baseGridOptions, CHART_SURFACE, CHART_BORDER, CHART_TEXT_MUTED } from "../lib/chartTheme";
 import { CalendarHeatmap } from "./CalendarHeatmap";
 
@@ -61,6 +61,7 @@ export function VehicleStatsPanel({ vehicleId }: { vehicleId: string }) {
           title="Ripartizione energia"
           values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
           colorMap={BUCKET_COLOR}
+          labelMap={BUCKET_LABEL}
         />
         <Donut
           title="Ripartizione modalità di guida"
@@ -97,7 +98,17 @@ function Kpi({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Donut({ title, values, colorMap }: { title: string; values: Record<string, number | null>; colorMap: Record<string, string> }) {
+function Donut({
+  title,
+  values,
+  colorMap,
+  labelMap,
+}: {
+  title: string;
+  values: Record<string, number | null>;
+  colorMap: Record<string, string>;
+  labelMap?: Record<string, string>;
+}) {
   const entries = Object.entries(values).filter(([, v]) => v != null && v > 0) as [string, number][];
   if (entries.length === 0) {
     return (
@@ -130,7 +141,7 @@ function Donut({ title, values, colorMap }: { title: string; values: Record<stri
               center: ["50%", "42%"],
               itemStyle: { borderColor: "#0A0A0A", borderWidth: 2 },
               label: { color: "#E5E2E1", fontSize: 11 },
-              data: entries.map(([name, value]) => ({ name, value, itemStyle: { color: colorMap[name] } })),
+              data: entries.map(([key, value]) => ({ name: labelMap?.[key] ?? key, value, itemStyle: { color: colorMap[key] } })),
             },
           ],
         }}

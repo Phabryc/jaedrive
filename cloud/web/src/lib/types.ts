@@ -10,7 +10,7 @@ export interface Vehicle {
 
 export interface TripSummary {
   id: string;
-  kind: "auto" | "manual_a" | "manual_b";
+  kind: "auto" | "manual";
   startedAt: string;
   endedAt: string | null;
   label: string | null;
@@ -63,5 +63,5 @@ export interface VehicleStats {
 
 export interface VehicleCalendarStats {
   year: number;
-  days: { date: string; km: number; tripCount: number }[];
+  days: { date: string; km: number; tripCount: number; avgConsumption: number | null }[];
 }

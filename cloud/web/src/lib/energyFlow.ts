@@ -32,3 +32,14 @@ export const BUCKET_COLOR: Record<EnergyBucket, string> = {
   CHR: "#2E7D32",
   IDLE: "#4A4A4A",
 };
+
+// Stesse etichette mostrate in app (values/values-it strings.xml: label_flow_ev/series/
+// parallel/regen/unknown) - "SERIES"/"PARALLEL"/"CHR" sono solo i nomi interni dell'enum,
+// mai mostrati direttamente all'utente.
+export const BUCKET_LABEL: Record<EnergyBucket, string> = {
+  EV: "EV",
+  SERIES: "HEV-S",
+  PARALLEL: "HEV-P",
+  CHR: "CHARGE",
+  IDLE: "IDLE",
+};

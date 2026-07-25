@@ -9,8 +9,7 @@ import { VehicleStatsPanel } from "../components/VehicleStatsPanel";
 const KIND_FILTERS = [
   { value: "", label: "Tutti" },
   { value: "auto", label: "Percorsi GPS" },
-  { value: "manual_a", label: "Trip A" },
-  { value: "manual_b", label: "Trip B" },
+  { value: "manual", label: "Viaggi manuali" },
 ] as const;
 
 export default function Trips() {
