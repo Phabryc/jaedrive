@@ -201,6 +201,13 @@ public class TrackingService extends Service {
         createNotificationChannel();
         startForeground(NOTIF_ID, buildNotification("In attesa di accensione..."));
         appendServiceLog("TrackingService avviato (onCreate)");
+        // Difensivo: normalmente il backfill dei trip storici parte gia' subito dopo un
+        // pairing riuscito (vedi MainActivity.finishPairingSuccess()), ma questo copre
+        // anche il caso limite di un trip rimasto non sincronizzato per qualche motivo
+        // (es. un crash nello stesso istante del pairing) - ad ogni avvio del servizio in
+        // background, se l'auto e' associata, si ricontrolla. SyncScheduler.enqueueSync()
+        // e' economico quando non c'e' nulla da fare (WorkManager APPEND_OR_REPLACE).
+        SyncScheduler.enqueueSync(this);
         connectCar();
         connectVdbInfo();
     }

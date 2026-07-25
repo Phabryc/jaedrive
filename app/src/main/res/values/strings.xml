@@ -89,9 +89,14 @@
     <string name="dialog_unpair_title">Unlink this car?</string>
     <string name="dialog_unpair_message">Trips already uploaded stay on jaedrive.com, but new ones will stop syncing until you link again.</string>
     <string name="toast_cloud_unpaired">Car unlinked</string>
+    <string name="dialog_unpair_cloud_title">Also delete this car from the cloud?</string>
+    <string name="dialog_unpair_cloud_message">This permanently deletes the car and every uploaded trip from jaedrive.com. This action cannot be undone.</string>
+    <string name="dialog_delete_trips_cloud_title">Also delete from the cloud?</string>
+    <string name="dialog_delete_trips_cloud_message">The selected trips were already uploaded to jaedrive.com. Delete them there too? This action cannot be undone.</string>
     <string name="dialog_pairing_title">Link car to cloud</string>
     <string name="dialog_pairing_vin_message">The VIN could not be read automatically. Enter it manually (found on the registration document or the driver-side door pillar).</string>
     <string name="dialog_pairing_vin_hint">e.g. LVGBG25Y1MY123456</string>
+    <string name="dialog_pairing_use_guid">Don\'t know the VIN? Use a generated ID instead</string>
     <string name="dialog_btn_continue">CONTINUE</string>
     <string name="dialog_pairing_starting">Requesting a pairing code...</string>
     <string name="dialog_pairing_code_message">On jaedrive.com, enter this code or scan the QR code with your phone:</string>

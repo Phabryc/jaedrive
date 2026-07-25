@@ -63,6 +63,7 @@ public class SyncWorker extends Worker {
 
     private JSONObject buildPayload(TripRecord r) throws JSONException {
         JSONObject payload = new JSONObject();
+        if (r.clientUuid != null) payload.put("clientUuid", r.clientUuid);
         payload.put("kind", kindFor(r));
         payload.put("startedAt", isoUtc(r.startTime));
         if (r.endTime > 0) payload.put("endedAt", isoUtc(r.endTime));

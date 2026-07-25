@@ -53,6 +53,10 @@ public class TripRecord {
     // non e' un identificatore affidabile dello slot d'origine - usato per popolare il
     // campo "kind" ('manual_a'/'manual_b') nel payload di upload cloud, vedi SyncWorker.
     public String manualSlot;
+    // Generato da TripDatabase.insertTrip() se non gia' impostato - identificatore stabile
+    // usato come chiave di idempotenza primaria dal server cloud (vedi TripDatabase per il
+    // dettaglio, e SyncWorker per l'invio nel payload di upload).
+    public String clientUuid;
 
     // Usato da TripDatabase per ricostruire i record letti dal db.
     public TripRecord() {

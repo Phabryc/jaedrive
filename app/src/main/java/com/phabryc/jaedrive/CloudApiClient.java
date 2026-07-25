@@ -51,7 +51,7 @@ public class CloudApiClient {
     }
 
     public static PairingStatus pairingStatus(String pairingRequestId) throws IOException, JSONException {
-        JSONObject resp = getJson("/api/device/pairing/status/" + pairingRequestId);
+        JSONObject resp = getJson("/api/device/pairing/status/" + pairingRequestId, null);
         String status = resp.getString("status");
         String token = resp.has("deviceToken") && !resp.isNull("deviceToken") ? resp.getString("deviceToken") : null;
         return new PairingStatus(status, token);
@@ -68,6 +68,55 @@ public class CloudApiClient {
         postJson("/api/device/heartbeat", deviceToken, new JSONObject());
     }
 
+    public static class OwnerProfile {
+        public final String firstName;
+        public final String lastName;
+        public final String email;
+        public final String photoUrl; // nullable, URL esterno (es. foto Google) - vedi CLOUD card
+
+        OwnerProfile(String firstName, String lastName, String email, String photoUrl) {
+            this.firstName = firstName;
+            this.lastName = lastName;
+            this.email = email;
+            this.photoUrl = photoUrl;
+        }
+    }
+
+    // Nome/cognome/email/foto dell'account a cui e' associata quest'auto - mostrati nella
+    // card CLOUD di Impostazioni (vedi MainActivity.refreshCloudSection()).
+    public static OwnerProfile getOwnerProfile(String deviceToken) throws IOException, JSONException {
+        JSONObject resp = getJson("/api/device/owner", deviceToken);
+        return new OwnerProfile(
+            resp.optString("firstName", null),
+            resp.optString("lastName", null),
+            resp.optString("email", null),
+            resp.isNull("photoUrl") ? null : resp.optString("photoUrl", null));
+    }
+
+    // Cancellazione di un singolo viaggio dal cloud - chiamata solo se l'utente conferma
+    // esplicitamente "elimina anche dal cloud" dopo una cancellazione locale (vedi
+    // MainActivity.confirmDeleteSelectedTrips()).
+    public static void deleteTrip(String deviceToken, String cloudTripId) throws IOException {
+        deleteRequest("/api/device/trips/" + cloudTripId, deviceToken);
+    }
+
+    // Cancellazione dell'intera auto dal cloud (cascata su viaggi/dispositivi lato server) -
+    // chiamata solo se l'utente conferma esplicitamente durante la disassociazione.
+    public static void deleteVehicle(String deviceToken) throws IOException {
+        deleteRequest("/api/device/vehicle", deviceToken);
+    }
+
+    private static void deleteRequest(String path, String bearerToken) throws IOException {
+        HttpURLConnection conn = open(path, "DELETE", bearerToken);
+        try {
+            readResponse(conn);
+        } catch (JSONException e) {
+            // Risposta 204 senza corpo, o corpo non-JSON inatteso - non e' un errore per una
+            // DELETE, l'unica cosa che conta e' che readResponse non abbia gia' lanciato per
+            // uno status HTTP non-2xx.
+        }
+    }
+
     private static JSONObject postJson(String path, String bearerToken, JSONObject body) throws IOException, JSONException {
         HttpURLConnection conn = open(path, "POST", bearerToken);
         conn.setDoOutput(true);
@@ -77,8 +126,8 @@ public class CloudApiClient {
         return readResponse(conn);
     }
 
-    private static JSONObject getJson(String path) throws IOException, JSONException {
-        HttpURLConnection conn = open(path, "GET", null);
+    private static JSONObject getJson(String path, String bearerToken) throws IOException, JSONException {
+        HttpURLConnection conn = open(path, "GET", bearerToken);
         return readResponse(conn);
     }
 

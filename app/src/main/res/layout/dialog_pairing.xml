@@ -61,6 +61,17 @@
             android:paddingVertical="14dp"
             android:clickable="true"
             android:focusable="true"/>
+        <TextView
+            android:id="@+id/btn_pairing_use_guid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_pairing_use_guid"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="15sp"
+            android:gravity="center"
+            android:paddingVertical="14dp"
+            android:clickable="true"
+            android:focusable="true"/>
     </LinearLayout>
 
     <!-- Sezione 2: richiesta in corso / attesa associazione -->

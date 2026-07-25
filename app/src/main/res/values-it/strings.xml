@@ -92,9 +92,14 @@
     <string name="dialog_unpair_title">Rimuovere l\'associazione?</string>
     <string name="dialog_unpair_message">I viaggi gia\' caricati restano su jaedrive.com, ma quelli nuovi smetteranno di sincronizzarsi finche\' non riassoci l\'auto.</string>
     <string name="toast_cloud_unpaired">Associazione rimossa</string>
+    <string name="dialog_unpair_cloud_title">Eliminare quest\'auto anche dal cloud?</string>
+    <string name="dialog_unpair_cloud_message">Elimina definitivamente l\'auto e tutti i viaggi caricati da jaedrive.com. Questa azione non puo\' essere annullata.</string>
+    <string name="dialog_delete_trips_cloud_title">Eliminare anche dal cloud?</string>
+    <string name="dialog_delete_trips_cloud_message">I viaggi selezionati erano gia\' stati caricati su jaedrive.com. Eliminarli anche li\'? Questa azione non puo\' essere annullata.</string>
     <string name="dialog_pairing_title">Associa auto al cloud</string>
     <string name="dialog_pairing_vin_message">Il VIN non e\' stato rilevato automaticamente. Inseriscilo manualmente (lo trovi sul libretto o sul montante lato guida).</string>
     <string name="dialog_pairing_vin_hint">es. LVGBG25Y1MY123456</string>
+    <string name="dialog_pairing_use_guid">Non conosci il VIN? Usa un identificativo generato</string>
     <string name="dialog_btn_continue">AVANTI</string>
     <string name="dialog_pairing_starting">Richiesta codice di associazione...</string>
     <string name="dialog_pairing_code_message">Su jaedrive.com inserisci questo codice, oppure inquadra il QR con lo smartphone:</string>

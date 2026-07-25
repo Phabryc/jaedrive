@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 // Storico dei viaggi (automatici GPS + manuali), sostituisce il precedente elenco
 // basato sui soli file .gpx in storage interno: ogni riga tiene insieme i dati
@@ -22,7 +23,10 @@ public class TripDatabase extends SQLiteOpenHelper {
     // una colonna NUOVA: serve una vera ALTER TABLE per i database gia' sul dispositivo,
     // altrimenti query/insert che la referenziano fallirebbero su un'installazione non pulita.
     // v3: aggiunte uploaded/cloud_trip_id (stato sincronizzazione col cloud, vedi SyncWorker).
-    private static final int DB_VERSION = 3;
+    // v4: aggiunta client_uuid (chiave di idempotenza upload lato server, vedi
+    // cloud/server/src/routes/device.ts) - backfillata per i trip gia' esistenti in
+    // onUpgrade() perche' SQLite non ha una funzione UUID() per farlo in un solo ALTER/UPDATE.
+    private static final int DB_VERSION = 4;
     private static final String TABLE = "trips";
 
     private static TripDatabase instance;
@@ -58,7 +62,8 @@ public class TripDatabase extends SQLiteOpenHelper {
             "start_label TEXT," +
             "uploaded INTEGER NOT NULL DEFAULT 0," +
             "cloud_trip_id TEXT," +
-            "manual_slot TEXT)");
+            "manual_slot TEXT," +
+            "client_uuid TEXT)");
     }
 
     @Override
@@ -70,6 +75,28 @@ public class TripDatabase extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN uploaded INTEGER NOT NULL DEFAULT 0");
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN cloud_trip_id TEXT");
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN manual_slot TEXT");
+        }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN client_uuid TEXT");
+            backfillClientUuids(db);
+        }
+    }
+
+    // Assegna un UUID ad ogni trip gia' presente sul dispositivo prima di questa versione
+    // (SQLite non ha una funzione UUID() integrata, quindi non e' un singolo UPDATE) - senza
+    // questo, un trip vecchio caricato prima di questa versione (con la vecchia chiave di
+    // idempotenza vehicleId+kind+startedAt) e poi ri-uploadato dopo una ri-associazione
+    // continuerebbe comunque a funzionare lato server (fallback sulla vecchia chiave), ma
+    // non avrebbe la protezione piu' forte del confronto diretto per UUID - vedi
+    // cloud/server/src/routes/device.ts.
+    private void backfillClientUuids(SQLiteDatabase db) {
+        try (Cursor c = db.query(TABLE, new String[]{"id"}, "client_uuid IS NULL", null, null, null, null)) {
+            while (c.moveToNext()) {
+                long id = c.getLong(0);
+                ContentValues cv = new ContentValues();
+                cv.put("client_uuid", UUID.randomUUID().toString());
+                db.update(TABLE, cv, "id = ?", new String[]{String.valueOf(id)});
+            }
         }
     }
 
@@ -98,6 +125,11 @@ public class TripDatabase extends SQLiteOpenHelper {
         // nessun call site lo imposta prima di insertTrip()).
         cv.put("uploaded", 0);
         cv.put("manual_slot", r.manualSlot);
+        // Generato qui (non dal chiamante) cosi' ogni trip ne ha sempre uno, a prescindere
+        // dal call site - vedi cloud/server/src/routes/device.ts per come viene usato lato
+        // server come chiave di idempotenza primaria.
+        if (r.clientUuid == null) r.clientUuid = UUID.randomUUID().toString();
+        cv.put("client_uuid", r.clientUuid);
         return getWritableDatabase().insert(TABLE, null, cv);
     }
 
@@ -173,6 +205,7 @@ public class TripDatabase extends SQLiteOpenHelper {
         r.uploaded = c.getInt(c.getColumnIndexOrThrow("uploaded")) != 0;
         r.cloudTripId = c.getString(c.getColumnIndexOrThrow("cloud_trip_id"));
         r.manualSlot = c.getString(c.getColumnIndexOrThrow("manual_slot"));
+        r.clientUuid = c.getString(c.getColumnIndexOrThrow("client_uuid"));
         return r;
     }
 }

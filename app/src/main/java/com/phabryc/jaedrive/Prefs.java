@@ -3,6 +3,8 @@ package com.phabryc.jaedrive;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.UUID;
+
 // Preferenze utente esposte nella sezione Impostazioni: unita' di misura (solo di
 // visualizzazione, i dati restano salvati internamente in km/litri) e interruttore
 // per la registrazione della traccia GPS.
@@ -15,6 +17,7 @@ public class Prefs {
     private static final String KEY_DEBUG_MODE_ENABLED = "debug_mode_enabled";
     private static final String KEY_CLOUD_DEVICE_TOKEN = "cloud_device_token";
     private static final String KEY_CLOUD_VEHICLE_ID = "cloud_vehicle_id";
+    private static final String KEY_DEVICE_GUID = "device_guid";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -87,5 +90,21 @@ public class Prefs {
             .remove(KEY_CLOUD_DEVICE_TOKEN)
             .remove(KEY_CLOUD_VEHICLE_ID)
             .apply();
+    }
+
+    // Identificativo stabile generato localmente la prima volta che serve, usato come
+    // fallback del VIN per il pairing quando l'utente non lo conosce/non vuole inserirlo a
+    // mano (vedi MainActivity, dialogo di pairing) - da' comunque un'identita' univoca
+    // all'auto lato server, anche se non e' il vero VIN. Persistito una sola volta: non
+    // sopravvive a una disinstallazione dell'app, ma non serve che lo faccia (i trip locali
+    // sparirebbero comunque insieme al resto del database in quel caso).
+    public static synchronized String getOrCreateDeviceGuid(Context ctx) {
+        SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String guid = p.getString(KEY_DEVICE_GUID, null);
+        if (guid == null) {
+            guid = UUID.randomUUID().toString();
+            p.edit().putString(KEY_DEVICE_GUID, guid).apply();
+        }
+        return guid;
     }
 }

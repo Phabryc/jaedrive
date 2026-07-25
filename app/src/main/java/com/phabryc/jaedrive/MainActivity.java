@@ -123,6 +123,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvAppVersion;
     private TextView tvVehicleVin;
     private TextView tvCloudStatus, tvCloudSubtitle, btnCloudPair, btnCloudUnpair;
+    private ImageView ivCloudPhoto;
 
     // Log
     private TextView tvLog;
@@ -292,6 +293,7 @@ public class MainActivity extends AppCompatActivity {
         tvCloudSubtitle = findViewById(R.id.tv_cloud_subtitle);
         btnCloudPair = findViewById(R.id.btn_cloud_pair);
         btnCloudUnpair = findViewById(R.id.btn_cloud_unpair);
+        ivCloudPhoto = findViewById(R.id.iv_cloud_photo);
 
         tvLog = findViewById(R.id.tv_log);
         scrollLog = findViewById(R.id.scroll_log);
@@ -531,6 +533,7 @@ public class MainActivity extends AppCompatActivity {
 
         android.widget.EditText etVin = root.findViewById(R.id.et_pairing_vin);
         TextView btnVinContinue = root.findViewById(R.id.btn_pairing_vin_continue);
+        TextView btnUseGuid = root.findViewById(R.id.btn_pairing_use_guid);
         TextView btnRetry = root.findViewById(R.id.btn_pairing_retry);
         TextView btnClose = root.findViewById(R.id.btn_pairing_close);
 
@@ -542,6 +545,12 @@ public class MainActivity extends AppCompatActivity {
             }
             startPairing(root, vin);
         });
+        // Fallback per chi non conosce/non vuole inserire il VIN a mano: un identificativo
+        // generato una volta sola e persistito (Prefs.getOrCreateDeviceGuid()) da' comunque
+        // un'identita' univoca all'auto lato server - non e' un vero VIN, ma il campo
+        // `vin` del pairing e' solo una chiave di unicita' per il server, non validata come
+        // numero di telaio reale.
+        btnUseGuid.setOnClickListener(v -> startPairing(root, Prefs.getOrCreateDeviceGuid(this)));
         btnRetry.setOnClickListener(v -> resetPairingFlow(root));
         btnClose.setOnClickListener(v -> pairingDialog.dismiss());
 
@@ -877,9 +886,14 @@ public class MainActivity extends AppCompatActivity {
 
     private void deleteSelectedTrips() {
         List<Long> ids = new ArrayList<>(selectedTripIds);
+        // Trip gia' caricati sul cloud tra quelli selezionati (cloudTripId non-null) - se
+        // ce n'e' almeno uno, dopo la cancellazione locale chiediamo separatamente se
+        // eliminarli anche li' (vedi sotto), invece di farlo silenziosamente.
+        List<String> cloudIdsToDelete = new ArrayList<>();
         for (Long id : ids) {
             TripRecord r = currentTripsById.get(id);
             if (r == null) continue;
+            if (r.cloudTripId != null) cloudIdsToDelete.add(r.cloudTripId);
             if (r.gpxPath != null) {
                 File f = new File(r.gpxPath);
                 if (f.exists()) f.delete();
@@ -892,6 +906,25 @@ public class MainActivity extends AppCompatActivity {
         TripDatabase.getInstance(this).deleteTrips(ids);
         appendLog(ids.size() + " viaggi eliminati dallo Storico");
         exitSelectionMode();
+
+        if (!cloudIdsToDelete.isEmpty() && Prefs.isCloudPaired(this)) {
+            String token = Prefs.getCloudDeviceToken(this);
+            showConfirmDialog(
+                getString(R.string.dialog_delete_trips_cloud_title),
+                getString(R.string.dialog_delete_trips_cloud_message),
+                getString(R.string.btn_delete),
+                true,
+                () -> new Thread(() -> {
+                    for (String cloudId : cloudIdsToDelete) {
+                        try {
+                            CloudApiClient.deleteTrip(token, cloudId);
+                        } catch (Exception e) {
+                            appendLog("[Cloud] Errore eliminazione trip " + cloudId + " dal cloud: " + e);
+                        }
+                    }
+                    appendLog("[Cloud] " + cloudIdsToDelete.size() + " viaggi eliminati anche dal cloud");
+                }, "JaeDrive-DeleteTrips").start());
+        }
     }
 
     // Record "virtuale" (non persistito) per il periodo ancora aperto di uno slot
@@ -1410,24 +1443,94 @@ public class MainActivity extends AppCompatActivity {
     private void setupCloudSection() {
         refreshCloudSection();
         btnCloudPair.setOnClickListener(v -> showPairingDialog());
-        btnCloudUnpair.setOnClickListener(v -> showConfirmDialog(
-            getString(R.string.dialog_unpair_title),
-            getString(R.string.dialog_unpair_message),
-            getString(R.string.label_cloud_unpair_button),
-            true,
-            () -> {
-                Prefs.clearCloudPairing(this);
-                refreshCloudSection();
-                Toast.makeText(this, getString(R.string.toast_cloud_unpaired), Toast.LENGTH_SHORT).show();
-            }));
+        btnCloudUnpair.setOnClickListener(v -> {
+            // Il token serve per l'eventuale DELETE /api/device/vehicle sotto - va catturato
+            // PRIMA di Prefs.clearCloudPairing(), altrimenti non potremmo piu' autenticare
+            // quella chiamata dopo aver rimosso l'associazione locale.
+            String tokenForDelete = Prefs.getCloudDeviceToken(this);
+            showConfirmDialog(
+                getString(R.string.dialog_unpair_title),
+                getString(R.string.dialog_unpair_message),
+                getString(R.string.label_cloud_unpair_button),
+                true,
+                () -> {
+                    Prefs.clearCloudPairing(this);
+                    ivCloudPhoto.setVisibility(View.GONE);
+                    refreshCloudSection();
+                    Toast.makeText(this, getString(R.string.toast_cloud_unpaired), Toast.LENGTH_SHORT).show();
+
+                    showConfirmDialog(
+                        getString(R.string.dialog_unpair_cloud_title),
+                        getString(R.string.dialog_unpair_cloud_message),
+                        getString(R.string.btn_delete),
+                        true,
+                        () -> new Thread(() -> {
+                            try {
+                                CloudApiClient.deleteVehicle(tokenForDelete);
+                                appendLog("[Cloud] Auto eliminata anche dal cloud");
+                            } catch (Exception e) {
+                                appendLog("[Cloud] Errore eliminazione auto dal cloud: " + e);
+                            }
+                        }, "JaeDrive-DeleteVehicle").start());
+                });
+        });
     }
 
     private void refreshCloudSection() {
         boolean paired = Prefs.isCloudPaired(this);
-        tvCloudStatus.setText(paired ? getString(R.string.label_cloud_paired) : getString(R.string.label_cloud_not_paired));
-        tvCloudSubtitle.setText(paired ? getString(R.string.label_cloud_paired_subtitle) : getString(R.string.label_cloud_not_paired_subtitle));
         btnCloudPair.setVisibility(paired ? View.GONE : View.VISIBLE);
         btnCloudUnpair.setVisibility(paired ? View.VISIBLE : View.GONE);
+        if (!paired) {
+            tvCloudStatus.setText(getString(R.string.label_cloud_not_paired));
+            tvCloudSubtitle.setText(getString(R.string.label_cloud_not_paired_subtitle));
+            ivCloudPhoto.setVisibility(View.GONE);
+            return;
+        }
+        // Placeholder immediato (stato "associata" generico), poi sostituito dai dati veri
+        // non appena arrivano dal server - vedi fetchOwnerProfile().
+        tvCloudStatus.setText(getString(R.string.label_cloud_paired));
+        tvCloudSubtitle.setText(getString(R.string.label_cloud_paired_subtitle));
+        fetchOwnerProfile();
+    }
+
+    // Nome/cognome/email/foto dell'account collegato, mostrati nella card CLOUD - vedi
+    // CloudApiClient.getOwnerProfile()/DESIGN.md. Richiesto ad ogni apertura di Impostazioni
+    // (non cacheato) cosi' un cambio di nome/foto fatto dal sito si riflette qui senza dover
+    // riassociare l'auto.
+    private void fetchOwnerProfile() {
+        String token = Prefs.getCloudDeviceToken(this);
+        if (token == null) return;
+        new Thread(() -> {
+            try {
+                CloudApiClient.OwnerProfile profile = CloudApiClient.getOwnerProfile(token);
+                Bitmap photo = (profile.photoUrl != null) ? downloadBitmapQuiet(profile.photoUrl) : null;
+                runOnUiThread(() -> {
+                    String fullName = ((profile.firstName != null ? profile.firstName : "") + " "
+                        + (profile.lastName != null ? profile.lastName : "")).trim();
+                    tvCloudStatus.setText(!fullName.isEmpty() ? fullName : getString(R.string.label_cloud_paired));
+                    tvCloudSubtitle.setText(profile.email != null ? profile.email : getString(R.string.label_cloud_paired_subtitle));
+                    if (photo != null) {
+                        ivCloudPhoto.setImageBitmap(photo);
+                        ivCloudPhoto.setVisibility(View.VISIBLE);
+                    } else {
+                        ivCloudPhoto.setVisibility(View.GONE);
+                    }
+                });
+            } catch (Exception e) {
+                appendLog("[Cloud] Errore lettura profilo account: " + e);
+            }
+        }, "JaeDrive-OwnerProfile").start();
+    }
+
+    // Usato solo per la foto profilo (URL esterno, es. Google) - nessuna libreria di
+    // caricamento immagini nel progetto, un download diretto e' piu' che sufficiente per
+    // una singola immagine piccola caricata una volta per apertura di Impostazioni.
+    private Bitmap downloadBitmapQuiet(String url) {
+        try (java.io.InputStream in = new java.net.URL(url).openStream()) {
+            return android.graphics.BitmapFactory.decodeStream(in);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     // Lingua: usa il per-app language di AppCompatDelegate (persiste da solo, ha priorita'

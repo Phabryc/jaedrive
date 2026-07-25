@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Usato solo per fornire un outline ovale a un ImageView con clipToOutline=true (vedi
+     MainActivity, foto profilo nella card CLOUD) - non e' visibile di per se', l'immagine
+     lo ricopre completamente una volta caricata. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/on_surface_variant"/>
+</shape>
