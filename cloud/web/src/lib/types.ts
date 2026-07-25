@@ -17,6 +17,7 @@ export interface TripSummary {
   startedAt: string;
   endedAt: string | null;
   label: string | null;
+  startLabel: string | null;
   km: number | null;
   liters: number | null;
   avgConsumption: number | null;

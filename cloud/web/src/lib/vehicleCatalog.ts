@@ -38,3 +38,23 @@ export function vehicleImageFor(brand: string | null, model: string | null): str
   if (!brand || !model) return null;
   return MODEL_IMAGES[`${brand}_${model}`] ?? null;
 }
+
+// Specchio di VehicleCatalog.EnergyCapability (Android) - decide quali sezioni mostrare per
+// una data motorizzazione. ICE_2WD/ICE_4WD non hanno trazione elettrica: niente donut
+// energia, split km EV/ibrido, grafico batteria - quei trip non hanno mai questi campi
+// popolati (vedi SyncWorker), ma la UI li nasconde esplicitamente invece di mostrare
+// sezioni vuote/a zero.
+export type EnergyCapability = "ICE" | "HYBRID" | "BEV";
+
+export function capabilityFor(powertrain: string | null): EnergyCapability | null {
+  if (!powertrain) return null;
+  if (powertrain === "ICE_2WD" || powertrain === "ICE_4WD") return "ICE";
+  if (powertrain === "BEV") return "BEV";
+  return "HYBRID"; // SHS_H, SHS_P, SHS_P_4WD
+}
+
+// null (motorizzazione non ancora sincronizzata) -> true, per non nascondere dati
+// potenzialmente validi prima di sapere che l'auto e' solo ICE.
+export function hasElectricData(powertrain: string | null): boolean {
+  return capabilityFor(powertrain) !== "ICE";
+}

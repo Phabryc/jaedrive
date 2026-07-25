@@ -22,6 +22,9 @@ export default function Trips() {
   // la lista qui sotto tramite from/to, gia' supportati da /vehicles/:id/trips.
   const [dayFilter, setDayFilter] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -45,9 +48,34 @@ export default function Trips() {
         to: dayFilter ? `${dayFilter}T23:59:59.999Z` : undefined,
       })
       .then(setData);
-  }, [vehicleId, page, kind, dayFilter]);
+  }, [vehicleId, page, kind, dayFilter, refreshKey]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+
+  // Recupero indirizzi mancanti (vedi routes/user.ts) - i trip caricati prima del fallback
+  // di geocoding lato server restano "Percorso GPS" per sempre senza questo, anche se la
+  // traccia GPX ce l'hanno gia'. Un batch alla volta: se ne restano, l'utente puo' ricliccare.
+  async function handleBackfillAddresses() {
+    if (!vehicleId) return;
+    setBackfillBusy(true);
+    setBackfillStatus(null);
+    try {
+      const res = await api.backfillAddresses(vehicleId);
+      if (res.scanned === 0) {
+        setBackfillStatus("Tutti gli indirizzi sono già presenti.");
+      } else {
+        setBackfillStatus(
+          `Aggiornati ${res.updated} indirizzi su ${res.scanned} controllati.` +
+            (res.remaining > 0 ? " Clicca di nuovo per continuare." : ""),
+        );
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      setBackfillStatus("Errore durante il recupero degli indirizzi.");
+    } finally {
+      setBackfillBusy(false);
+    }
+  }
 
   return (
     <AppShell>
@@ -56,6 +84,7 @@ export default function Trips() {
       {vehicleId && (
         <VehicleStatsPanel
           vehicleId={vehicleId}
+          powertrain={vehicle?.powertrain ?? null}
           selectedDate={dayFilter}
           onSelectDate={(d) => {
             setDayFilter(d);
@@ -94,6 +123,17 @@ export default function Trips() {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
+        <button
+          onClick={handleBackfillAddresses}
+          disabled={backfillBusy}
+          className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
+        >
+          {backfillBusy ? "Recupero in corso..." : "Recupera indirizzi mancanti"}
+        </button>
+        {backfillStatus && <span className="text-onsurface-variant">{backfillStatus}</span>}
       </div>
 
       {data === null && <p className="text-onsurface-variant">Caricamento...</p>}

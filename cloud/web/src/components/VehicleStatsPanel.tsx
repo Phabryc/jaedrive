@@ -6,15 +6,18 @@ import type { VehicleStats } from "../lib/types";
 import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { baseGridOptions, CHART_SURFACE, CHART_BORDER, CHART_TEXT_MUTED } from "../lib/chartTheme";
 import { CalendarHeatmap } from "./CalendarHeatmap";
+import { hasElectricData } from "../lib/vehicleCatalog";
 
 const DRIVE_MODE_COLOR = { ECO: "#2E7D32", NORMAL: "#00BFFF", SPORT: "#C62828" };
 
 export function VehicleStatsPanel({
   vehicleId,
+  powertrain,
   selectedDate,
   onSelectDate,
 }: {
   vehicleId: string;
+  powertrain: string | null;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
 }) {
@@ -29,6 +32,10 @@ export function VehicleStatsPanel({
 
   const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
   const hasTrend = consumptionTrend.length >= 2;
+  // Un'auto solo ICE non ha mai questi dati popolati (SyncWorker li esclude gia' dal
+  // payload) - nascondiamo le sezioni invece di mostrare un donut/KPI vuoti o un
+  // fuorviante "dati non ancora disponibili" per qualcosa che non arrivera' mai.
+  const showElectric = hasElectricData(powertrain);
 
   return (
     <div className="mb-6 flex flex-col gap-4">
@@ -64,13 +71,15 @@ export function VehicleStatsPanel({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Donut
-          title="Ripartizione energia"
-          values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
-          colorMap={BUCKET_COLOR}
-          labelMap={BUCKET_LABEL}
-        />
+      <div className={`grid gap-4 ${showElectric ? "sm:grid-cols-2" : ""}`}>
+        {showElectric && (
+          <Donut
+            title="Ripartizione energia"
+            values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
+            colorMap={BUCKET_COLOR}
+            labelMap={BUCKET_LABEL}
+          />
+        )}
         <Donut
           title="Ripartizione modalità di guida"
           values={{ ECO: driveModeBreakdown.pctEco, NORMAL: driveModeBreakdown.pctNormal, SPORT: driveModeBreakdown.pctSport }}
@@ -78,7 +87,7 @@ export function VehicleStatsPanel({
         />
       </div>
 
-      {evHevKmSplit && (
+      {showElectric && evHevKmSplit && (
         <div className="grid grid-cols-2 gap-3">
           <Kpi label="Km in elettrico" value={evHevKmSplit.kmEv.toFixed(0)} />
           <Kpi label="Km in ibrido" value={evHevKmSplit.kmHev.toFixed(0)} />

@@ -84,6 +84,13 @@ export const api = {
 
   statsCalendar: (vehicleId: string, year?: number) =>
     request<VehicleCalendarStats>(`/vehicles/${vehicleId}/stats/calendar${year ? `?year=${year}` : ""}`),
+
+  // Un batch alla volta (vedi routes/user.ts) - "remaining" > 0 vuol dire richiamare
+  // ancora per completare tutto lo storico.
+  backfillAddresses: (vehicleId: string) =>
+    request<{ scanned: number; updated: number; remaining: number }>(`/vehicles/${vehicleId}/backfill-addresses`, {
+      method: "POST",
+    }),
 };
 
 export { ApiError };

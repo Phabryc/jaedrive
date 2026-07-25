@@ -10,6 +10,7 @@ import { BatteryFuelChart, SpeedChart, ElevationChart } from "../components/Trip
 import { ExperimentalTripCharts } from "../components/ExperimentalTripCharts";
 import { CategoryBand } from "../components/CategoryBand";
 import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
+import { IconLocationPin, IconFlagCheckered } from "../components/icons";
 
 const KIND_LABEL: Record<TripDetailType["kind"], string> = {
   auto: "Percorso GPS",
@@ -61,9 +62,26 @@ export default function TripDetail() {
       </button>
 
       <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">{trip.label ?? KIND_LABEL[trip.kind]}</h1>
-          <p className="text-sm text-onsurface-variant">
+        <div className="min-w-0">
+          {trip.startLabel || trip.label ? (
+            <div className="flex flex-col gap-1">
+              {trip.startLabel && (
+                <h1 className="flex items-center gap-2 truncate text-lg font-semibold">
+                  <IconLocationPin size={18} className="shrink-0 text-accent" />
+                  <span className="truncate">{trip.startLabel}</span>
+                </h1>
+              )}
+              {trip.label && (
+                <h1 className="flex items-center gap-2 truncate text-lg font-semibold">
+                  <span className="shrink-0"><IconFlagCheckered size={18} /></span>
+                  <span className="truncate">{trip.label}</span>
+                </h1>
+              )}
+            </div>
+          ) : (
+            <h1 className="text-xl font-semibold">{KIND_LABEL[trip.kind]}</h1>
+          )}
+          <p className="mt-1 text-sm text-onsurface-variant">
             {KIND_LABEL[trip.kind]} · {new Date(trip.startedAt).toLocaleString("it-IT")}
           </p>
         </div>
