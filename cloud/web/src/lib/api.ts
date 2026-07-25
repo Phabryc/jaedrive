@@ -88,8 +88,12 @@ export const api = {
   // Un batch alla volta (vedi routes/user.ts) - "remaining" > 0 vuol dire richiamare
   // ancora per completare tutto lo storico.
   backfillAddresses: (vehicleId: string) =>
+    // Corpo vuoto esplicito ("{}"): request() imposta sempre Content-Type: application/json,
+    // e Fastify rifiuta con 400 un body realmente vuoto quando quel content-type e' dichiarato
+    // (stesso motivo per cui heartbeat() manda {} invece di nessun body).
     request<{ scanned: number; updated: number; remaining: number }>(`/vehicles/${vehicleId}/backfill-addresses`, {
       method: "POST",
+      body: JSON.stringify({}),
     }),
 };
 
