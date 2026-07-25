@@ -1,6 +1,7 @@
 version: "3.9"
 services:
   postgres:
+    container_name: jaedrive-postgres
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -13,6 +14,7 @@ services:
       - internal
 
   api:
+    container_name: jaedrive-api
     build:
       context: .
       dockerfile: server/Dockerfile
@@ -30,13 +32,18 @@ services:
     ports:
       # Optional/for direct debugging only (e.g. curl from the VPS itself) - Nginx Proxy
       # Manager reaches this container over the shared npm_default network below, by
-      # service name, not through this published port.
+      # its explicit alias, not through this published port.
       - "127.0.0.1:4300:3000"
     depends_on:
       - postgres
     networks:
-      - internal
-      - npm_default
+      internal:
+      # Explicit alias (rather than relying on the bare service name "api", which could
+      # collide with another stack's own "api" service on this same shared network) - point
+      # Nginx Proxy Manager's Proxy Host at "jaedrive-api", port 3000.
+      npm_default:
+        aliases:
+          - jaedrive-api
 
 volumes:
   jaedrive_pgdata:
@@ -44,7 +51,7 @@ volumes:
 networks:
   internal:
   # Reuses the Docker network Nginx Proxy Manager's own stack already created, so NPM's
-  # container can reach this one directly by service name ("api") without going through
-  # the host at all. Must already exist (it does - it's NPM's own compose-created network).
+  # container can reach this one directly (as "jaedrive-api") without going through the
+  # host at all. Must already exist (it does - it's NPM's own compose-created network).
   npm_default:
     external: true

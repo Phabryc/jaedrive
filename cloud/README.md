@@ -58,14 +58,16 @@ separate manual step.
 
 **Networking**: the `api` service joins two Docker networks — its own private `internal`
 one (talks to `postgres`) and `npm_default` (**external**, already created by the Nginx
-Proxy Manager stack) so NPM can reach it directly by service name, no host port needed.
-If your NPM stack's network has a different name, change the `npm_default: external: true`
-block at the bottom of `docker-compose.yml` to match (Portainer → Networks lists them).
+Proxy Manager stack) so NPM can reach it directly by container name, no host port needed.
+It's published under the explicit alias `jaedrive-api` (rather than the bare service name
+`api`) specifically to avoid colliding with an `api` service in any other stack sharing that
+same network. If your NPM stack's network has a different name, change the
+`npm_default: external: true` block at the bottom of `docker-compose.yml` to match
+(Portainer → Networks lists them).
 
 **In Nginx Proxy Manager's UI**, add a Proxy Host:
 - Domain Names: `jaedrive.com`, `www.jaedrive.com`
-- Scheme: `http`, Forward Hostname/IP: `api` (the compose service name — resolvable over
-  `npm_default` via Docker's built-in DNS), Forward Port: `3000`
+- Scheme: `http`, Forward Hostname/IP: `jaedrive-api`, Forward Port: `3000`
 - SSL tab → Request a new SSL Certificate (NPM's built-in Let's Encrypt) → Force SSL
 
 Point `jaedrive.com`'s DNS **A record** (and `www`) at the VPS's public IP first, or the
