@@ -103,7 +103,7 @@ CREATE TABLE trips (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     vehicle_id          UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
     device_id           UUID REFERENCES devices(id),
-    kind                TEXT NOT NULL,             -- 'auto' | 'manual_a' | 'manual_b'
+    kind                TEXT NOT NULL,             -- 'auto' | 'manual' (was 'auto'/'manual_a'/'manual_b' until 2026-07-25 - A/B is not a category, see schema.prisma comment)
     started_at          TIMESTAMPTZ NOT NULL,
     ended_at            TIMESTAMPTZ,
     label               TEXT,                       -- reverse-geocoded destination, or manual slot label snapshot
@@ -255,7 +255,7 @@ Visual direction: dark theme by default, glassmorphic cards, same accent palette
 - Real EV/HEV km split (`evHevKmSplit`, from the `kmEv`/`kmHev` sums) — `null` if no trip has it yet (older trips predate the field).
 - Totals: km, liters, trip count, estimated CO₂ (`liters * 2.31`, the standard petrol emission factor — an estimate vs. an all-fuel baseline, not a real hybrid-powertrain emissions measurement).
 - Best/worst single trip by consumption in range (`km >= 1` filter, to keep a half-km noise trip from winning by a fluke).
-- Kind breakdown (auto / manual_a / manual_b — count + km each).
+- Kind breakdown (auto / manual — count + km each).
 - Days-driven calendar, one year at a time (`/stats/calendar?year=`) — `CalendarHeatmap`, ECharts calendar+heatmap coordinate system, single-hue sequential color scale (accent, light→dark by km that day).
 
 Per-trip charts (not fleet-wide, `TripDetail`/`/trips/:id`): `BatteryFuelChart` (SOC%+fuel%, share one 0-100 axis), `SpeedChart`, `ElevationChart` (each its own chart — different unit/scale than %, never combined on a dual axis), `CategoryBand` (energy-flow bucket and drive-mode, as hard-cutover color strips along distance, same convention as the map polyline), and a collapsed "dati sperimentali" section for the raw/unconfirmed-scale `instConsumption`/`regenLevel` signals.

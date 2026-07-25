@@ -9,7 +9,7 @@ const tripBodySchema = {
   type: "object",
   required: ["kind", "startedAt"],
   properties: {
-    kind: { type: "string", enum: ["auto", "manual_a", "manual_b"] },
+    kind: { type: "string", enum: ["auto", "manual"] },
     startedAt: { type: "string", format: "date-time" },
     endedAt: { type: "string", format: "date-time", nullable: true },
     label: { type: "string", nullable: true },
@@ -103,7 +103,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       }
 
       const body = req.body as {
-        kind: "auto" | "manual_a" | "manual_b";
+        kind: "auto" | "manual";
         startedAt: string;
         endedAt?: string | null;
         label?: string | null;

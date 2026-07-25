@@ -102,7 +102,12 @@ model Trip {
   vehicle        Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   deviceId       String?   @map("device_id")
   device         Device?   @relation(fields: [deviceId], references: [id])
-  kind           String    // 'auto' | 'manual_a' | 'manual_b'
+  // 'auto' | 'manual' - was 'auto' | 'manual_a' | 'manual_b' until 2026-07-25: a closed
+  // manual trip is a single category regardless of which slot generated it (the app's own
+  // Storico filter only ever distinguished AUTO vs MANUAL too), the A/B distinction lives
+  // only in the free-text label. See migration 20260725210000_collapse_manual_kind for the
+  // one-time data backfill of already-uploaded rows.
+  kind           String
   startedAt      DateTime  @map("started_at")
   endedAt        DateTime? @map("ended_at")
   label          String?
