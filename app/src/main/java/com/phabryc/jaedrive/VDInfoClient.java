@@ -65,6 +65,17 @@ public class VDInfoClient {
     // (vedi commento su MODULE_DOANOSE). Anche qui nessun caller di riferimento trovato.
     public static final int ID_VIN_ALT = 0x10;
 
+    // Stessa classe DiagnosisID/stesso modulo MODULE_DOANOSE - candidati per modello/marca
+    // reali (vedi TODO "rilevazione automatica modello/motorizzazione"). Nessun caller di
+    // riferimento trovato (come ID_VIN_ALT), ma il dispatcher di CarInfoService
+    // (smali com/desaysv/ivi/vds/carinfo/a/a.smali) registra MODULE_DOANOSE=0x50007 con un
+    // range di comandi fino a 0xf8, che copre comodamente sia 0x16 che 0x87 - stessa
+    // evidenza indiretta che ha giustificato di provare ID_VIN_ALT. Formato di decodifica
+    // sconosciuto, primo tentativo come stringa ASCII (vedi decodeAsciiString()) dato che
+    // "codice modello"/"marca" sono piu' plausibilmente testo che un numero scalato.
+    public static final int ID_MODEL_CODE = 0x16;
+    public static final int ID_BRAND = 0x87;
+
     // CONFERMATO SUL CAMPO dall'utente (2026-07-23): ID_TRIP e' il contatore km giusto da
     // usare per i viaggi (al posto del totalizzatore ID_TOTAL_MILEAGE, che restava intero
     // senza decimali). Si azzera da solo ad ogni accensione del motore - percio' non puo'
@@ -98,6 +109,8 @@ public class VDInfoClient {
         {MODULE_READONLY_INFO, ID_INSTANTANEOUS_CONSUMPTION},
         {MODULE_READONLY_INFO, ID_VIN},
         {MODULE_DOANOSE, ID_VIN_ALT},
+        {MODULE_DOANOSE, ID_MODEL_CODE},
+        {MODULE_DOANOSE, ID_BRAND},
         {MODULE_READONLY_INFO, ID_TRIP},
     };
 
