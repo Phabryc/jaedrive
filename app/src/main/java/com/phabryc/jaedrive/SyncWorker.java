@@ -122,9 +122,13 @@ public class SyncWorker extends Worker {
         return new double[]{100.0 * eco / known, 100.0 * normal / known, 100.0 * sport / known};
     }
 
+    // Una volta chiuso, un trip manuale e' un trip manuale - lo slot A/B che l'ha generato
+    // non e' una categoria a se' (la UI dell'app stessa non li distingue nel filtro Storico,
+    // solo AUTO vs MANUAL - vedi MainActivity.currentTrackFilter). La distinzione A/B resta
+    // solo nell'etichetta testuale del trip (rinominabile), non nel "kind" usato per
+    // categorizzare/filtrare lato cloud - vedi cloud/DESIGN.md §10.
     private String kindFor(TripRecord r) {
-        if (TripRecord.TYPE_AUTO.equals(r.type)) return "auto";
-        return "manual_" + (ManualTripComputer.SLOT_B.equals(r.manualSlot) ? "b" : "a");
+        return TripRecord.TYPE_AUTO.equals(r.type) ? "auto" : "manual";
     }
 
     private String isoUtc(long millis) {

@@ -49,9 +49,10 @@ public class TripRecord {
     public boolean uploaded;
     public String cloudTripId;
     // "A" o "B" - solo per TYPE_MANUAL (quale slot l'ha generato), null per TYPE_AUTO.
-    // Serve perche' r.label e' rinominabile dall'utente (vedi showEditLabelDialog) e quindi
-    // non e' un identificatore affidabile dello slot d'origine - usato per popolare il
-    // campo "kind" ('manual_a'/'manual_b') nel payload di upload cloud, vedi SyncWorker.
+    // NON usato per il campo "kind" del payload cloud (vedi SyncWorker.kindFor()): un trip
+    // manuale chiuso e' una categoria sola, indipendentemente dallo slot che l'ha generato -
+    // stessa distinzione (solo AUTO vs MANUAL) gia' fatta dal filtro Storico dell'app stessa.
+    // Tenuto solo come metadato locale/diagnostico, non piu' consumato altrove.
     public String manualSlot;
     // Generato da TripDatabase.insertTrip() se non gia' impostato - identificatore stabile
     // usato come chiave di idempotenza primaria dal server cloud (vedi TripDatabase per il
