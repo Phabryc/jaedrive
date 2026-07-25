@@ -32,49 +32,67 @@ npm install
 npm run dev               # http://localhost:5173, proxies /api to :3000
 ```
 
-## Production deploy (VPS, git-based, domain: jaedrive.com)
+## Production deploy (Portainer, git-based, domain: jaedrive.com)
 
-One-time setup on the VPS:
+Actual deployed setup: **Portainer** (git-based stack, no shell access needed) + **Nginx
+Proxy Manager** (NPM, itself a Docker container) as the reverse proxy/TLS terminator.
+
+**Portainer → Stacks → Add stack:**
+
+| Field | Value |
+|---|---|
+| Build method | Repository |
+| Repository URL | `https://github.com/<your-username>/jaedrive.git` |
+| Repository reference | `refs/heads/main` |
+| Compose path | `cloud/docker-compose.yml` |
+| Authentication | ON — Username + a GitHub fine-grained PAT scoped to this repo only, **Contents: Read-only** (repo is private) |
+
+**Environment variables** → Advanced/raw mode → paste the full contents of a local
+`cloud/.env` (copy `.env.example`, fill in every value — see "External accounts needed"
+below; the Postgres password can be anything random).
+
+Redeploying after a new commit: use the stack's "Pull and redeploy" (force rebuild) —
+a plain restart reuses the old cached image. `docker compose up`'s container `CMD` runs
+`prisma migrate deploy` automatically on every start, so new migrations apply with no
+separate manual step.
+
+**Networking**: the `api` service joins two Docker networks — its own private `internal`
+one (talks to `postgres`) and `npm_default` (**external**, already created by the Nginx
+Proxy Manager stack) so NPM can reach it directly by service name, no host port needed.
+If your NPM stack's network has a different name, change the `npm_default: external: true`
+block at the bottom of `docker-compose.yml` to match (Portainer → Networks lists them).
+
+**In Nginx Proxy Manager's UI**, add a Proxy Host:
+- Domain Names: `jaedrive.com`, `www.jaedrive.com`
+- Scheme: `http`, Forward Hostname/IP: `api` (the compose service name — resolvable over
+  `npm_default` via Docker's built-in DNS), Forward Port: `3000`
+- SSL tab → Request a new SSL Certificate (NPM's built-in Let's Encrypt) → Force SSL
+
+Point `jaedrive.com`'s DNS **A record** (and `www`) at the VPS's public IP first, or the
+Let's Encrypt HTTP-01 challenge will fail.
+
+<details>
+<summary>Alternative: bare-metal nginx + certbot (no Portainer/NPM)</summary>
 
 ```bash
-# 1. Let the VPS pull this private repo: generate a read-only deploy key ON THE VPS
-ssh-keygen -t ed25519 -C "jaedrive-vps-deploy" -f ~/.ssh/id_ed25519_jaedrive_deploy -N ""
-cat ~/.ssh/id_ed25519_jaedrive_deploy.pub
-# → paste this into GitHub: repo Settings > Deploy keys > Add deploy key (read-only is enough)
-
-# 2. Clone
 git clone git@github.com:<your-username>/jaedrive.git
 cd jaedrive/cloud
-cp .env.example .env   # fill in every value - see "External accounts needed" below
-
-# 3. Build and start
-docker compose build
-docker compose up -d
+cp .env.example .env   # fill in every value
+docker compose build && docker compose up -d
 ```
 
-Every subsequent deploy is just:
+This assumes the `api` service is reached via its published `127.0.0.1:4300` port instead
+of `npm_default` (drop the `npm_default` network from `docker-compose.yml` if not using
+NPM). An example host nginx server block is in
+[`deploy/nginx-jaedrive.com.conf`](deploy/nginx-jaedrive.com.conf):
 
 ```bash
-cd jaedrive && git pull && cd cloud && docker compose build && docker compose up -d
+sudo cp deploy/nginx-jaedrive.com.conf /etc/nginx/sites-available/jaedrive.com
+sudo ln -s /etc/nginx/sites-available/jaedrive.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d jaedrive.com -d www.jaedrive.com
 ```
-
-(`docker compose up`'s container `CMD` runs `prisma migrate deploy` automatically on every
-start, so new migrations are applied without a separate manual step.)
-
-The stack exposes `127.0.0.1:4300` only — it's the **host's existing nginx**, outside this
-Compose stack, that terminates TLS and proxies the public domain to it (see `DESIGN.md`
-§13). An example server block for `jaedrive.com` is in
-[`deploy/nginx-jaedrive.com.conf`](deploy/nginx-jaedrive.com.conf) — copy it into your
-nginx sites config, then:
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx   # after copying the http-only block in
-sudo certbot --nginx -d jaedrive.com -d www.jaedrive.com   # provisions TLS, rewrites the block to redirect http->https
-```
-
-Point `jaedrive.com`'s DNS **A record** (and `www`, either an A record or a CNAME to the
-bare domain) at the VPS's public IP before running certbot, or the HTTP-01 challenge will
-fail.
+</details>
 
 ## External accounts needed
 

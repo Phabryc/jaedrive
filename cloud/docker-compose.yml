@@ -28,16 +28,23 @@ services:
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       NODE_ENV: production
     ports:
-      # Host nginx proxy_passes here; not published publicly by Docker itself - see
-      # cloud/DESIGN.md §13.
+      # Optional/for direct debugging only (e.g. curl from the VPS itself) - Nginx Proxy
+      # Manager reaches this container over the shared npm_default network below, by
+      # service name, not through this published port.
       - "127.0.0.1:4300:3000"
     depends_on:
       - postgres
     networks:
       - internal
+      - npm_default
 
 volumes:
   jaedrive_pgdata:
 
 networks:
   internal:
+  # Reuses the Docker network Nginx Proxy Manager's own stack already created, so NPM's
+  # container can reach this one directly by service name ("api") without going through
+  # the host at all. Must already exist (it does - it's NPM's own compose-created network).
+  npm_default:
+    external: true
