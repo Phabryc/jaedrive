@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dialogo di associazione auto->account cloud, stesso stile "glass card" degli altri
+     dialoghi custom (vedi MainActivity.showConfirmDialog/showEditLabelDialog). Quattro
+     sezioni alternative (VIN manuale / stato-caricamento / codice+QR / errore), una sola
+     visibile per volta - vedi MainActivity.showPairingDialog(). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/glass_card_glow_bg"
+    android:padding="28dp">
+
+    <TextView
+        android:id="@+id/tv_pairing_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/dialog_pairing_title"
+        android:textColor="@color/on_surface"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="20dp"/>
+
+    <!-- Sezione 1: VIN non rilevato automaticamente, richiesto manualmente -->
+    <LinearLayout
+        android:id="@+id/section_pairing_vin"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_pairing_vin_message"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="18sp"
+            android:layout_marginBottom="16dp"/>
+        <EditText
+            android:id="@+id/et_pairing_vin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/dialog_pairing_vin_hint"
+            android:textColor="@color/on_surface"
+            android:textColorHint="@color/on_surface_variant"
+            android:textSize="20sp"
+            android:fontFamily="@font/geist_mono"
+            android:inputType="textCapCharacters"
+            android:maxLength="17"
+            android:background="@drawable/card_bg"
+            android:padding="16dp"
+            android:layout_marginBottom="20dp"/>
+        <TextView
+            android:id="@+id/btn_pairing_vin_continue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_btn_continue"
+            android:background="@drawable/btn_primary_bg"
+            android:textColor="@color/on_primary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingVertical="14dp"
+            android:clickable="true"
+            android:focusable="true"/>
+    </LinearLayout>
+
+    <!-- Sezione 2: richiesta in corso / attesa associazione -->
+    <LinearLayout
+        android:id="@+id/section_pairing_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+        <ProgressBar
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:indeterminateTint="@color/primary"
+            android:layout_marginBottom="16dp"/>
+        <TextView
+            android:id="@+id/tv_pairing_status_message"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="18sp"
+            android:gravity="center"/>
+    </LinearLayout>
+
+    <!-- Sezione 3: codice + QR, in attesa di conferma dal sito -->
+    <LinearLayout
+        android:id="@+id/section_pairing_code"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_pairing_code_message"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:layout_marginBottom="16dp"/>
+        <TextView
+            android:id="@+id/tv_pairing_code"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/primary"
+            android:textSize="34sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.15"
+            android:gravity="center"
+            android:fontFamily="@font/geist_mono"
+            android:layout_marginBottom="20dp"/>
+        <ImageView
+            android:id="@+id/iv_pairing_qr"
+            android:layout_width="220dp"
+            android:layout_height="220dp"
+            android:background="@android:color/white"
+            android:padding="12dp"
+            android:layout_marginBottom="20dp"
+            android:contentDescription="@string/dialog_pairing_qr_description"/>
+        <TextView
+            android:id="@+id/tv_pairing_waiting"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_pairing_waiting"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="16sp"
+            android:gravity="center"/>
+    </LinearLayout>
+
+    <!-- Sezione 4: errore (codice scaduto, rete assente, VIN rifiutato...) -->
+    <LinearLayout
+        android:id="@+id/section_pairing_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <TextView
+            android:id="@+id/tv_pairing_error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/error"
+            android:textSize="18sp"
+            android:layout_marginBottom="20dp"/>
+        <TextView
+            android:id="@+id/btn_pairing_retry"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_btn_retry"
+            android:background="@drawable/btn_primary_bg"
+            android:textColor="@color/on_primary"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingVertical="14dp"
+            android:clickable="true"
+            android:focusable="true"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/btn_pairing_close"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/dialog_btn_close"
+        android:background="@drawable/btn_secondary_bg"
+        android:textColor="@color/on_secondary_container"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingVertical="14dp"
+        android:layout_marginTop="20dp"
+        android:clickable="true"
+        android:focusable="true"/>
+</LinearLayout>

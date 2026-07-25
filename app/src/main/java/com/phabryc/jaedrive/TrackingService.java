@@ -579,6 +579,7 @@ public class TrackingService extends Service {
                 TripDatabase.getInstance(this).insertTrip(record);
                 appendServiceLog("Trip salvato in TripDatabase" + (label != null ? " (destinazione: " + label + ")" : "")
                     + (startLabel != null ? " (partenza: " + startLabel + ")" : ""));
+                SyncScheduler.enqueueSync(this);
             } catch (Exception e) {
                 appendServiceLog("Errore salvataggio trip nel database: " + e);
             }

@@ -69,9 +69,12 @@ public class ManualTripComputer {
             Double litersForRecord = litersDelta > 0 ? litersDelta : null;
             Double avg = (litersForRecord != null) ? kmDelta / litersForRecord : null;
             try {
-                TripDatabase.getInstance(ctx).insertTrip(new TripRecord(
+                TripRecord record = new TripRecord(
                     TripRecord.TYPE_MANUAL, oldTime, now, 0, 0, kmDelta, 0, 0,
-                    litersForRecord, avg, null, null, getLabel(ctx, slot)));
+                    litersForRecord, avg, null, null, getLabel(ctx, slot));
+                record.manualSlot = slot;
+                TripDatabase.getInstance(ctx).insertTrip(record);
+                SyncScheduler.enqueueSync(ctx);
             } catch (Exception ignored) {
                 // Il computer manuale resta comunque coerente anche se il salvataggio
                 // dello storico fallisse: non e' un dato critico per il calcolo live.

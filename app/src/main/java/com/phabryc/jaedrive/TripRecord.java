@@ -42,6 +42,18 @@ public class TripRecord {
     // esistono in TripDatabase, id e' un sentinel negativo (vedi MainActivity.refreshTrackList()).
     public boolean ongoing;
 
+    // Stato di sincronizzazione col cloud JaeDrive (vedi SyncWorker/CloudApiClient) - un
+    // trip appena inserito parte sempre non caricato, SyncWorker aggiorna questi due campi
+    // (TripDatabase.markUploaded()) dopo un upload riuscito. cloudTripId e' l'id restituito
+    // dal server, non usato per altro che diagnosi/debug.
+    public boolean uploaded;
+    public String cloudTripId;
+    // "A" o "B" - solo per TYPE_MANUAL (quale slot l'ha generato), null per TYPE_AUTO.
+    // Serve perche' r.label e' rinominabile dall'utente (vedi showEditLabelDialog) e quindi
+    // non e' un identificatore affidabile dello slot d'origine - usato per popolare il
+    // campo "kind" ('manual_a'/'manual_b') nel payload di upload cloud, vedi SyncWorker.
+    public String manualSlot;
+
     // Usato da TripDatabase per ricostruire i record letti dal db.
     public TripRecord() {
     }

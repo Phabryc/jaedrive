@@ -81,6 +81,32 @@
     <string name="label_language_title">Lingua app</string>
     <string name="label_language_subtitle">Scegli italiano o inglese, indipendentemente dalla lingua di sistema</string>
 
+    <!-- Pairing cloud -->
+    <string name="section_cloud_title">CLOUD</string>
+    <string name="label_cloud_not_paired">Non associata</string>
+    <string name="label_cloud_not_paired_subtitle">Associa quest\'auto al tuo account JaeDrive per vedere i viaggi online</string>
+    <string name="label_cloud_paired">Associata</string>
+    <string name="label_cloud_paired_subtitle">I viaggi vengono caricati automaticamente su jaedrive.com</string>
+    <string name="label_cloud_pair_button">ASSOCIA AUTO</string>
+    <string name="label_cloud_unpair_button">RIMUOVI</string>
+    <string name="dialog_unpair_title">Rimuovere l\'associazione?</string>
+    <string name="dialog_unpair_message">I viaggi gia\' caricati restano su jaedrive.com, ma quelli nuovi smetteranno di sincronizzarsi finche\' non riassoci l\'auto.</string>
+    <string name="toast_cloud_unpaired">Associazione rimossa</string>
+    <string name="dialog_pairing_title">Associa auto al cloud</string>
+    <string name="dialog_pairing_vin_message">Il VIN non e\' stato rilevato automaticamente. Inseriscilo manualmente (lo trovi sul libretto o sul montante lato guida).</string>
+    <string name="dialog_pairing_vin_hint">es. LVGBG25Y1MY123456</string>
+    <string name="dialog_btn_continue">AVANTI</string>
+    <string name="dialog_pairing_starting">Richiesta codice di associazione...</string>
+    <string name="dialog_pairing_code_message">Su jaedrive.com inserisci questo codice, oppure inquadra il QR con lo smartphone:</string>
+    <string name="dialog_pairing_qr_description">QR code per aprire la pagina di associazione su jaedrive.com</string>
+    <string name="dialog_pairing_waiting">In attesa che tu completi l\'associazione sul sito...</string>
+    <string name="dialog_pairing_success">Associata! Quest\'auto e\' ora collegata al tuo account.</string>
+    <string name="dialog_pairing_error_vin_too_short">Inserisci un VIN valido (almeno 5 caratteri).</string>
+    <string name="dialog_pairing_error_network">Errore di connessione. Verifica che l\'auto abbia accesso a internet e riprova.</string>
+    <string name="dialog_pairing_error_expired">Codice scaduto senza essere usato. Riprova.</string>
+    <string name="dialog_btn_retry">RIPROVA</string>
+    <string name="dialog_btn_close">CHIUDI</string>
+
     <!-- Log -->
     <string name="label_save_log">SALVA LOG SU USB</string>
     <string name="label_clear_log">PULISCI LOG</string>

@@ -13,6 +13,8 @@ public class Prefs {
     private static final String KEY_UNIT_CONSUMPTION_GAL = "unit_consumption_gal";
     private static final String KEY_GPS_TRACK_ENABLED = "gps_track_enabled";
     private static final String KEY_DEBUG_MODE_ENABLED = "debug_mode_enabled";
+    private static final String KEY_CLOUD_DEVICE_TOKEN = "cloud_device_token";
+    private static final String KEY_CLOUD_VEHICLE_ID = "cloud_vehicle_id";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -52,5 +54,38 @@ public class Prefs {
 
     public static void setDebugModeEnabled(Context ctx, boolean enabled) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_DEBUG_MODE_ENABLED, enabled).apply();
+    }
+
+    // Token del dispositivo assegnato dal server cloud alla fine del pairing (vedi
+    // CloudApiClient/MainActivity, dialogo di associazione in Impostazioni) - null finche'
+    // l'auto non e' mai stata associata a un account. E' il bearer usato per ogni chiamata
+    // /api/device/* successiva (upload trip, heartbeat) - vedi SyncWorker.
+    public static String getCloudDeviceToken(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CLOUD_DEVICE_TOKEN, null);
+    }
+
+    public static boolean isCloudPaired(Context ctx) {
+        return getCloudDeviceToken(ctx) != null;
+    }
+
+    // vehicleId e' solo per mostrare qualcosa di riconoscibile nella card "Cloud" di
+    // Impostazioni (nessun altro uso lato client) - salvato insieme al token alla fine di
+    // un pairing riuscito.
+    public static void setCloudPairing(Context ctx, String deviceToken, String vehicleId) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CLOUD_DEVICE_TOKEN, deviceToken)
+            .putString(KEY_CLOUD_VEHICLE_ID, vehicleId)
+            .apply();
+    }
+
+    public static String getCloudVehicleId(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CLOUD_VEHICLE_ID, null);
+    }
+
+    public static void clearCloudPairing(Context ctx) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove(KEY_CLOUD_DEVICE_TOKEN)
+            .remove(KEY_CLOUD_VEHICLE_ID)
+            .apply();
     }
 }

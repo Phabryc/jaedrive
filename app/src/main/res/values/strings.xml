@@ -78,6 +78,32 @@
     <string name="label_language_title">App language</string>
     <string name="label_language_subtitle">Choose Italian or English, independent of the system language</string>
 
+    <!-- Cloud pairing -->
+    <string name="section_cloud_title">CLOUD</string>
+    <string name="label_cloud_not_paired">Not linked</string>
+    <string name="label_cloud_not_paired_subtitle">Link this car to your JaeDrive account to view trips online</string>
+    <string name="label_cloud_paired">Linked</string>
+    <string name="label_cloud_paired_subtitle">Trips are uploaded automatically to jaedrive.com</string>
+    <string name="label_cloud_pair_button">LINK CAR</string>
+    <string name="label_cloud_unpair_button">UNLINK</string>
+    <string name="dialog_unpair_title">Unlink this car?</string>
+    <string name="dialog_unpair_message">Trips already uploaded stay on jaedrive.com, but new ones will stop syncing until you link again.</string>
+    <string name="toast_cloud_unpaired">Car unlinked</string>
+    <string name="dialog_pairing_title">Link car to cloud</string>
+    <string name="dialog_pairing_vin_message">The VIN could not be read automatically. Enter it manually (found on the registration document or the driver-side door pillar).</string>
+    <string name="dialog_pairing_vin_hint">e.g. LVGBG25Y1MY123456</string>
+    <string name="dialog_btn_continue">CONTINUE</string>
+    <string name="dialog_pairing_starting">Requesting a pairing code...</string>
+    <string name="dialog_pairing_code_message">On jaedrive.com, enter this code or scan the QR code with your phone:</string>
+    <string name="dialog_pairing_qr_description">QR code to open the pairing page on jaedrive.com</string>
+    <string name="dialog_pairing_waiting">Waiting for you to complete linking on the site...</string>
+    <string name="dialog_pairing_success">Linked! This car is now connected to your account.</string>
+    <string name="dialog_pairing_error_vin_too_short">Enter a valid VIN (at least 5 characters).</string>
+    <string name="dialog_pairing_error_network">Connection error. Check that the car has internet access and try again.</string>
+    <string name="dialog_pairing_error_expired">Code expired without being used. Try again.</string>
+    <string name="dialog_btn_retry">TRY AGAIN</string>
+    <string name="dialog_btn_close">CLOSE</string>
+
     <!-- Log -->
     <string name="label_save_log">SAVE LOG TO USB</string>
     <string name="label_clear_log">CLEAR LOG</string>

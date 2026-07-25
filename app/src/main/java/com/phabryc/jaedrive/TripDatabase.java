@@ -21,7 +21,8 @@ public class TripDatabase extends SQLiteOpenHelper {
     // km_delta (stessa colonna, SQLite tollera il tipo diverso via affinita'), questa e'
     // una colonna NUOVA: serve una vera ALTER TABLE per i database gia' sul dispositivo,
     // altrimenti query/insert che la referenziano fallirebbero su un'installazione non pulita.
-    private static final int DB_VERSION = 2;
+    // v3: aggiunte uploaded/cloud_trip_id (stato sincronizzazione col cloud, vedi SyncWorker).
+    private static final int DB_VERSION = 3;
     private static final String TABLE = "trips";
 
     private static TripDatabase instance;
@@ -54,13 +55,21 @@ public class TripDatabase extends SQLiteOpenHelper {
             "gpx_path TEXT," +
             "log_path TEXT," +
             "label TEXT," +
-            "start_label TEXT)");
+            "start_label TEXT," +
+            "uploaded INTEGER NOT NULL DEFAULT 0," +
+            "cloud_trip_id TEXT," +
+            "manual_slot TEXT)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN start_label TEXT");
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN uploaded INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN cloud_trip_id TEXT");
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN manual_slot TEXT");
         }
     }
 
@@ -84,7 +93,34 @@ public class TripDatabase extends SQLiteOpenHelper {
         cv.put("log_path", r.logPath);
         cv.put("label", r.label);
         cv.put("start_label", r.startLabel);
+        // Un trip appena inserito non e' mai gia' caricato - uploaded parte sempre da 0,
+        // indipendentemente da r.uploaded (che a questo punto e' comunque sempre false:
+        // nessun call site lo imposta prima di insertTrip()).
+        cv.put("uploaded", 0);
+        cv.put("manual_slot", r.manualSlot);
         return getWritableDatabase().insert(TABLE, null, cv);
+    }
+
+    // Trip non ancora caricati sul cloud, indipendentemente dal tipo (AUTO/MANUAL) - usati
+    // da SyncWorker per capire cosa c'e' da inviare. Ordine cronologico (piu' vecchi prima)
+    // cosi' una serie di upload falliti/in coda non "salta" mai i trip piu' vecchi.
+    public List<TripRecord> getUnsyncedTrips() {
+        List<TripRecord> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().query(TABLE, null, "uploaded = 0",
+                null, null, null, "start_time ASC")) {
+            while (c.moveToNext()) {
+                list.add(fromCursor(c));
+            }
+        }
+        return list;
+    }
+
+    // Chiamato da SyncWorker dopo un upload riuscito per un singolo trip.
+    public void markUploaded(long id, String cloudTripId) {
+        ContentValues cv = new ContentValues();
+        cv.put("uploaded", 1);
+        cv.put("cloud_trip_id", cloudTripId);
+        getWritableDatabase().update(TABLE, cv, "id = ?", new String[]{String.valueOf(id)});
     }
 
     // Cancellazione multipla dallo Storico (vedi MainActivity, selezione righe). Non
@@ -134,6 +170,9 @@ public class TripDatabase extends SQLiteOpenHelper {
         r.logPath = c.getString(c.getColumnIndexOrThrow("log_path"));
         r.label = c.getString(c.getColumnIndexOrThrow("label"));
         r.startLabel = c.getString(c.getColumnIndexOrThrow("start_label"));
+        r.uploaded = c.getInt(c.getColumnIndexOrThrow("uploaded")) != 0;
+        r.cloudTripId = c.getString(c.getColumnIndexOrThrow("cloud_trip_id"));
+        r.manualSlot = c.getString(c.getColumnIndexOrThrow("manual_slot"));
         return r;
     }
 }

@@ -41,6 +41,8 @@ package com.phabryc.jaedrive;
 // imposta staticamente "two_wheel_flow_off"). Quindi value=1 e' un placeholder
 // statico/transitorio (verosimilmente emesso subito dopo l'accensione, prima che il bus
 // stabilizzi un vero stato), non una vera ricarica - spostato da CHR a IDLE.
+import java.util.List;
+
 public class EnergyFlowUtil {
 
     public enum Bucket {
@@ -82,5 +84,26 @@ public class EnergyFlowUtil {
             case CHR: return 0xFF2E7D32;
             default: return 0xFF4A4A4A;
         }
+    }
+
+    // Percentuali EV/serie/parallelo per il payload di upload cloud (vedi CloudApiClient) -
+    // stesso conteggio di MainActivity.updateEnergyFlowBreakdown() ma con CHR+IDLE
+    // accorpati in un unico "pctOther", perche' lo schema cloud (vedi cloud/DESIGN.md §10)
+    // ha solo quattro categorie, non le cinque della UI Storico. Ritorna null se non c'e'
+    // nessun campione ENERGY_FLOW valido (es. trip manuale, senza traccia GPX).
+    public static double[] computeUploadBreakdown(List<TripPoint> points) {
+        int ev = 0, series = 0, parallel = 0, other = 0, known = 0;
+        for (TripPoint p : points) {
+            if (p.energyFlow < 0) continue;
+            known++;
+            switch (bucketFor(p.energyFlow)) {
+                case EV: ev++; break;
+                case SERIES: series++; break;
+                case PARALLEL: parallel++; break;
+                default: other++; break;
+            }
+        }
+        if (known == 0) return null;
+        return new double[]{100.0 * ev / known, 100.0 * series / known, 100.0 * parallel / known, 100.0 * other / known};
     }
 }

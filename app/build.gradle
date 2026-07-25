@@ -38,4 +38,13 @@ dependencies {
     // Mappa OpenStreetMap reale per il dettaglio viaggio in Storico (tile scaricati
     // dai server OSM se l'head unit ha connessione internet).
     implementation 'org.osmdroid:osmdroid-android:6.1.20'
+    // Upload dei trip al backend cloud in background, con retry/backoff automatico e
+    // sopravvivenza a riavvii/kill del processo (stesso motivo per cui gia' usiamo
+    // stopWithTask=false + AccessibilityService per TrackingService) - vedi SyncWorker.
+    // Fermo a 2.8.1 (non l'ultima) perche' 2.9.0+ richiede compileSdk 34 - questo progetto
+    // resta volutamente su compileSdk 33 per compatibilita' con l'head unit del veicolo.
+    implementation 'androidx.work:work-runtime:2.8.1'
+    // Solo l'encoder QR (nessuna dipendenza da fotocamera/scanner) per mostrare il codice
+    // di pairing anche come QR nel dialogo di associazione - vedi QrCodeUtil.
+    implementation 'com.google.zxing:core:3.5.3'
 }

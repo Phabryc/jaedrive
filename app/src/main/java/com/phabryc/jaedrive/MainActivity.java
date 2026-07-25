@@ -12,6 +12,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -121,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
     private SwitchCompat switchGps, switchDebugMode;
     private TextView tvAppVersion;
     private TextView tvVehicleVin;
+    private TextView tvCloudStatus, tvCloudSubtitle, btnCloudPair, btnCloudUnpair;
 
     // Log
     private TextView tvLog;
@@ -286,6 +288,10 @@ public class MainActivity extends AppCompatActivity {
         switchDebugMode = findViewById(R.id.switch_debug_mode);
         tvAppVersion = findViewById(R.id.tv_app_version);
         tvVehicleVin = findViewById(R.id.tv_vehicle_vin);
+        tvCloudStatus = findViewById(R.id.tv_cloud_status);
+        tvCloudSubtitle = findViewById(R.id.tv_cloud_subtitle);
+        btnCloudPair = findViewById(R.id.btn_cloud_pair);
+        btnCloudUnpair = findViewById(R.id.btn_cloud_unpair);
 
         tvLog = findViewById(R.id.tv_log);
         scrollLog = findViewById(R.id.scroll_log);
@@ -502,6 +508,172 @@ public class MainActivity extends AppCompatActivity {
             dialog.dismiss();
         });
         dialog.show();
+    }
+
+    // --- Pairing cloud (associazione auto <-> account, vedi cloud/DESIGN.md §7) ---
+
+    private androidx.appcompat.app.AlertDialog pairingDialog;
+    private final android.os.Handler pairingHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable pairingPollRunnable;
+    private int pairingPollErrorStreak = 0;
+
+    private static final long PAIRING_POLL_INTERVAL_MS = 3000L;
+    // Soglia di sicurezza per non restare a pollare all'infinito in caso di rete
+    // genuinamente irraggiungibile (il codice scade comunque lato server dopo 10 minuti,
+    // ma senza rete quella risposta non arriverebbe mai) - vedi pollPairingStatus().
+    private static final int PAIRING_MAX_POLL_ERRORS = 20;
+
+    private void showPairingDialog() {
+        View root = getLayoutInflater().inflate(R.layout.dialog_pairing, null);
+        pairingDialog = new androidx.appcompat.app.AlertDialog.Builder(this).setView(root).create();
+        pairingDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        pairingDialog.setOnDismissListener(d -> stopPairingPolling());
+
+        android.widget.EditText etVin = root.findViewById(R.id.et_pairing_vin);
+        TextView btnVinContinue = root.findViewById(R.id.btn_pairing_vin_continue);
+        TextView btnRetry = root.findViewById(R.id.btn_pairing_retry);
+        TextView btnClose = root.findViewById(R.id.btn_pairing_close);
+
+        btnVinContinue.setOnClickListener(v -> {
+            String vin = etVin.getText().toString().trim().toUpperCase(Locale.US);
+            if (vin.length() < 5) {
+                Toast.makeText(this, getString(R.string.dialog_pairing_error_vin_too_short), Toast.LENGTH_SHORT).show();
+                return;
+            }
+            startPairing(root, vin);
+        });
+        btnRetry.setOnClickListener(v -> resetPairingFlow(root));
+        btnClose.setOnClickListener(v -> pairingDialog.dismiss());
+
+        resetPairingFlow(root);
+        pairingDialog.show();
+    }
+
+    // Punto di ingresso/reset del flusso: se il VIN e' gia' noto (una delle 3 fonti VDB/
+    // CarPropertyManager gia' provate all'avvio, vedi tryReadStandardVin()) lo usa subito,
+    // altrimenti mostra il campo di inserimento manuale - fallback previsto fin dal design
+    // (cloud/DESIGN.md §15) dato che l'affidabilita' della lettura automatica non e' garantita.
+    private void resetPairingFlow(View root) {
+        stopPairingPolling();
+        setPairingSection(root, "vin_or_status");
+        String knownVin = vinResolved ? tvVehicleVin.getText().toString().trim() : null;
+        if (knownVin != null && !knownVin.isEmpty()) {
+            startPairing(root, knownVin);
+        } else {
+            setPairingSection(root, "vin");
+        }
+    }
+
+    private void startPairing(View root, String vin) {
+        setPairingSection(root, "status");
+        TextView tvStatusMessage = root.findViewById(R.id.tv_pairing_status_message);
+        tvStatusMessage.setText(getString(R.string.dialog_pairing_starting));
+
+        String versionName = "?";
+        try {
+            versionName = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception ignored) {
+        }
+        String finalVersionName = versionName;
+
+        new Thread(() -> {
+            try {
+                CloudApiClient.PairingStart result = CloudApiClient.pairingStart(vin, finalVersionName);
+                runOnUiThread(() -> showPairingCode(root, result));
+            } catch (Exception e) {
+                appendLog("[Cloud] Errore avvio pairing: " + e);
+                runOnUiThread(() -> showPairingError(root, getString(R.string.dialog_pairing_error_network)));
+            }
+        }, "JaeDrive-PairingStart").start();
+    }
+
+    private void showPairingCode(View root, CloudApiClient.PairingStart result) {
+        if (pairingDialog == null || !pairingDialog.isShowing()) return;
+        setPairingSection(root, "code");
+        TextView tvCode = root.findViewById(R.id.tv_pairing_code);
+        ImageView ivQr = root.findViewById(R.id.iv_pairing_qr);
+        tvCode.setText(result.code);
+
+        String qrContent = "https://jaedrive.com/pair?code=" + result.code;
+        new Thread(() -> {
+            Bitmap qr = QrCodeUtil.encode(qrContent, (int) dp(220));
+            runOnUiThread(() -> {
+                if (qr != null) ivQr.setImageBitmap(qr);
+            });
+        }, "JaeDrive-QrGen").start();
+
+        pairingPollErrorStreak = 0;
+        pollPairingStatus(root, result.pairingRequestId);
+    }
+
+    private void pollPairingStatus(View root, String pairingRequestId) {
+        pairingPollRunnable = () -> new Thread(() -> {
+            try {
+                CloudApiClient.PairingStatus status = CloudApiClient.pairingStatus(pairingRequestId);
+                pairingPollErrorStreak = 0;
+                if ("claimed".equals(status.status) && status.deviceToken != null) {
+                    runOnUiThread(() -> finishPairingSuccess(root, status.deviceToken));
+                } else if ("expired".equals(status.status)) {
+                    runOnUiThread(() -> showPairingError(root, getString(R.string.dialog_pairing_error_expired)));
+                } else {
+                    // "pending" (o "claimed" ma senza token, gia' consegnato in un poll
+                    // precedente - non dovrebbe succedere in questo flusso, trattato come
+                    // pending): richiama se stesso dopo l'intervallo.
+                    pairingHandler.postDelayed(pairingPollRunnable, PAIRING_POLL_INTERVAL_MS);
+                }
+            } catch (Exception e) {
+                pairingPollErrorStreak++;
+                if (pairingPollErrorStreak >= PAIRING_MAX_POLL_ERRORS) {
+                    appendLog("[Cloud] Troppi errori di rete durante il polling pairing, interrotto: " + e);
+                    runOnUiThread(() -> showPairingError(root, getString(R.string.dialog_pairing_error_network)));
+                } else {
+                    pairingHandler.postDelayed(pairingPollRunnable, PAIRING_POLL_INTERVAL_MS);
+                }
+            }
+        }, "JaeDrive-PairingPoll").start();
+        pairingHandler.postDelayed(pairingPollRunnable, PAIRING_POLL_INTERVAL_MS);
+    }
+
+    private void stopPairingPolling() {
+        if (pairingPollRunnable != null) {
+            pairingHandler.removeCallbacks(pairingPollRunnable);
+            pairingPollRunnable = null;
+        }
+    }
+
+    private void finishPairingSuccess(View root, String deviceToken) {
+        stopPairingPolling();
+        Prefs.setCloudPairing(this, deviceToken, null);
+        refreshCloudSection();
+        SyncScheduler.enqueueSync(this); // eventuali trip gia' in attesa partono subito
+        appendLog("[Cloud] Auto associata all'account");
+
+        setPairingSection(root, "status");
+        TextView tvStatusMessage = root.findViewById(R.id.tv_pairing_status_message);
+        tvStatusMessage.setText(getString(R.string.dialog_pairing_success));
+        // Chiusura automatica dopo una breve pausa, cosi' l'utente vede la conferma invece
+        // di sparire istantaneamente.
+        pairingHandler.postDelayed(() -> {
+            if (pairingDialog != null && pairingDialog.isShowing()) pairingDialog.dismiss();
+        }, 1500L);
+    }
+
+    private void showPairingError(View root, String message) {
+        stopPairingPolling();
+        setPairingSection(root, "error");
+        TextView tvError = root.findViewById(R.id.tv_pairing_error);
+        tvError.setText(message);
+    }
+
+    // Mostra UNA sola sezione del dialogo per volta (vedi dialog_pairing.xml): "vin",
+    // "status", "code", "error", oppure "vin_or_status" per nascondere tutto durante la
+    // decisione iniziale in resetPairingFlow() (evita un fotogramma con piu' sezioni
+    // visibili insieme mentre si decide quale mostrare).
+    private void setPairingSection(View root, String section) {
+        root.findViewById(R.id.section_pairing_vin).setVisibility("vin".equals(section) ? View.VISIBLE : View.GONE);
+        root.findViewById(R.id.section_pairing_status).setVisibility("status".equals(section) ? View.VISIBLE : View.GONE);
+        root.findViewById(R.id.section_pairing_code).setVisibility("code".equals(section) ? View.VISIBLE : View.GONE);
+        root.findViewById(R.id.section_pairing_error).setVisibility("error".equals(section) ? View.VISIBLE : View.GONE);
     }
 
     private void renderTripConsumption() {
@@ -935,10 +1107,24 @@ public class MainActivity extends AppCompatActivity {
         row.addView(buildStatIconText(R.drawable.ic_location, kmStr, 0));
         row.addView(buildStatIconText(R.drawable.ic_fuel, litersStr, (int) dp(18)));
         row.addView(buildStatIconText(R.drawable.ic_eco, avgStr, (int) dp(18)));
+        // Stato sincronizzazione cloud: solo icona (nessuna etichetta), verde se gia'
+        // caricato, grigio (stesso colore delle altre icone) se ancora in coda - non e'
+        // un errore, SyncWorker riprova automaticamente in background. Non mostrata per i
+        // record "virtuali" (trip manuali ancora aperti, mai esistiti in TripDatabase).
+        if (!r.ongoing) {
+            int cloudColor = r.uploaded
+                ? ContextCompat.getColor(this, R.color.trend_positive)
+                : ContextCompat.getColor(this, R.color.on_surface_variant);
+            row.addView(buildStatIconText(R.drawable.ic_cloud, "", (int) dp(18), cloudColor));
+        }
         return row;
     }
 
     private LinearLayout buildStatIconText(int iconRes, String text, int startMargin) {
+        return buildStatIconText(iconRes, text, startMargin, ContextCompat.getColor(this, R.color.on_surface_variant));
+    }
+
+    private LinearLayout buildStatIconText(int iconRes, String text, int startMargin, int iconColor) {
         LinearLayout group = new LinearLayout(this);
         group.setOrientation(LinearLayout.HORIZONTAL);
         group.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -953,14 +1139,16 @@ public class MainActivity extends AppCompatActivity {
         iconParams.rightMargin = (int) dp(5);
         icon.setLayoutParams(iconParams);
         icon.setImageResource(iconRes);
-        icon.setColorFilter(ContextCompat.getColor(this, R.color.on_surface_variant));
+        icon.setColorFilter(iconColor);
         group.addView(icon);
 
-        TextView label = new TextView(this);
-        label.setText(text);
-        label.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
-        label.setTextSize(20);
-        group.addView(label);
+        if (!text.isEmpty()) {
+            TextView label = new TextView(this);
+            label.setText(text);
+            label.setTextColor(ContextCompat.getColor(this, R.color.on_surface));
+            label.setTextSize(20);
+            group.addView(label);
+        }
 
         return group;
     }
@@ -1212,6 +1400,34 @@ public class MainActivity extends AppCompatActivity {
         tvAppVersion.setText(getString(R.string.app_name) + " " + versionName);
 
         setupLanguageToggle();
+        setupCloudSection();
+    }
+
+    // Card "CLOUD" in Impostazioni: stato associazione + pulsante che apre il dialogo di
+    // pairing (o rimuove l'associazione esistente). refreshCloudSection() e' richiamata
+    // anche alla chiusura riuscita del dialogo, per aggiornare subito lo stato senza dover
+    // riaprire la sezione Impostazioni.
+    private void setupCloudSection() {
+        refreshCloudSection();
+        btnCloudPair.setOnClickListener(v -> showPairingDialog());
+        btnCloudUnpair.setOnClickListener(v -> showConfirmDialog(
+            getString(R.string.dialog_unpair_title),
+            getString(R.string.dialog_unpair_message),
+            getString(R.string.label_cloud_unpair_button),
+            true,
+            () -> {
+                Prefs.clearCloudPairing(this);
+                refreshCloudSection();
+                Toast.makeText(this, getString(R.string.toast_cloud_unpaired), Toast.LENGTH_SHORT).show();
+            }));
+    }
+
+    private void refreshCloudSection() {
+        boolean paired = Prefs.isCloudPaired(this);
+        tvCloudStatus.setText(paired ? getString(R.string.label_cloud_paired) : getString(R.string.label_cloud_not_paired));
+        tvCloudSubtitle.setText(paired ? getString(R.string.label_cloud_paired_subtitle) : getString(R.string.label_cloud_not_paired_subtitle));
+        btnCloudPair.setVisibility(paired ? View.GONE : View.VISIBLE);
+        btnCloudUnpair.setVisibility(paired ? View.VISIBLE : View.GONE);
     }
 
     // Lingua: usa il per-app language di AppCompatDelegate (persiste da solo, ha priorita'
