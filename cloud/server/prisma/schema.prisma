@@ -46,8 +46,14 @@ model Vehicle {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   vin        String   @unique
   nickname   String   @default("La mia auto")
-  model      String?
-  modelYear  Int?     @map("model_year")
+  // Impostati dall'onboarding obbligatorio lato Android (brand->model->powertrain a
+  // cascata, vedi VehicleCatalog.java), non piu' dal tentativo di rilevazione automatica
+  // via VDB (ritirato - vedi jaedrive_decompiled_apks memory). `model` esisteva gia' ma
+  // non era mai stato scritto da nessuna rotta; `modelYear` e' stato rimosso (stessa
+  // situazione, mai popolato) a favore di `brand`/`powertrain`.
+  brand      String?  // "JAECOO" | "OMODA"
+  model      String?  // "5" | "7" | "8" | "9"
+  powertrain String?  // "ICE_2WD" | "ICE_4WD" | "SHS_H" | "SHS_P" | "SHS_P_4WD" | "BEV"
   createdAt  DateTime @default(now()) @map("created_at")
 
   devices Device[]

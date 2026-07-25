@@ -106,6 +106,23 @@ public class CloudApiClient {
         deleteRequest("/api/device/vehicle", deviceToken);
     }
 
+    // Marca/modello/motorizzazione dall'onboarding obbligatorio (vedi VehicleCatalog,
+    // MainActivity.showVehicleOnboardingDialog()) - chiamata subito se l'auto e' gia'
+    // associata, altrimenti rimandata al primo pairing riuscito (vedi
+    // MainActivity.syncVehicleInfoIfNeeded()).
+    public static void updateVehicleInfo(String deviceToken, String brand, String model, String powertrain) throws IOException, JSONException {
+        JSONObject body = new JSONObject();
+        body.put("brand", brand);
+        body.put("model", model);
+        body.put("powertrain", powertrain);
+        HttpURLConnection conn = open("/api/device/vehicle", "PATCH", deviceToken);
+        conn.setDoOutput(true);
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        readResponse(conn);
+    }
+
     private static void deleteRequest(String path, String bearerToken) throws IOException {
         HttpURLConnection conn = open(path, "DELETE", bearerToken);
         try {

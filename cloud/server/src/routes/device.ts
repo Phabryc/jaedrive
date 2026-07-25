@@ -214,5 +214,33 @@ export async function deviceRoutes(app: FastifyInstance) {
       await prisma.vehicle.delete({ where: { id: device.vehicleId } });
       return reply.code(204).send();
     });
+
+    // Brand/model/powertrain dall'onboarding obbligatorio Android (vedi VehicleCatalog.java) -
+    // sostituisce il vecchio tentativo di rilevazione automatica via VDB, mai affidabile.
+    // Il device puo' richiamarla di nuovo se l'utente rifa' l'onboarding (nickname resta
+    // gestito solo lato utente/web, non qui - vedi PATCH /api/user/vehicles/:id).
+    protectedApp.patch(
+      "/vehicle",
+      {
+        schema: {
+          body: {
+            type: "object",
+            required: ["brand", "model", "powertrain"],
+            properties: {
+              brand: { type: "string", enum: ["JAECOO", "OMODA"] },
+              model: { type: "string", minLength: 1, maxLength: 20 },
+              powertrain: { type: "string", minLength: 1, maxLength: 20 },
+            },
+          },
+        },
+      },
+      async (req, reply) => {
+        const device = req.authDevice!;
+        if (!device.vehicleId) return reply.code(409).send({ error: "Device is not paired to a vehicle" });
+        const { brand, model, powertrain } = req.body as { brand: string; model: string; powertrain: string };
+        const vehicle = await prisma.vehicle.update({ where: { id: device.vehicleId }, data: { brand, model, powertrain } });
+        return reply.send({ brand: vehicle.brand, model: vehicle.model, powertrain: vehicle.powertrain });
+      },
+    );
   });
 }

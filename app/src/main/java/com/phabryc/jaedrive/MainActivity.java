@@ -345,6 +345,11 @@ public class MainActivity extends AppCompatActivity {
         btnDeleteSelected.setOnClickListener(v -> confirmDeleteSelectedTrips());
         showSection(0);
         setupImpostazioni();
+        setupVehicleSection();
+        // Obbligatorio solo se marca/modello/motorizzazione non sono mai stati impostati -
+        // vedi Prefs.isVehicleInfoSet()/VehicleCatalog. Non cancellabile in questo caso
+        // (nessun bottone CHIUDI, nessun dismiss col tasto indietro).
+        if (!Prefs.isVehicleInfoSet(this)) showVehicleOnboardingDialog(true);
         startLiveDotPulse();
 
         requestNeededPermissions();
@@ -659,6 +664,10 @@ public class MainActivity extends AppCompatActivity {
         Prefs.setCloudPairing(this, deviceToken, null);
         refreshCloudSection();
         SyncScheduler.enqueueSync(this); // eventuali trip gia' in attesa partono subito
+        // Se l'onboarding marca/modello era gia' stato completato PRIMA di questo pairing,
+        // il cloud non l'ha mai ricevuto (prima non c'era un'auto associata a cui inviarlo) -
+        // lo mandiamo ora.
+        syncVehicleInfoIfNeeded();
         appendLog("[Cloud] Auto associata all'account");
 
         setPairingSection(root, "status");
@@ -1495,6 +1504,192 @@ public class MainActivity extends AppCompatActivity {
         tvCloudStatus.setText(getString(R.string.label_cloud_paired));
         tvCloudSubtitle.setText(getString(R.string.label_cloud_paired_subtitle));
         fetchOwnerProfile();
+    }
+
+    // --- Marca/modello/motorizzazione (onboarding obbligatorio, vedi VehicleCatalog) ---
+
+    private void setupVehicleSection() {
+        refreshVehicleCard();
+        findViewById(R.id.card_vehicle).setOnClickListener(v -> showVehicleOnboardingDialog(false));
+    }
+
+    private void refreshVehicleCard() {
+        if (!Prefs.isVehicleInfoSet(this)) return;
+        tvVehicleModel.setText(VehicleCatalog.displayName(
+            Prefs.getVehicleBrand(this), Prefs.getVehicleModel(this), Prefs.getVehiclePowertrain(this)));
+    }
+
+    // Invia marca/modello/motorizzazione al cloud se l'auto e' gia' associata - chiamata sia
+    // subito dopo la conferma dell'onboarding, sia subito dopo un pairing riuscito (nel caso
+    // l'onboarding fosse gia' stato completato prima di associare l'auto). No-op silenzioso
+    // se l'auto non e' associata: verra' rimandato al prossimo pairing (vedi finishPairingSuccess()).
+    private void syncVehicleInfoIfNeeded() {
+        if (!Prefs.isCloudPaired(this) || !Prefs.isVehicleInfoSet(this)) return;
+        String token = Prefs.getCloudDeviceToken(this);
+        String brand = Prefs.getVehicleBrand(this);
+        String model = Prefs.getVehicleModel(this);
+        String powertrain = Prefs.getVehiclePowertrain(this);
+        new Thread(() -> {
+            try {
+                CloudApiClient.updateVehicleInfo(token, brand, model, powertrain);
+                appendLog("[Cloud] Marca/modello/motorizzazione sincronizzati");
+            } catch (Exception e) {
+                appendLog("[Cloud] Errore sincronizzazione marca/modello: " + e);
+            }
+        }, "JaeDrive-VehicleInfoSync").start();
+    }
+
+    // mandatory=true: primo avvio senza dati impostati, non cancellabile (nessun bottone
+    // CHIUDI, nessun dismiss col tasto indietro). mandatory=false: riapertura volontaria
+    // toccando la card "Veicolo" in Impostazioni, per correggere una scelta gia' fatta -
+    // precompila le selezioni correnti invece di ripartire da zero.
+    private void showVehicleOnboardingDialog(boolean mandatory) {
+        View root = getLayoutInflater().inflate(R.layout.dialog_vehicle_onboarding, null);
+        LinearLayout brandContainer = root.findViewById(R.id.vehicle_brand_container);
+        TextView modelLabel = root.findViewById(R.id.tv_vehicle_model_label);
+        LinearLayout modelContainer = root.findViewById(R.id.vehicle_model_container);
+        TextView powertrainLabel = root.findViewById(R.id.tv_vehicle_powertrain_label);
+        LinearLayout powertrainContainer = root.findViewById(R.id.vehicle_powertrain_container);
+        TextView btnClose = root.findViewById(R.id.btn_vehicle_onboarding_close);
+        TextView btnConfirm = root.findViewById(R.id.btn_vehicle_onboarding_confirm);
+
+        // Stato mutabile catturato dalle lambda sotto (array di 1 elemento invece di variabili
+        // locali, che in Java devono essere effectively final per essere catturate).
+        String[] selected = {
+            Prefs.getVehicleBrand(this), Prefs.getVehicleModel(this), Prefs.getVehiclePowertrain(this)
+        };
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setView(root)
+            .setCancelable(!mandatory)
+            .create();
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
+        btnClose.setVisibility(mandatory ? View.GONE : View.VISIBLE);
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+
+        Runnable updateConfirmState = () -> btnConfirm.setAlpha(
+            (selected[0] != null && selected[1] != null && selected[2] != null) ? 1f : 0.4f);
+
+        // I tre Runnable si richiamano a cascata (marca cambiata -> ricostruisci modelli e
+        // motorizzazioni, modello cambiato -> ricostruisci motorizzazioni) invece di ristilare
+        // i chip esistenti: piu' semplice e senza rischio di stato incoerente tra i tre livelli.
+        Runnable[] populatePowertrain = new Runnable[1];
+        Runnable[] populateModel = new Runnable[1];
+        Runnable[] populateBrand = new Runnable[1];
+
+        populatePowertrain[0] = () -> {
+            powertrainContainer.removeAllViews();
+            if (selected[0] == null || selected[1] == null) {
+                powertrainLabel.setVisibility(View.GONE);
+                powertrainContainer.setVisibility(View.GONE);
+                return;
+            }
+            powertrainLabel.setVisibility(View.VISIBLE);
+            powertrainContainer.setVisibility(View.VISIBLE);
+            for (String pt : VehicleCatalog.powertrainsFor(selected[0], selected[1])) {
+                TextView chip = buildOnboardingChip(VehicleCatalog.powertrainLabel(pt), pt.equals(selected[2]));
+                chip.setOnClickListener(v -> {
+                    selected[2] = pt;
+                    populatePowertrain[0].run();
+                    updateConfirmState.run();
+                });
+                addWeightedChip(powertrainContainer, chip);
+            }
+        };
+
+        populateModel[0] = () -> {
+            modelContainer.removeAllViews();
+            if (selected[0] == null) {
+                modelLabel.setVisibility(View.GONE);
+                modelContainer.setVisibility(View.GONE);
+                return;
+            }
+            modelLabel.setVisibility(View.VISIBLE);
+            modelContainer.setVisibility(View.VISIBLE);
+            for (String model : VehicleCatalog.modelsFor(selected[0])) {
+                TextView chip = buildOnboardingChip(selected[0] + " " + model, model.equals(selected[1]));
+                chip.setOnClickListener(v -> {
+                    if (!model.equals(selected[1])) {
+                        selected[1] = model;
+                        selected[2] = null;
+                    }
+                    populateModel[0].run();
+                    populatePowertrain[0].run();
+                    updateConfirmState.run();
+                });
+                addWeightedChip(modelContainer, chip);
+            }
+        };
+
+        populateBrand[0] = () -> {
+            brandContainer.removeAllViews();
+            for (String brand : VehicleCatalog.BRANDS) {
+                TextView chip = buildOnboardingChip(brand, brand.equals(selected[0]));
+                chip.setOnClickListener(v -> {
+                    if (!brand.equals(selected[0])) {
+                        selected[0] = brand;
+                        selected[1] = null;
+                        selected[2] = null;
+                    }
+                    populateBrand[0].run();
+                    populateModel[0].run();
+                    populatePowertrain[0].run();
+                    updateConfirmState.run();
+                });
+                addWeightedChip(brandContainer, chip);
+            }
+        };
+
+        populateBrand[0].run();
+        populateModel[0].run();
+        populatePowertrain[0].run();
+        updateConfirmState.run();
+
+        btnConfirm.setOnClickListener(v -> {
+            if (selected[0] == null || selected[1] == null || selected[2] == null) return;
+            Prefs.setVehicleInfo(this, selected[0], selected[1], selected[2]);
+            refreshVehicleCard();
+            syncVehicleInfoIfNeeded();
+            dialog.dismiss();
+        });
+
+        dialog.show();
+    }
+
+    // Chip di selezione singola, stesso stile "segmento selezionato" gia' usato per il
+    // toggle AUTO/MANUALE dello Storico (vedi styleToggle()) - selezionato: sfondo pieno +
+    // testo on_primary, non selezionato: nessuno sfondo + testo grigio.
+    private TextView buildOnboardingChip(String text, boolean selected) {
+        TextView chip = new TextView(this);
+        chip.setText(text);
+        chip.setTextSize(15);
+        chip.setGravity(android.view.Gravity.CENTER);
+        chip.setClickable(true);
+        chip.setFocusable(true);
+        styleOnboardingChip(chip, selected);
+        return chip;
+    }
+
+    private void styleOnboardingChip(TextView chip, boolean selected) {
+        if (selected) {
+            chip.setBackgroundResource(R.drawable.segment_selected_bg);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
+        } else {
+            chip.setBackgroundResource(R.drawable.badge_chip_neutral);
+            chip.setTextColor(ContextCompat.getColor(this, R.color.on_surface_variant));
+        }
+    }
+
+    // Larghezza uniforme per tutti i chip di una riga (2-4 opzioni), qualunque sia il numero -
+    // piu' leggibile di un wrap che li farebbe traboccare su schermi stretti.
+    private void addWeightedChip(LinearLayout container, TextView chip) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        int padV = (int) dp(14);
+        if (container.getChildCount() > 0) params.leftMargin = (int) dp(8);
+        chip.setPadding((int) dp(8), padV, (int) dp(8), padV);
+        chip.setLayoutParams(params);
+        container.addView(chip);
     }
 
     // Nome/cognome/email/foto dell'account collegato, mostrati nella card CLOUD - vedi

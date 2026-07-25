@@ -18,6 +18,9 @@ public class Prefs {
     private static final String KEY_CLOUD_DEVICE_TOKEN = "cloud_device_token";
     private static final String KEY_CLOUD_VEHICLE_ID = "cloud_vehicle_id";
     private static final String KEY_DEVICE_GUID = "device_guid";
+    private static final String KEY_VEHICLE_BRAND = "vehicle_brand";
+    private static final String KEY_VEHICLE_MODEL = "vehicle_model";
+    private static final String KEY_VEHICLE_POWERTRAIN = "vehicle_powertrain";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -106,5 +109,33 @@ public class Prefs {
             p.edit().putString(KEY_DEVICE_GUID, guid).apply();
         }
         return guid;
+    }
+
+    // Marca/modello/motorizzazione impostati dall'onboarding obbligatorio (vedi
+    // MainActivity.showVehicleOnboardingDialog()/VehicleCatalog) - sostituisce il vecchio
+    // tentativo di rilevazione automatica via VDB (ID_MODEL_CODE/ID_BRAND, ritirato perche'
+    // mai affidabile). isVehicleInfoSet() decide se mostrare l'onboarding all'avvio.
+    public static boolean isVehicleInfoSet(Context ctx) {
+        return getVehicleBrand(ctx) != null && getVehicleModel(ctx) != null && getVehiclePowertrain(ctx) != null;
+    }
+
+    public static String getVehicleBrand(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_VEHICLE_BRAND, null);
+    }
+
+    public static String getVehicleModel(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_VEHICLE_MODEL, null);
+    }
+
+    public static String getVehiclePowertrain(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_VEHICLE_POWERTRAIN, null);
+    }
+
+    public static void setVehicleInfo(Context ctx, String brand, String model, String powertrain) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_VEHICLE_BRAND, brand)
+            .putString(KEY_VEHICLE_MODEL, model)
+            .putString(KEY_VEHICLE_POWERTRAIN, powertrain)
+            .apply();
     }
 }

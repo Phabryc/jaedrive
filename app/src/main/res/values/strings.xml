@@ -6,7 +6,7 @@
          so a future third language can diverge without touching code - see also
          values-it/ (Italian). -->
     <string name="app_name">JaeDrive</string>
-    <string name="label_vehicle_value">JAECOO 7 SHS-H</string>
+    <string name="label_vehicle_value">Not set up</string>
     <string name="filter_auto">AUTO</string>
     <string name="lang_code_it">IT</string>
     <string name="lang_code_en">EN</string>
@@ -108,6 +108,12 @@
     <string name="dialog_pairing_error_expired">Code expired without being used. Try again.</string>
     <string name="dialog_btn_retry">TRY AGAIN</string>
     <string name="dialog_btn_close">CLOSE</string>
+    <string name="dialog_vehicle_onboarding_title">Set up your car</string>
+    <string name="dialog_vehicle_onboarding_message">Pick your car\'s brand, model and powertrain. You can change this anytime by tapping the Vehicle card.</string>
+    <string name="dialog_btn_confirm">CONFIRM</string>
+    <string name="label_vehicle_brand">BRAND</string>
+    <string name="label_vehicle_model">MODEL</string>
+    <string name="label_vehicle_powertrain">POWERTRAIN</string>
 
     <!-- Log -->
     <string name="label_save_log">SAVE LOG TO USB</string>

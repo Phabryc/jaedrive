@@ -9,7 +9,7 @@
          letterali), cosi' una futura terza lingua puo' divergere senza dover toccare il
          codice - vedi anche values/ (inglese, fallback). -->
     <string name="app_name">JaeDrive</string>
-    <string name="label_vehicle_value">JAECOO 7 SHS-H</string>
+    <string name="label_vehicle_value">Da configurare</string>
     <string name="filter_auto">AUTO</string>
     <string name="lang_code_it">IT</string>
     <string name="lang_code_en">EN</string>
@@ -111,6 +111,12 @@
     <string name="dialog_pairing_error_expired">Codice scaduto senza essere usato. Riprova.</string>
     <string name="dialog_btn_retry">RIPROVA</string>
     <string name="dialog_btn_close">CHIUDI</string>
+    <string name="dialog_vehicle_onboarding_title">Configura la tua auto</string>
+    <string name="dialog_vehicle_onboarding_message">Scegli marca, modello e motorizzazione della tua auto. Puoi cambiarli in qualsiasi momento toccando la card Veicolo.</string>
+    <string name="dialog_btn_confirm">CONFERMA</string>
+    <string name="label_vehicle_brand">MARCA</string>
+    <string name="label_vehicle_model">MODELLO</string>
+    <string name="label_vehicle_powertrain">MOTORIZZAZIONE</string>
 
     <!-- Log -->
     <string name="label_save_log">SALVA LOG SU USB</string>
