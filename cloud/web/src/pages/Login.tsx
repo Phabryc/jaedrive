@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, type Location } from "react-router-dom";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -13,13 +13,19 @@ import jdLogo from "../assets/jd_logo.png";
 export default function Login() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set by ProtectedRoute when it bounced an unauthenticated visitor here - e.g. someone
+  // scanning the car's pairing QR code lands on /pair?code=XXXX first, then here, then
+  // should go straight back to /pair?code=XXXX instead of the generic dashboard.
+  const from = (location.state as { from?: Location } | null)?.from;
+  const redirectTarget = from ? from.pathname + from.search : "/";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!loading && user) return <Navigate to="/" replace />;
+  if (!loading && user) return <Navigate to={redirectTarget} replace />;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +37,7 @@ export default function Login() {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
-      navigate("/");
+      navigate(redirectTarget);
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -44,7 +50,7 @@ export default function Login() {
     setBusy(true);
     try {
       await signInWithPopup(auth, googleProvider);
-      navigate("/");
+      navigate(redirectTarget);
     } catch (err) {
       setError(friendlyError(err));
     } finally {

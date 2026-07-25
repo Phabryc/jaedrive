@@ -24,13 +24,11 @@ export function bucketFor(value: number): EnergyBucket {
   }
 }
 
-// Approximate palette (not yet cross-checked against the Android app's EnergyFlowUtil/
-// colors.xml at time of writing) - adjust to match exactly once the Android sync client
-// ships and the two can be compared side by side.
+// Exact values from EnergyFlowUtil.colorForBucket() in the Android app (0xFF00BFFF etc.).
 export const BUCKET_COLOR: Record<EnergyBucket, string> = {
   EV: "#00BFFF",
-  SERIES: "#FB8C00",
-  PARALLEL: "#C62828",
+  SERIES: "#FFC107",
+  PARALLEL: "#F57C00",
   CHR: "#2E7D32",
-  IDLE: "#8A8F98",
+  IDLE: "#4A4A4A",
 };
