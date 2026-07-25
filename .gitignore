@@ -1,0 +1,48 @@
+# === Android / Gradle ===
+*.iml
+.gradle/
+build/
+/captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+app/build/
+app/release/
+
+# Android Studio - keep the shared project config, ignore the machine-specific/cache stuff
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/.name
+*.hprof
+
+# APK / signing (never commit build output or signing material)
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Vendor-extracted framework jar (pulled from the head unit via adb, see README.md "Build"
+# section) - not ours to redistribute, and machine/head-unit-specific.
+app/libs/
+
+# === Cloud (Node/Fastify/React) ===
+cloud/**/node_modules/
+cloud/**/dist/
+cloud/server/.env
+cloud/web/.env.local
+cloud/.env
+*.log
+
+# === Personal / sensitive - device logs (GPS traces, addresses) and reference photos
+# (including a vendor unlock file bound to this specific VIN) - not source code, not meant
+# to be published even to a private repo history. Keep these local-only.
+applogs/
+photo/
+
+# === OS noise ===
+.DS_Store
+Thumbs.db

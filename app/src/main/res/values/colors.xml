@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Design system "Aetheris Automotive" (da Google Stitch, progetto "Jaecoo Trip Monitor") -->
+    <color name="root_background">#0A0A0A</color>
+    <color name="surface_container_lowest">#0E0E0E</color>
+    <color name="surface_container_low">#1C1B1B</color>
+    <color name="surface_container">#201F1F</color>
+    <color name="surface_container_high">#2A2A2A</color>
+    <color name="surface_container_highest">#353534</color>
+
+    <color name="on_surface">#E5E2E1</color>
+    <color name="on_surface_variant">#BCC8D1</color>
+
+    <color name="primary">#8FD6FF</color>
+    <color name="primary_container">#00BFFF</color>
+    <color name="on_primary">#003549</color>
+    <color name="on_primary_container">#004A65</color>
+
+    <color name="secondary_container">#394857</color>
+    <color name="on_secondary_container">#A7B7C8</color>
+
+    <color name="error">#FFB4AB</color>
+    <color name="error_container">#93000A</color>
+
+    <!-- Glass card: rgba(25,25,25,0.6) -->
+    <color name="glass_card_fill">#99191919</color>
+    <!-- Bordo: rgba(255,255,255,0.1) -->
+    <color name="glass_border">#1AFFFFFF</color>
+    <color name="glass_border_primary">#4D00BFFF</color>
+    <color name="primary_tint_10">#1A00BFFF</color>
+
+    <!-- Trend consumo (card "Ultimo viaggio"): verde se migliora, arancio/rosso se peggiora. -->
+    <color name="trend_positive">#2E7D32</color>
+    <color name="trend_warning">#FB8C00</color>
+    <color name="trend_negative">#C62828</color>
+</resources>

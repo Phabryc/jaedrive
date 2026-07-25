@@ -1,0 +1,43 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jaedrive
+      POSTGRES_USER: jaedrive
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - jaedrive_pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://jaedrive:${POSTGRES_PASSWORD}@postgres:5432/jaedrive
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
+      NODE_ENV: production
+    ports:
+      # Host nginx proxy_passes here; not published publicly by Docker itself - see
+      # cloud/DESIGN.md §13.
+      - "127.0.0.1:4300:3000"
+    depends_on:
+      - postgres
+    networks:
+      - internal
+
+volumes:
+  jaedrive_pgdata:
+
+networks:
+  internal:

@@ -1,0 +1,110 @@
+// JaeDrive Cloud - Prisma schema
+// Mirrors cloud/DESIGN.md §4. Table/column names kept snake_case in Postgres via @map/@@map,
+// Prisma client fields stay camelCase (idiomatic on the TS side).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Mirrors a Firebase-authenticated identity. NOT the source of truth for credentials -
+// Firebase is. Row is created/updated lazily on first successful token verification.
+model User {
+  id           String   @id @default(uuid())
+  firebaseUid  String   @unique @map("firebase_uid")
+  email        String?
+  displayName  String?  @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  vehicles         Vehicle[]
+  pairingsClaimed  PairingRequest[]
+
+  @@map("users")
+}
+
+// One physical car, identified by VIN, owned by one user.
+model Vehicle {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vin        String   @unique
+  nickname   String   @default("La mia auto")
+  model      String?
+  modelYear  Int?     @map("model_year")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  devices Device[]
+  trips   Trip[]
+
+  @@map("vehicles")
+}
+
+// One head-unit app install. A device belongs to at most one vehicle at a time.
+model Device {
+  id               String    @id @default(uuid())
+  vehicleId        String?   @map("vehicle_id")
+  vehicle          Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  deviceTokenHash  String    @unique @map("device_token_hash")
+  appVersion       String?   @map("app_version")
+  lastSeenAt       DateTime? @map("last_seen_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  trips           Trip[]
+  pairingRequests PairingRequest[]
+
+  @@map("devices")
+}
+
+// Short-lived pairing session, "Netflix-style" device code flow. See DESIGN.md §7.
+model PairingRequest {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  vin         String
+  deviceHint  String?  @map("device_hint")
+  status      String   @default("pending") // pending | claimed | expired
+  deviceId    String?  @map("device_id")
+  device      Device?  @relation(fields: [deviceId], references: [id])
+  expiresAt   DateTime @map("expires_at")
+  claimedBy   String?  @map("claimed_by")
+  claimedByUser User?  @relation(fields: [claimedBy], references: [id])
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Plaintext device token, held only transiently between claim and the car app's first
+  // successful poll pickup (row expires/is cleaned up shortly after anyway - see DESIGN.md
+  // §7). Nulled out once delivered so a token can never be re-read after that point, same
+  // "shown once" guarantee as the permanent device_token_hash on Device.
+  plaintextToken   String?   @map("plaintext_token")
+  tokenDeliveredAt DateTime? @map("token_delivered_at")
+
+  @@map("pairing_requests")
+}
+
+model Trip {
+  id             String    @id @default(uuid())
+  vehicleId      String    @map("vehicle_id")
+  vehicle        Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  deviceId       String?   @map("device_id")
+  device         Device?   @relation(fields: [deviceId], references: [id])
+  kind           String    // 'auto' | 'manual_a' | 'manual_b'
+  startedAt      DateTime  @map("started_at")
+  endedAt        DateTime? @map("ended_at")
+  label          String?
+  km             Float?
+  liters         Float?
+  avgConsumption Float?    @map("avg_consumption")
+  pctEv          Float?    @map("pct_ev")
+  pctSeries      Float?    @map("pct_series")
+  pctParallel    Float?    @map("pct_parallel")
+  pctOther       Float?    @map("pct_other")
+  gpxRaw         String?   @map("gpx_raw")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([vehicleId, kind, startedAt])
+  @@index([vehicleId, startedAt(sort: Desc)])
+  @@map("trips")
+}

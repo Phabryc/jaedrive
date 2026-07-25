@@ -1,0 +1,77 @@
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
+import type { Vehicle } from "../lib/types";
+import { AppShell } from "../components/AppShell";
+import { useAuth } from "../lib/AuthContext";
+
+export default function Settings() {
+  const { user } = useAuth();
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [editing, setEditing] = useState<Record<string, string>>({});
+
+  function reload() {
+    api.vehicles().then(setVehicles);
+  }
+  useEffect(reload, []);
+
+  async function saveNickname(id: string) {
+    const nickname = editing[id]?.trim();
+    if (!nickname) return;
+    await api.renameVehicle(id, nickname);
+    setEditing((e) => ({ ...e, [id]: "" }));
+    reload();
+  }
+
+  async function deleteVehicle(id: string, nickname: string) {
+    if (!confirm(`Eliminare "${nickname}" e tutti i suoi viaggi? L'operazione non può essere annullata.`)) return;
+    await api.deleteVehicle(id);
+    reload();
+  }
+
+  return (
+    <AppShell>
+      <h1 className="mb-6 text-xl font-semibold">Impostazioni</h1>
+
+      <section className="mb-8 rounded-lg border border-surface-border bg-surface p-4">
+        <p className="mb-1 text-sm font-medium">Account</p>
+        <p className="text-sm text-onsurface-variant">{user?.email}</p>
+      </section>
+
+      <section>
+        <p className="mb-3 text-sm font-medium">Le mie auto</p>
+        <div className="flex flex-col gap-3">
+          {vehicles.map((v) => (
+            <div key={v.id} className="rounded-lg border border-surface-border bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{v.nickname}</p>
+                  <p className="font-mono text-xs text-onsurface-variant">{v.vin}</p>
+                </div>
+                <button
+                  onClick={() => deleteVehicle(v.id, v.nickname)}
+                  className="rounded-md border border-bad px-3 py-1 text-xs text-bad hover:bg-bad/10"
+                >
+                  Elimina auto
+                </button>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input
+                  placeholder="Nuovo nome"
+                  value={editing[v.id] ?? ""}
+                  onChange={(e) => setEditing((s) => ({ ...s, [v.id]: e.target.value }))}
+                  className="flex-1 rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                />
+                <button
+                  onClick={() => saveNickname(v.id)}
+                  className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
+                >
+                  Rinomina
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </AppShell>
+  );
+}

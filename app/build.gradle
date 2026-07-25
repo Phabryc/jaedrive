@@ -1,0 +1,41 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdk 33
+    namespace 'com.phabryc.jaedrive'
+
+    defaultConfig {
+        applicationId "com.phabryc.jaedrive"
+        minSdk 28
+        targetSdk 33
+        versionCode 1
+        versionName "0.1-probe"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        aidl true
+    }
+
+    // Nome file ufficiale dell'APK invece del generico "app-debug.apk" (piu' comodo
+    // da riconoscere una volta copiato su chiavetta USB per l'installazione).
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "JaeDrive.apk"
+        }
+    }
+}
+
+dependencies {
+    // android.car è una system library - non è su Maven
+    // va messa come provided/compileOnly dal SDK dell'head unit
+    compileOnly fileTree(dir: 'libs', include: ['android.car.jar'])
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    // Mappa OpenStreetMap reale per il dettaglio viaggio in Storico (tile scaricati
+    // dai server OSM se l'head unit ha connessione internet).
+    implementation 'org.osmdroid:osmdroid-android:6.1.20'
+}

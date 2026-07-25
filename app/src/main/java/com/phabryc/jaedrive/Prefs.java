@@ -1,0 +1,56 @@
+package com.phabryc.jaedrive;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+// Preferenze utente esposte nella sezione Impostazioni: unita' di misura (solo di
+// visualizzazione, i dati restano salvati internamente in km/litri) e interruttore
+// per la registrazione della traccia GPS.
+public class Prefs {
+
+    private static final String PREFS = "jaedrive_prefs";
+    private static final String KEY_UNIT_DISTANCE_MI = "unit_distance_mi";
+    private static final String KEY_UNIT_CONSUMPTION_GAL = "unit_consumption_gal";
+    private static final String KEY_GPS_TRACK_ENABLED = "gps_track_enabled";
+    private static final String KEY_DEBUG_MODE_ENABLED = "debug_mode_enabled";
+
+    public static boolean isDistanceMiles(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
+    }
+
+    public static void setDistanceMiles(Context ctx, boolean miles) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_UNIT_DISTANCE_MI, miles).apply();
+    }
+
+    public static boolean isConsumptionGallons(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_CONSUMPTION_GAL, false);
+    }
+
+    public static void setConsumptionGallons(Context ctx, boolean gallons) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_UNIT_CONSUMPTION_GAL, gallons).apply();
+    }
+
+    // Letto direttamente da TrackingService prima di avviare la registrazione GPS di ogni
+    // viaggio: se disattivato, il viaggio resta tracciato ai fini del consumo (km/litri via
+    // VDB) ma non produce una traccia GPX.
+    public static boolean isGpsTrackEnabled(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_GPS_TRACK_ENABLED, true);
+    }
+
+    public static void setGpsTrackEnabled(Context ctx, boolean enabled) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_GPS_TRACK_ENABLED, enabled).apply();
+    }
+
+    // Letto sia da MainActivity (buffer/log a schermo) sia da TrackingService (log su file,
+    // log per-viaggio allegato al TripRecord): se disattivato, evita di scrivere/accumulare
+    // log per non sprecare spazio/risorse quando non servono. Default ON: il progetto e'
+    // ancora in fase di reverse-engineering attiva, i log restano utili finche' non si
+    // disattivano esplicitamente da qui.
+    public static boolean isDebugModeEnabled(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DEBUG_MODE_ENABLED, true);
+    }
+
+    public static void setDebugModeEnabled(Context ctx, boolean enabled) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_DEBUG_MODE_ENABLED, enabled).apply();
+    }
+}

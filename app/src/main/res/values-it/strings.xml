@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Italiano. L'inglese (values/, senza qualificatore) e' il fallback di base per
+     qualunque lingua non ancora supportata esplicitamente, essendo l'app distribuita
+     in tutta Europa. -->
+<resources>
+    <string name="accessibility_service_description">Mantiene attivo il tracciamento GPS/consumi di JaeDrive in background. Non legge il contenuto dello schermo.</string>
+
+    <!-- Anche le parole identiche fra italiano/inglese sono risorse per-lingua (non
+         letterali), cosi' una futura terza lingua puo' divergere senza dover toccare il
+         codice - vedi anche values/ (inglese, fallback). -->
+    <string name="app_name">JaeDrive</string>
+    <string name="label_vehicle_value">JAECOO 7 SHS-H</string>
+    <string name="filter_auto">AUTO</string>
+    <string name="lang_code_it">IT</string>
+    <string name="lang_code_en">EN</string>
+    <string name="unit_km">km</string>
+    <string name="unit_mi">mi</string>
+    <string name="unit_gal">Gal</string>
+    <string name="label_km_short">Km</string>
+    <string name="unit_speed_suffix"> km/h</string>
+    <string name="label_live">LIVE</string>
+    <string name="section_privacy_gps_title">PRIVACY &amp; GPS</string>
+    <string name="btn_reset">RESET</string>
+    <string name="trip_a_default">Trip A</string>
+    <string name="trip_b_default">Trip B</string>
+    <string name="label_offline">OFFLINE</string>
+    <string name="error_short">ERR</string>
+
+    <!-- Nav drawer -->
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_storico">Storico</string>
+    <string name="nav_impostazioni">Impostaz.</string>
+    <string name="nav_log">Log</string>
+
+    <!-- Dashboard -->
+    <string name="label_consumption">Consumo</string>
+    <string name="label_consumption_full">Consumo</string>
+    <string name="label_distance">Distanza</string>
+    <string name="label_liters">Litri</string>
+    <string name="label_last_trip">ULTIMO VIAGGIO</string>
+    <string name="trip_status_ongoing">IN CORSO</string>
+    <string name="trip_status_ended">CONCLUSO</string>
+    <string name="trip_status_none">NESSUN VIAGGIO</string>
+    <string name="label_battery_short">Batteria</string>
+    <string name="label_fuel_short">Carburante</string>
+    <string name="label_flow_ev">EV</string>
+    <string name="label_flow_series">HEV-S</string>
+    <string name="label_flow_parallel">HEV-P</string>
+    <string name="label_flow_regen">CHARGE</string>
+    <string name="label_flow_unknown">IDLE</string>
+
+    <!-- Storico -->
+    <string name="section_storico_title">Storico Viaggi</string>
+    <string name="filter_manual">MANUALI</string>
+    <string name="empty_auto_trips">Nessun viaggio automatico registrato</string>
+    <string name="empty_manual_trips">Nessun trip manuale concluso</string>
+    <string name="btn_export_trip">ESPORTA VIAGGIO</string>
+    <string name="label_since">Dal</string>
+    <string name="label_select_mode">SELEZIONA</string>
+    <string name="label_selected_count">%1$d selezionati</string>
+    <string name="btn_delete">ELIMINA</string>
+    <string name="dialog_delete_trips_title">Eliminare i viaggi selezionati?</string>
+    <string name="dialog_delete_trips_message">Questa azione non puo\' essere annullata.</string>
+    <string name="dialog_reset_trip_title">Azzerare %1$s?</string>
+    <string name="dialog_reset_trip_message">Il viaggio attuale viene chiuso e salvato nello Storico, poi ne parte uno nuovo da zero.</string>
+
+    <!-- Impostazioni -->
+    <string name="section_impostazioni_title">Impostazioni</string>
+    <string name="section_units_title">UNITÀ DI MISURA</string>
+    <string name="label_gps_track_title">Salva traccia GPS</string>
+    <string name="label_gps_track_subtitle">Se disattivato, i viaggi restano tracciati solo per il calcolo dei consumi</string>
+    <string name="section_dev_title">SVILUPPO</string>
+    <string name="label_debug_mode_title">Modalità debug</string>
+    <string name="label_debug_mode_subtitle">Se disattivata, non vengono creati/scritti i log (risparmia spazio e risorse)</string>
+    <string name="section_system_info_title">INFO SISTEMA</string>
+    <string name="label_version">Versione</string>
+    <string name="label_vehicle">Veicolo</string>
+    <string name="label_vin">Telaio (VIN)</string>
+    <string name="label_vin_unavailable">Non disponibile</string>
+    <string name="section_language_title">LINGUA</string>
+    <string name="label_language_title">Lingua app</string>
+    <string name="label_language_subtitle">Scegli italiano o inglese, indipendentemente dalla lingua di sistema</string>
+
+    <!-- Log -->
+    <string name="label_save_log">SALVA LOG SU USB</string>
+    <string name="label_clear_log">PULISCI LOG</string>
+    <string name="dialog_clear_log_title">Pulire il log?</string>
+    <string name="dialog_clear_log_message">Elimina tutte le voci di log mostrate finora, incluso il log su disco del servizio in background. Questa azione non puo\' essere annullata.</string>
+    <string name="toast_log_cleared">Log pulito</string>
+    <string name="log_debug_disabled_placeholder">Modalità debug disattivata.\nAttivala in Impostazioni per vedere i log.</string>
+
+    <!-- Dialoghi / Toast -->
+    <string name="toast_slot_reset">%1$s azzerato</string>
+    <string name="dialog_rename_title">Nome %1$s</string>
+    <string name="dialog_btn_save">SALVA</string>
+    <string name="dialog_btn_cancel">ANNULLA</string>
+    <string name="label_rename_presets">SUGGERIMENTI</string>
+    <string-array name="preset_trip_names">
+        <item>Ultimo Rifornimento</item>
+        <item>Vacanze</item>
+        <item>Tragitto Casa-Lavoro</item>
+        <item>Gita nel Weekend</item>
+        <item>Prova su Strada</item>
+    </string-array>
+    <string name="toast_grant_all_files_access">Concedi \'Accesso a tutti i file\' a JaeDrive, poi riprova</string>
+    <string name="toast_exported">Esportato: %1$s</string>
+    <string name="toast_save_failed_no_storage">Salvataggio fallito: nessuno storage disponibile</string>
+    <string name="toast_saved_fallback">Salvato in Android/data/%1$s/files su ogni volume</string>
+    <string name="toast_save_failed">Salvataggio fallito</string>
+
+    <!-- Testo del file esportato con i dati del viaggio -->
+    <string name="export_header">JaeDrive - dati viaggio</string>
+    <string name="export_type_label">Tipo: </string>
+    <string name="export_type_auto">Automatico (GPS)</string>
+    <string name="export_type_manual">Manuale</string>
+    <string name="export_start_address_label">Partenza: </string>
+    <string name="export_arrival_label">Arrivo: </string>
+    <string name="export_reference_label">Riferimento: </string>
+    <string name="export_start_label">Inizio: </string>
+    <string name="export_end_label">Fine: </string>
+    <string name="export_km_label">Km percorsi: </string>
+    <string name="export_liters_label">Litri consumati: </string>
+    <string name="export_avg_label">Consumo medio: </string>
+    <string name="export_na">n/d</string>
+    <string name="export_log_header">\n=== LOG DEL VIAGGIO ===\n</string>
+</resources>

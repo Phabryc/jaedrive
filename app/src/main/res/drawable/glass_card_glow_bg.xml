@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Variante "active-inner-glow" del design Aetheris: stesso glass-card ma con
+     bordo blu elettrico, usata per la card del viaggio live/selezionato. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="10dp"/>
+    <solid android:color="@color/glass_card_fill"/>
+    <stroke android:width="2dp" android:color="@color/glass_border_primary"/>
+</shape>

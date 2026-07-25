@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pannello di dettaglio viaggio, condiviso e ri-agganciato dinamicamente sotto la riga
+     espansa nello Storico Viaggi (accordion) - vedi MainActivity.attachDetailPanelTo(). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- Mappa ingrandita parecchio su richiesta esplicita: a 140dp era "inutilizzabile"
+         (troppo piccola per apprezzare la traccia/i colori del flusso energia). Un primo
+         ingrandimento a 340dp e' stato segnalato ancora insufficiente - portata a 560dp,
+         volutamente piu' proporzionata delle altre card (e' l'elemento centrale di questa
+         vista, a differenza del resto dell'interfaccia rimasto a scala ~2x). -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="560dp"
+        android:background="@drawable/card_bg"
+        android:clipToOutline="true"
+        android:layout_marginBottom="16dp">
+
+        <!-- Contenitore vuoto: la MapView vera viene creata/distrutta a livello Java ad
+             ogni apertura online (vedi MainActivity.showMapForTrip()) invece di essere
+             dichiarata qui e riusata - osmdroid chiude per sempre i thread di download
+             tile quando la View viene staccata dalla finestra (onDetachedFromWindow()),
+             e onResume() da solo non li fa ripartire. Una MapView nuova ogni volta
+             elimina il problema alla radice. -->
+        <FrameLayout
+            android:id="@+id/map_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+
+        <com.phabryc.jaedrive.TripTraceView
+            android:id="@+id/trip_trace_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
+
+        <TextView
+            android:id="@+id/tv_map_offline_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_margin="12dp"
+            android:text="@string/label_offline"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="@drawable/badge_chip_neutral"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:visibility="gone"/>
+    </FrameLayout>
+
+    <!-- Percorso: indirizzo di partenza e arrivo (reverse geocoding via Nominatim, solo
+         AUTO e solo se c'era connessione quando disponibili - vedi
+         TrackingService.saveTripRecordAsync()). Icone stile navigatore: pin di
+         localizzazione (blu, stesso colore del pallino di partenza in TripTraceView
+         sulla mappa schematica offline) per la partenza, bandiera a scacchi per
+         l'arrivo. Nascosta se nessuno dei due indirizzi e' disponibile (es. trip
+         manuali, o nessuna connessione a inizio/fine viaggio). -->
+    <LinearLayout
+        android:id="@+id/detail_route_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/card_bg"
+        android:padding="18dp"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone">
+        <LinearLayout
+            android:id="@+id/row_detail_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp"
+            android:visibility="gone">
+            <ImageView android:layout_width="22dp" android:layout_height="22dp"
+                android:src="@drawable/ic_location" android:tint="#FF00BFFF" android:layout_marginEnd="12dp"/>
+            <TextView android:id="@+id/tv_detail_start_address" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:textColor="@color/on_surface" android:textSize="17sp" android:maxLines="2" android:ellipsize="end"/>
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/row_detail_destination"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+            <ImageView android:layout_width="22dp" android:layout_height="22dp"
+                android:src="@drawable/ic_flag_checkered" android:layout_marginEnd="12dp"/>
+            <TextView android:id="@+id/tv_detail_destination_address" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:textColor="@color/on_surface" android:textSize="17sp" android:maxLines="2" android:ellipsize="end"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/card_bg"
+        android:padding="20dp"
+        android:layout_marginBottom="16dp">
+        <LinearLayout
+            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="horizontal" android:gravity="center">
+            <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_location" android:tint="@color/primary" android:layout_marginEnd="10dp"/>
+            <TextView android:id="@+id/tv_detail_km" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/primary" android:textSize="26sp" android:textStyle="bold"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="horizontal" android:gravity="center">
+            <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_fuel" android:tint="@color/on_surface_variant" android:layout_marginEnd="10dp"/>
+            <TextView android:id="@+id/tv_detail_liters" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="horizontal" android:gravity="center">
+            <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_eco" android:tint="@color/on_surface_variant" android:layout_marginEnd="10dp"/>
+            <TextView android:id="@+id/tv_detail_avg" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Ripartizione energetica del viaggio (EV/HEV-S/HEV-P/CHARGE/IDLE), calcolata dai
+         campioni ENERGY_FLOW salvati per punto nel GPX - vedi MainActivity.updateEnergyFlowBreakdown().
+         A blocchi colorati come la riga modalita'/batteria/carburante/flusso della
+         Dashboard (non piu' una barra sottile + una riga di testo) - i pallini prendono
+         il colore della rispettiva modalita' (EnergyFlowUtil), impostato una volta sola
+         in MainActivity.onCreate(). Nascosta se il viaggio non ha questi dati (es. trip
+         manuali, o gpx senza estensione). -->
+    <LinearLayout
+        android:id="@+id/energy_flow_blocks"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/card_bg"
+        android:padding="18dp"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone">
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:gravity="center">
+            <View android:id="@+id/dot_flow_ev" android:layout_width="16dp" android:layout_height="16dp"
+                android:background="@drawable/dot_primary" android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_flow_pct_ev" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="0%" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/label_flow_ev" android:textColor="@color/on_surface_variant" android:textSize="15sp" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <View android:layout_width="1dp" android:layout_height="56dp" android:background="@color/glass_border"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:gravity="center">
+            <View android:id="@+id/dot_flow_series" android:layout_width="16dp" android:layout_height="16dp"
+                android:background="@drawable/dot_primary" android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_flow_pct_series" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="0%" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/label_flow_series" android:textColor="@color/on_surface_variant" android:textSize="15sp" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <View android:layout_width="1dp" android:layout_height="56dp" android:background="@color/glass_border"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:gravity="center">
+            <View android:id="@+id/dot_flow_parallel" android:layout_width="16dp" android:layout_height="16dp"
+                android:background="@drawable/dot_primary" android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_flow_pct_parallel" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="0%" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/label_flow_parallel" android:textColor="@color/on_surface_variant" android:textSize="15sp" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <View android:layout_width="1dp" android:layout_height="56dp" android:background="@color/glass_border"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:gravity="center">
+            <View android:id="@+id/dot_flow_charge" android:layout_width="16dp" android:layout_height="16dp"
+                android:background="@drawable/dot_primary" android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_flow_pct_charge" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="0%" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/label_flow_regen" android:textColor="@color/on_surface_variant" android:textSize="15sp" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+        <View android:layout_width="1dp" android:layout_height="56dp" android:background="@color/glass_border"/>
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:orientation="vertical" android:gravity="center">
+            <View android:id="@+id/dot_flow_idle" android:layout_width="16dp" android:layout_height="16dp"
+                android:background="@drawable/dot_primary" android:layout_marginBottom="8dp"/>
+            <TextView android:id="@+id/tv_flow_pct_idle" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:fontFamily="@font/geist_mono" android:text="0%" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="@string/label_flow_unknown" android:textColor="@color/on_surface_variant" android:textSize="15sp" android:layout_marginTop="3dp"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btn_export_detail"
+        android:layout_width="match_parent"
+        android:layout_height="76dp"
+        android:minHeight="0dp"
+        android:background="@drawable/btn_primary_bg"
+        android:textColor="@color/on_primary"
+        android:textStyle="bold"
+        android:textSize="22sp"
+        android:drawableStart="@drawable/ic_export"
+        android:drawablePadding="12dp"
+        android:drawableTint="@color/on_primary"
+        android:gravity="center"
+        android:text="@string/btn_export_trip"/>
+</LinearLayout>

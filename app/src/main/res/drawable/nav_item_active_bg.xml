@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Voce attiva della nav drawer: bordo blu elettrico sul lato sinistro + tinta di sfondo,
+     come da design Aetheris ("border-l-4 border-primary bg-primary/10"). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape>
+            <solid android:color="@color/primary_tint_10"/>
+        </shape>
+    </item>
+    <item android:width="4dp" android:gravity="left">
+        <shape>
+            <solid android:color="@color/primary_container"/>
+        </shape>
+    </item>
+</layer-list>

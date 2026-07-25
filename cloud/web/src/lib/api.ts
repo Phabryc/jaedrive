@@ -1,0 +1,62 @@
+import { auth } from "./firebase";
+import type { Vehicle, TripDetail, TripsPage } from "./types";
+
+class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const user = auth.currentUser;
+  const idToken = user ? await user.getIdToken() : undefined;
+
+  const res = await fetch(`/api/user${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+      ...init?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.error ?? res.statusText);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export const api = {
+  me: () => request<{ id: string; email: string | null; displayName: string | null }>("/me"),
+
+  vehicles: () => request<Vehicle[]>("/vehicles"),
+
+  renameVehicle: (id: string, nickname: string) =>
+    request<Vehicle>(`/vehicles/${id}`, { method: "PATCH", body: JSON.stringify({ nickname }) }),
+
+  deleteVehicle: (id: string) => request<void>(`/vehicles/${id}`, { method: "DELETE" }),
+
+  claimPairingCode: (code: string) =>
+    request<{ vehicleId: string }>("/pairing/claim", { method: "POST", body: JSON.stringify({ code }) }),
+
+  trips: (vehicleId: string, params: { page?: number; kind?: string; from?: string; to?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.kind) qs.set("kind", params.kind);
+    if (params.from) qs.set("from", params.from);
+    if (params.to) qs.set("to", params.to);
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<TripsPage>(`/vehicles/${vehicleId}/trips${suffix}`);
+  },
+
+  trip: (id: string) => request<TripDetail>(`/trips/${id}`),
+
+  deleteTrip: (id: string) => request<void>(`/trips/${id}`, { method: "DELETE" }),
+};
+
+export { ApiError };

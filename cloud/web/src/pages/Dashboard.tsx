@@ -1,0 +1,50 @@
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import type { Vehicle } from "../lib/types";
+import { AppShell } from "../components/AppShell";
+
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
+
+  useEffect(() => {
+    api.vehicles().then((v) => {
+      setVehicles(v);
+      // First-login-with-zero-vehicles case, see cloud/DESIGN.md §11.
+      if (v.length === 0) navigate("/pair", { replace: true });
+    });
+  }, [navigate]);
+
+  return (
+    <AppShell>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Le mie auto</h1>
+        <Link
+          to="/pair"
+          className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
+        >
+          + Aggiungi auto
+        </Link>
+      </div>
+
+      {vehicles === null && <p className="text-onsurface-variant">Caricamento...</p>}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {vehicles?.map((v) => (
+          <Link
+            key={v.id}
+            to={`/vehicles/${v.id}/trips`}
+            className="rounded-xl border border-surface-border bg-surface p-5 transition hover:border-accent"
+          >
+            <p className="text-lg font-medium">{v.nickname}</p>
+            <p className="mt-1 text-sm text-onsurface-variant">
+              {v.model ?? "Modello sconosciuto"} {v.modelYear ?? ""}
+            </p>
+            <p className="mt-3 font-mono text-xs text-onsurface-variant">{v.vin}</p>
+          </Link>
+        ))}
+      </div>
+    </AppShell>
+  );
+}

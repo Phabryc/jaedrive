@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bandiera a scacchi per l'indirizzo di arrivo nel dettaglio viaggio - a differenza
+     delle altre icone dell'app, questa NON va tinta a runtime (android:tint): il motivo
+     di essere e' proprio il pattern bianco/nero, un tint uniforme lo appiattirebbe. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Asta -->
+    <path
+        android:fillColor="#9E9E9E"
+        android:pathData="M4,3h1v18h-1z"/>
+    <!-- Scacchi neri -->
+    <path
+        android:fillColor="#212121"
+        android:pathData="M5,3h3v4h-3zM11,3h3v4h-3zM8,7h3v4h-3zM14,7h3v4h-3z"/>
+    <!-- Scacchi chiari -->
+    <path
+        android:fillColor="#EEEEEE"
+        android:pathData="M8,3h3v4h-3zM14,3h3v4h-3zM5,7h3v4h-3zM11,7h3v4h-3z"/>
+</vector>
