@@ -37,7 +37,6 @@ export interface Profile {
   displayName: string | null;
   firstName: string | null;
   lastName: string | null;
-  nationality: string | null;
   photoUrl: string | null;
   profileComplete: boolean;
 }
@@ -45,7 +44,7 @@ export interface Profile {
 export const api = {
   me: () => request<Profile>("/me"),
 
-  updateProfile: (data: { firstName: string; lastName: string; nationality: string }) =>
+  updateProfile: (data: { firstName: string; lastName: string }) =>
     request<Profile>("/me", { method: "PATCH", body: JSON.stringify(data) }),
 
   vehicles: () => request<Vehicle[]>("/vehicles"),

@@ -3,13 +3,11 @@ import { api } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { useProfile } from "../lib/ProfileContext";
-import { COUNTRIES } from "../lib/countries";
 
 export default function Settings() {
   const { profile } = useProfile();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editing, setEditing] = useState<Record<string, string>>({});
-  const countryName = COUNTRIES.find((c) => c.code === profile?.nationality)?.name ?? profile?.nationality;
 
   function reload() {
     api.vehicles().then(setVehicles);
@@ -47,7 +45,6 @@ export default function Settings() {
             {profile?.firstName} {profile?.lastName}
           </p>
           <p className="text-sm text-onsurface-variant">{profile?.email}</p>
-          {countryName && <p className="text-xs text-onsurface-variant">{countryName}</p>}
         </div>
       </section>
 

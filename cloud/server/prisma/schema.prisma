@@ -26,13 +26,11 @@ model User {
 
   // Profile fields required by the app (see cloud/DESIGN.md and the web onboarding gate) -
   // nullable at the DB level since the row is created lazily on first token verification,
-  // before the user has necessarily completed onboarding. firstName/lastName/photoUrl are
-  // best-effort prefilled from the Firebase ID token's name/picture claims on first login
-  // (present for Google sign-in, absent for plain email/password) - see requireUser.ts.
-  // nationality is never provided by any auth provider, always collected via onboarding.
+  // before the user has necessarily completed onboarding. Best-effort prefilled from the
+  // Firebase ID token's name/picture claims on first login (present for Google sign-in,
+  // absent for plain email/password) - see requireUser.ts.
   firstName    String?  @map("first_name")
   lastName     String?  @map("last_name")
-  nationality  String?
   photoUrl     String?  @map("photo_url")
 
   vehicles         Vehicle[]

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useLocation, useNavigate, type Location } from "react-router-dom";
 import { api, ApiError, type Profile } from "../lib/api";
 import { useProfile } from "../lib/ProfileContext";
-import { COUNTRIES } from "../lib/countries";
 import jdLogo from "../assets/jd_logo.png";
 
 export default function Onboarding() {
@@ -14,7 +13,6 @@ export default function Onboarding() {
 
   const [firstName, setFirstName] = useState(profile?.firstName ?? "");
   const [lastName, setLastName] = useState(profile?.lastName ?? "");
-  const [nationality, setNationality] = useState(profile?.nationality ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -26,7 +24,6 @@ export default function Onboarding() {
       const updated: Profile = await api.updateProfile({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        nationality,
       });
       if (!updated.profileComplete) throw new Error("Profilo incompleto");
       await refresh();
@@ -63,21 +60,6 @@ export default function Onboarding() {
             onChange={(e) => setLastName(e.target.value)}
             className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
           />
-          <select
-            required
-            value={nationality}
-            onChange={(e) => setNationality(e.target.value)}
-            className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            <option value="" disabled>
-              Nazionalità
-            </option>
-            {COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
           {error && <p className="text-sm text-bad">{error}</p>}
           <button
             type="submit"

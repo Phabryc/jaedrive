@@ -20,12 +20,9 @@ export async function userRoutes(app: FastifyInstance) {
       displayName: u.displayName,
       firstName: u.firstName,
       lastName: u.lastName,
-      nationality: u.nationality,
       photoUrl: u.photoUrl,
-      // Drives the web app's onboarding gate (RequireProfile.tsx) - nationality is never
-      // provided by any auth provider, so even a Google sign-in with a prefilled name still
-      // needs to pass through onboarding once for this.
-      profileComplete: Boolean(u.firstName && u.lastName && u.nationality),
+      // Drives the web app's onboarding gate (RequireProfile.tsx).
+      profileComplete: Boolean(u.firstName && u.lastName),
       createdAt: u.createdAt,
     });
   });
@@ -36,31 +33,25 @@ export async function userRoutes(app: FastifyInstance) {
       schema: {
         body: {
           type: "object",
-          required: ["firstName", "lastName", "nationality"],
+          required: ["firstName", "lastName"],
           properties: {
             firstName: { type: "string", minLength: 1, maxLength: 80 },
             lastName: { type: "string", minLength: 1, maxLength: 80 },
-            nationality: { type: "string", minLength: 2, maxLength: 2 }, // ISO 3166-1 alpha-2
           },
         },
       },
     },
     async (req, reply) => {
-      const { firstName, lastName, nationality } = req.body as {
-        firstName: string;
-        lastName: string;
-        nationality: string;
-      };
+      const { firstName, lastName } = req.body as { firstName: string; lastName: string };
       const updated = await prisma.user.update({
         where: { id: req.authUser!.id },
-        data: { firstName, lastName, nationality },
+        data: { firstName, lastName },
       });
       return reply.send({
         id: updated.id,
         email: updated.email,
         firstName: updated.firstName,
         lastName: updated.lastName,
-        nationality: updated.nationality,
         photoUrl: updated.photoUrl,
         profileComplete: true,
       });
