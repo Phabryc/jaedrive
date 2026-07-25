@@ -115,9 +115,19 @@ export default function Login() {
 function friendlyError(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   const code = (err as { code?: string })?.code ?? "";
+  // Logged raw so the real Firebase error code/message is always visible in devtools, even
+  // for cases not explicitly mapped below.
+  console.error("Auth error:", err);
   if (code.includes("wrong-password") || code.includes("invalid-credential")) return "Email o password errati.";
   if (code.includes("email-already-in-use")) return "Esiste già un account con questa email.";
   if (code.includes("weak-password")) return "Password troppo corta (minimo 6 caratteri).";
   if (code.includes("user-not-found")) return "Nessun account con questa email.";
+  if (code.includes("unauthorized-domain"))
+    return "Questo dominio non è autorizzato per l'accesso Google. Aggiungilo in Firebase Console → Authentication → Settings → Authorized domains.";
+  if (code.includes("operation-not-allowed"))
+    return "L'accesso con Google non è abilitato per questo progetto Firebase (Authentication → Sign-in method).";
+  if (code.includes("popup-blocked"))
+    return "Il browser ha bloccato il popup di accesso Google. Consenti i popup per questo sito e riprova.";
+  if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) return "";
   return "Si è verificato un errore. Riprova.";
 }
