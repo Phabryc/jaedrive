@@ -405,8 +405,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int KEY_ENERGY_FLOW = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_FLOW);
     private static final int KEY_VIN = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_VIN);
     private static final int KEY_VIN_ALT = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_VIN_ALT);
-    private static final int KEY_MODEL_CODE = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_MODEL_CODE);
-    private static final int KEY_BRAND = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_BRAND);
     private static final int KEY_TIRE_PRESSURE_WARNING = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE_WARNING);
     private static final int KEY_TIRE_PRESSURE = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE);
 
@@ -2092,8 +2090,6 @@ public class MainActivity extends AppCompatActivity {
                     updateFooterStatus();
                     if (key == KEY_VIN) renderVin(value, false);
                     if (key == KEY_VIN_ALT) renderVin(value, true);
-                    if (key == KEY_MODEL_CODE) renderModelInfo(value, false);
-                    if (key == KEY_BRAND) renderModelInfo(value, true);
                     if (key == KEY_TIRE_PRESSURE_WARNING) renderTirePressureWarning(value);
                     if (key == KEY_TIRE_PRESSURE) renderTirePressureRaw(value);
                 });
@@ -2175,28 +2171,6 @@ public class MainActivity extends AppCompatActivity {
         } else if (raw != null && raw.length > 0) {
             tvVehicleVin.setText(Arrays.toString(raw));
         }
-    }
-
-    // Rilevazione automatica modello/marca (sperimentale, vedi VDInfoClient.ID_MODEL_CODE/
-    // ID_BRAND) - stesso approccio del VIN: proviamo la decodifica ASCII, logghiamo sempre
-    // il raw per diagnosi, e mostriamo il valore reale solo se sembra testo plausibile
-    // (altrimenti resta il fallback statico "JAECOO 7 SHS-H" gia' in strings.xml, coerente
-    // col resto dell'app che non mostra mai dati inventati). Marca e codice modello sono
-    // due segnali indipendenti, combinati nella stessa riga non appena arriva ciascuno.
-    private String resolvedBrand = null;
-    private String resolvedModelCode = null;
-
-    private void renderModelInfo(int[] raw, boolean isBrand) {
-        if (tvVehicleModel == null) return;
-        appendLog(String.format("[VDB] %s raw=%s", isBrand ? "BRAND" : "MODEL_CODE", Arrays.toString(raw)));
-        String decoded = VDInfoClient.decodeAsciiString(raw);
-        boolean plausible = decoded != null && !decoded.trim().isEmpty() && decoded.trim().length() <= 40;
-        if (!plausible) return;
-        if (isBrand) resolvedBrand = decoded.trim(); else resolvedModelCode = decoded.trim();
-
-        String combined = ((resolvedBrand != null ? resolvedBrand : "") + " "
-            + (resolvedModelCode != null ? resolvedModelCode : "")).trim();
-        if (!combined.isEmpty()) tvVehicleModel.setText(combined);
     }
 
     // Sperimentale (2026-07-25): ID_TIRE_PRESSURE_WARNING ha un vero chiamante confermato nel

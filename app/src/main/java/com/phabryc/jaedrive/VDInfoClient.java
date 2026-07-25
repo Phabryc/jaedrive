@@ -133,8 +133,11 @@ public class VDInfoClient {
         {MODULE_READONLY_INFO, ID_TIRE_PRESSURE},
         {MODULE_READONLY_INFO, ID_VIN},
         {MODULE_DOANOSE, ID_VIN_ALT},
-        {MODULE_DOANOSE, ID_MODEL_CODE},
-        {MODULE_DOANOSE, ID_BRAND},
+        // ID_MODEL_CODE/ID_BRAND rimossi dal poll (2026-07-25): erano un tentativo
+        // sperimentale di rilevazione automatica, mai decodificabile in modo affidabile
+        // (vedi note sui due campi qui sopra) - marca/modello/motorizzazione arrivano ora
+        // dall'onboarding esplicito dell'utente (vedi MainActivity/VehicleInfoPrefs),
+        // molto piu' affidabile di un segnale VDB senza caller di riferimento.
         {MODULE_READONLY_INFO, ID_TRIP},
     };
 
