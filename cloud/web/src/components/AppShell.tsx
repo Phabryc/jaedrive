@@ -34,6 +34,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
+      <footer className="mx-auto max-w-5xl px-4 pb-6 text-xs text-onsurface-variant">
+        <Link to="/legal/eula" className="hover:text-onsurface hover:underline">
+          Termini di Servizio
+        </Link>
+        <span className="mx-2">·</span>
+        <Link to="/legal/privacy" className="hover:text-onsurface hover:underline">
+          Informativa Privacy
+        </Link>
+      </footer>
     </div>
   );
 }

@@ -44,7 +44,10 @@ export interface Profile {
 export const api = {
   me: () => request<Profile>("/me"),
 
-  updateProfile: (data: { firstName: string; lastName: string }) =>
+  // acceptLegal deve essere letteralmente true (il server usa uno schema "const: true",
+  // rifiuta con 400 qualunque altro valore) - vedi Onboarding.tsx per il checkbox
+  // obbligatorio che lo produce.
+  updateProfile: (data: { firstName: string; lastName: string; acceptLegal: true }) =>
     request<Profile>("/me", { method: "PATCH", body: JSON.stringify(data) }),
 
   vehicles: () => request<Vehicle[]>("/vehicles"),

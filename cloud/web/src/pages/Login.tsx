@@ -115,6 +115,16 @@ export default function Login() {
         >
           {mode === "signin" ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}
         </button>
+
+        <p className="mt-4 text-center text-[11px] text-onsurface-variant">
+          <a href="/legal/eula" className="hover:text-onsurface hover:underline">
+            Termini di Servizio
+          </a>
+          <span className="mx-1.5">·</span>
+          <a href="/legal/privacy" className="hover:text-onsurface hover:underline">
+            Informativa Privacy
+          </a>
+        </p>
       </div>
     </div>
   );
