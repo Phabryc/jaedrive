@@ -20,6 +20,11 @@ const tripBodySchema = {
     pctSeries: { type: "number", nullable: true },
     pctParallel: { type: "number", nullable: true },
     pctOther: { type: "number", nullable: true },
+    pctEco: { type: "number", nullable: true },
+    pctNormal: { type: "number", nullable: true },
+    pctSport: { type: "number", nullable: true },
+    kmEv: { type: "number", nullable: true },
+    kmHev: { type: "number", nullable: true },
     gpxRaw: { type: "string", nullable: true },
     // Client-generated UUID (Android TripDatabase) - the primary idempotency key when
     // present, stronger than (vehicleId, kind, startedAt) alone since it survives a device
@@ -109,6 +114,11 @@ export async function deviceRoutes(app: FastifyInstance) {
         pctSeries?: number | null;
         pctParallel?: number | null;
         pctOther?: number | null;
+        pctEco?: number | null;
+        pctNormal?: number | null;
+        pctSport?: number | null;
+        kmEv?: number | null;
+        kmHev?: number | null;
         gpxRaw?: string | null;
         clientUuid?: string | null;
       };
@@ -128,6 +138,11 @@ export async function deviceRoutes(app: FastifyInstance) {
         pctSeries: body.pctSeries ?? null,
         pctParallel: body.pctParallel ?? null,
         pctOther: body.pctOther ?? null,
+        pctEco: body.pctEco ?? null,
+        pctNormal: body.pctNormal ?? null,
+        pctSport: body.pctSport ?? null,
+        kmEv: body.kmEv ?? null,
+        kmHev: body.kmHev ?? null,
         gpxRaw: body.gpxRaw ?? null,
         clientUuid: body.clientUuid ?? null,
       };

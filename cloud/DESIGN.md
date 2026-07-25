@@ -211,9 +211,16 @@ Deliberately mirrors what the Android app already computes locally (no new compu
   "pctSeries": 21.0,
   "pctParallel": 17.0,
   "pctOther": 0.0,
+  "pctEco": 40.0,
+  "pctNormal": 55.0,
+  "pctSport": 5.0,
+  "kmEv": 12.4,
+  "kmHev": 10.9,
   "gpxRaw": "<?xml version=\"1.0\"...>"
 }
 ```
+
+**IMPLEMENTED (2026-07-25):** `pctEco`/`pctNormal`/`pctSport` (drive-mode share, computed client-side by `SyncWorker.computeDriveModeBreakdown()` from the GPX `jd:driveMode` extension, same scheme as `pctEv`/... above) and `kmEv`/`kmHev` (real EV/HEV km split, from `ID_EV_MILEAGE`/`ID_HEV_MILEAGE` odometer-style counters sampled at trip start/end, complementary to the time-weighted `pctEv`/`pctSeries`/`pctParallel` estimate) — closing the "drive-mode share... flagged as a natural follow-up" note in §12 below. GPX points also now carry `jd:speedKmh`/`jd:instConsumption`/`jd:regenLevel` extensions (the last two are raw values, scale unconfirmed — see `VDInfoClient.java`), consumed by the web app's per-trip charts (§11) but not stored as their own Trip columns (no server-side aggregate needs them yet).
 
 `gpxRaw` is omitted for manual-slot trips (they never had GPS tracking to begin with). Server computes nothing beyond storing these fields — all derived numbers already exist on the client, matching the "don't invent new logic" principle.
 
@@ -240,14 +247,18 @@ Visual direction: dark theme by default, glassmorphic cards, same accent palette
 
 ## 12. Statistics
 
-All computed server-side at request time via SQL aggregation (no precompute job needed at this scale):
+**IMPLEMENTED (2026-07-25)**, `GET /api/user/vehicles/:id/stats` (+ `/stats/calendar`), computed at request time over a plain `findMany` (no precompute job/materialized view — fast enough at personal-vehicle scale, and the only practical way to get the km-weighted averages and best/worst-trip logic below without fighting Prisma's `groupBy`):
 
-- Consumption trend over the selected range (daily/weekly average km/l).
-- Aggregate %EV / %series / %parallel across all trips in range (not per-trip — a fleet-wide average weighted by km or by trip count, pick one and label it clearly).
-- Totals: km, liters, trip count, estimated CO₂ vs. an all-fuel baseline.
-- Best/worst single trip by consumption in range.
-- Days-driven calendar (from `/stats/calendar`).
-- Drive-mode share (ECO/NORMAL/SPORT time or trip-count split) — requires the Android app to start sending per-trip mode breakdowns; not in the v1 payload above, flagged as a natural follow-up once useful.
+- Consumption trend: daily average km/l (unweighted mean across trips the same day) — `VehicleStatsPanel`/`ConsumptionTrendChart` on `/vehicles/:id/trips` (web).
+- Aggregate %EV / %series / %parallel across all trips in range, weighted by km (a 200km trip counts more than a 2km one) — `EnergyFlowDonut`.
+- Aggregate %ECO / %NORMAL / %SPORT, same km-weighting — `DriveModeDonut` (the drive-mode share flagged below as a v1 follow-up, now shipped alongside the `pctEco`/... payload fields in §10).
+- Real EV/HEV km split (`evHevKmSplit`, from the `kmEv`/`kmHev` sums) — `null` if no trip has it yet (older trips predate the field).
+- Totals: km, liters, trip count, estimated CO₂ (`liters * 2.31`, the standard petrol emission factor — an estimate vs. an all-fuel baseline, not a real hybrid-powertrain emissions measurement).
+- Best/worst single trip by consumption in range (`km >= 1` filter, to keep a half-km noise trip from winning by a fluke).
+- Kind breakdown (auto / manual_a / manual_b — count + km each).
+- Days-driven calendar, one year at a time (`/stats/calendar?year=`) — `CalendarHeatmap`, ECharts calendar+heatmap coordinate system, single-hue sequential color scale (accent, light→dark by km that day).
+
+Per-trip charts (not fleet-wide, `TripDetail`/`/trips/:id`): `BatteryFuelChart` (SOC%+fuel%, share one 0-100 axis), `SpeedChart`, `ElevationChart` (each its own chart — different unit/scale than %, never combined on a dual axis), `CategoryBand` (energy-flow bucket and drive-mode, as hard-cutover color strips along distance, same convention as the map polyline), and a collapsed "dati sperimentali" section for the raw/unconfirmed-scale `instConsumption`/`regenLevel` signals.
 
 ## 13. Deployment
 

@@ -223,4 +223,159 @@ export async function userRoutes(app: FastifyInstance) {
     await prisma.trip.delete({ where: { id } });
     return reply.code(204).send();
   });
+
+  // Statistics (cloud/DESIGN.md §12) - computed at request time over a plain findMany, no
+  // precompute job/materialized view: at personal-vehicle scale (hundreds/low thousands of
+  // trips, not fleet-scale) this is fast enough, and it's the only way to get the
+  // km-weighted averages and best/worst-trip logic below without fighting Prisma's groupBy.
+  app.get("/vehicles/:id/stats", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    const { from, to } = req.query as { from?: string; to?: string };
+    const where = {
+      vehicleId: id,
+      ...(from || to
+        ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+        : {}),
+    };
+
+    const trips = await prisma.trip.findMany({
+      where,
+      orderBy: { startedAt: "asc" },
+      select: {
+        id: true,
+        kind: true,
+        startedAt: true,
+        label: true,
+        km: true,
+        liters: true,
+        avgConsumption: true,
+        pctEv: true,
+        pctSeries: true,
+        pctParallel: true,
+        pctOther: true,
+        pctEco: true,
+        pctNormal: true,
+        pctSport: true,
+        kmEv: true,
+        kmHev: true,
+      },
+    });
+
+    // Media pesata per km: un viaggio di 200km pesa piu' di uno di 2km nella % complessiva,
+    // a differenza di una semplice media aritmetica tra viaggi.
+    function weightedPct(field: "pctEv" | "pctSeries" | "pctParallel" | "pctOther" | "pctEco" | "pctNormal" | "pctSport") {
+      let weightedSum = 0;
+      let totalKm = 0;
+      for (const t of trips) {
+        if (t[field] == null || t.km == null) continue;
+        weightedSum += t[field]! * t.km;
+        totalKm += t.km;
+      }
+      return totalKm > 0 ? weightedSum / totalKm : null;
+    }
+
+    const totalKm = trips.reduce((s, t) => s + (t.km ?? 0), 0);
+    const totalLiters = trips.reduce((s, t) => s + (t.liters ?? 0), 0);
+    // Fattore di emissione benzina standard (~2.31 kg CO2/litro) - stima rispetto a un
+    // "tutto benzina" (vedi DESIGN.md §12), non una misura reale delle emissioni del
+    // powertrain ibrido: e' semplicemente i litri effettivamente bruciati * fattore fisso.
+    const co2Kg = totalLiters * 2.31;
+
+    const consumable = trips.filter((t) => t.avgConsumption != null && t.km != null && t.km >= 1);
+    const bestTrip = consumable.length
+      ? consumable.reduce((a, b) => (b.avgConsumption! > a.avgConsumption! ? b : a))
+      : null;
+    const worstTrip = consumable.length
+      ? consumable.reduce((a, b) => (b.avgConsumption! < a.avgConsumption! ? b : a))
+      : null;
+
+    const kindBreakdown: Record<string, { count: number; km: number }> = {};
+    for (const t of trips) {
+      const k = kindBreakdown[t.kind] ?? { count: 0, km: 0 };
+      k.count += 1;
+      k.km += t.km ?? 0;
+      kindBreakdown[t.kind] = k;
+    }
+
+    // Trend consumo: media (non pesata) tra i viaggi dello stesso giorno - una linea al
+    // giorno e' gia' abbastanza densa per l'uso personale di questo veicolo, niente
+    // aggregazione settimanale/mensile per ora (si puo' aggiungere se il range diventa lungo).
+    const trendByDay = new Map<string, { sum: number; count: number }>();
+    for (const t of trips) {
+      if (t.avgConsumption == null) continue;
+      const day = t.startedAt.toISOString().slice(0, 10);
+      const entry = trendByDay.get(day) ?? { sum: 0, count: 0 };
+      entry.sum += t.avgConsumption;
+      entry.count += 1;
+      trendByDay.set(day, entry);
+    }
+    const consumptionTrend = Array.from(trendByDay.entries())
+      .map(([date, { sum, count }]) => ({ date, avgConsumption: sum / count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const kmEvTotal = trips.reduce((s, t) => s + (t.kmEv ?? 0), 0);
+    const kmHevTotal = trips.reduce((s, t) => s + (t.kmHev ?? 0), 0);
+    const evHevSampleCount = trips.filter((t) => t.kmEv != null || t.kmHev != null).length;
+
+    return reply.send({
+      totals: { km: totalKm, liters: totalLiters, tripCount: trips.length, co2Kg },
+      energyFlowBreakdown: {
+        pctEv: weightedPct("pctEv"),
+        pctSeries: weightedPct("pctSeries"),
+        pctParallel: weightedPct("pctParallel"),
+        pctOther: weightedPct("pctOther"),
+      },
+      driveModeBreakdown: {
+        pctEco: weightedPct("pctEco"),
+        pctNormal: weightedPct("pctNormal"),
+        pctSport: weightedPct("pctSport"),
+      },
+      // null se nessun trip ha ancora questo dato (feature piu' recente di pctEv/...).
+      evHevKmSplit: evHevSampleCount > 0 ? { kmEv: kmEvTotal, kmHev: kmHevTotal } : null,
+      kindBreakdown,
+      consumptionTrend,
+      bestTrip: bestTrip
+        ? { id: bestTrip.id, label: bestTrip.label, startedAt: bestTrip.startedAt, avgConsumption: bestTrip.avgConsumption, km: bestTrip.km }
+        : null,
+      worstTrip: worstTrip
+        ? { id: worstTrip.id, label: worstTrip.label, startedAt: worstTrip.startedAt, avgConsumption: worstTrip.avgConsumption, km: worstTrip.km }
+        : null,
+    });
+  });
+
+  // Giorni guidati (per la heatmap calendario) - un anno alla volta, default l'anno corrente.
+  app.get("/vehicles/:id/stats/calendar", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    const { year } = req.query as { year?: string };
+    const y = Math.trunc(Number(year)) || new Date().getFullYear();
+    const from = new Date(Date.UTC(y, 0, 1));
+    const to = new Date(Date.UTC(y + 1, 0, 1));
+
+    const trips = await prisma.trip.findMany({
+      where: { vehicleId: id, startedAt: { gte: from, lt: to } },
+      select: { startedAt: true, km: true },
+    });
+
+    const byDay = new Map<string, { km: number; tripCount: number }>();
+    for (const t of trips) {
+      const day = t.startedAt.toISOString().slice(0, 10);
+      const entry = byDay.get(day) ?? { km: 0, tripCount: 0 };
+      entry.km += t.km ?? 0;
+      entry.tripCount += 1;
+      byDay.set(day, entry);
+    }
+
+    return reply.send({
+      year: y,
+      days: Array.from(byDay.entries())
+        .map(([date, v]) => ({ date, ...v }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    });
+  });
 }

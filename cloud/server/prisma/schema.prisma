@@ -113,6 +113,18 @@ model Trip {
   pctSeries      Float?    @map("pct_series")
   pctParallel    Float?    @map("pct_parallel")
   pctOther       Float?    @map("pct_other")
+  // % di tempo passato in ciascuna drive mode (ECO/NORMAL/SPORT), stesso schema di
+  // pctEv/pctSeries/pctParallel/pctOther ma per ID_DRIVE_MODE invece di ID_ENERGY_FLOW -
+  // vedi Android SyncWorker.computeDriveModeBreakdown(). Nullable: assente per i trip
+  // caricati prima che l'app iniziasse a mandarlo, e sempre per i MANUAL (nessuna traccia).
+  pctEco         Float?    @map("pct_eco")
+  pctNormal      Float?    @map("pct_normal")
+  pctSport       Float?    @map("pct_sport")
+  // Km reali in modalita' EV/HEV, per differenza sui contatori-odometro ID_EV_MILEAGE/
+  // ID_HEV_MILEAGE tra apertura e chiusura del viaggio (vedi Android TrackingService) -
+  // complementare, non sostitutivo, alla stima pctEv/pctSeries/pctParallel basata sul tempo.
+  kmEv           Float?    @map("km_ev")
+  kmHev          Float?    @map("km_hev")
   gpxRaw         String?   @map("gpx_raw")
   createdAt      DateTime  @default(now()) @map("created_at")
 

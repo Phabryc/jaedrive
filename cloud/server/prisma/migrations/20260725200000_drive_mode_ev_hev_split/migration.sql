@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "trips" ADD COLUMN     "km_ev" DOUBLE PRECISION,
+ADD COLUMN     "km_hev" DOUBLE PRECISION,
+ADD COLUMN     "pct_eco" DOUBLE PRECISION,
+ADD COLUMN     "pct_normal" DOUBLE PRECISION,
+ADD COLUMN     "pct_sport" DOUBLE PRECISION;
+
