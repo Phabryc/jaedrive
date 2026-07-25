@@ -26,7 +26,10 @@ public class TripDatabase extends SQLiteOpenHelper {
     // v4: aggiunta client_uuid (chiave di idempotenza upload lato server, vedi
     // cloud/server/src/routes/device.ts) - backfillata per i trip gia' esistenti in
     // onUpgrade() perche' SQLite non ha una funzione UUID() per farlo in un solo ALTER/UPDATE.
-    private static final int DB_VERSION = 4;
+    // v5: aggiunti km_ev/km_hev (split reale EV/HEV per differenza sui contatori ID_EV_
+    // MILEAGE/ID_HEV_MILEAGE, vedi TrackingService) - dati upload-only per il cloud, mai
+    // mostrati nella UI dell'app in auto, nullable per i trip gia' esistenti/senza baseline.
+    private static final int DB_VERSION = 5;
     private static final String TABLE = "trips";
 
     private static TripDatabase instance;
@@ -63,7 +66,9 @@ public class TripDatabase extends SQLiteOpenHelper {
             "uploaded INTEGER NOT NULL DEFAULT 0," +
             "cloud_trip_id TEXT," +
             "manual_slot TEXT," +
-            "client_uuid TEXT)");
+            "client_uuid TEXT," +
+            "km_ev REAL," +
+            "km_hev REAL)");
     }
 
     @Override
@@ -79,6 +84,10 @@ public class TripDatabase extends SQLiteOpenHelper {
         if (oldVersion < 4) {
             db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN client_uuid TEXT");
             backfillClientUuids(db);
+        }
+        if (oldVersion < 5) {
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN km_ev REAL");
+            db.execSQL("ALTER TABLE " + TABLE + " ADD COLUMN km_hev REAL");
         }
     }
 
@@ -130,6 +139,8 @@ public class TripDatabase extends SQLiteOpenHelper {
         // server come chiave di idempotenza primaria.
         if (r.clientUuid == null) r.clientUuid = UUID.randomUUID().toString();
         cv.put("client_uuid", r.clientUuid);
+        if (r.kmEv != null) cv.put("km_ev", r.kmEv); else cv.putNull("km_ev");
+        if (r.kmHev != null) cv.put("km_hev", r.kmHev); else cv.putNull("km_hev");
         return getWritableDatabase().insert(TABLE, null, cv);
     }
 
@@ -206,6 +217,10 @@ public class TripDatabase extends SQLiteOpenHelper {
         r.cloudTripId = c.getString(c.getColumnIndexOrThrow("cloud_trip_id"));
         r.manualSlot = c.getString(c.getColumnIndexOrThrow("manual_slot"));
         r.clientUuid = c.getString(c.getColumnIndexOrThrow("client_uuid"));
+        int kmEvIdx = c.getColumnIndexOrThrow("km_ev");
+        r.kmEv = c.isNull(kmEvIdx) ? null : c.getDouble(kmEvIdx);
+        int kmHevIdx = c.getColumnIndexOrThrow("km_hev");
+        r.kmHev = c.isNull(kmHevIdx) ? null : c.getDouble(kmHevIdx);
         return r;
     }
 }

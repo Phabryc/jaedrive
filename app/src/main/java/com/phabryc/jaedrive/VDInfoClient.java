@@ -45,6 +45,14 @@ public class VDInfoClient {
     public static final int ID_HEV_MILEAGE     = 0x32;
     public static final int ID_DISPLAY_SOC     = 0x2c;
     public static final int ID_VEHICLE_MODE_ID = 0x78;
+    // Confermato REALE (non solo "registrato ma senza caller"): il dispatcher UI di
+    // SVSetting.apk (smali_classes2/com/desaysv/present/a/a/f$1.smali, metodo
+    // updateUIStatus) ha un ramo esplicito per modulo=MODULE_NEW_ENERGY/cmdId=0x25 che
+    // chiama onEnergyRecycleLevelChanged(int) con un valore letto da getItemValue()
+    // (percorso "valore singolo", non un combine a 16 bit come i campi carburante) -
+    // livello di rigenerazione in frenata. Scala/range esatti non confermati (nessun
+    // caller mostra come formatta il numero in UI), salvato come intero grezzo.
+    public static final int ID_ENERGY_RECYCLE_LEVEL = 0x25;
 
     // com.desaysv.ivi.extra.project.carinfo.ReadOnlyID (carburante/consumi)
     public static final int ID_LOW_FUEL_WARNING    = 0x2;
@@ -98,6 +106,7 @@ public class VDInfoClient {
         {MODULE_NEW_ENERGY, ID_EV_MILEAGE},
         {MODULE_NEW_ENERGY, ID_HEV_MILEAGE},
         {MODULE_NEW_ENERGY, ID_DISPLAY_SOC},
+        {MODULE_NEW_ENERGY, ID_ENERGY_RECYCLE_LEVEL},
         // ID_VEHICLE_MODE_ID rimosso: confermato sul campo che restituisce sempre
         // IS_NULL su questa auto (non supportato), inutile intasare il log.
         {MODULE_READONLY_INFO, ID_LOW_FUEL_WARNING},

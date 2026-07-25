@@ -99,6 +99,23 @@ public class TrackingService extends Service {
     // carburante. -1 finche' non arriva la prima lettura.
     private static final int KEY_DISPLAY_SOC = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DISPLAY_SOC);
     private static final int KEY_FUEL_PERCENT = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_FUEL_PERCENT);
+    // Segnali aggiunti per arricchire i dati per-punto/per-viaggio caricati sul cloud
+    // (mai mostrati nella UI dell'app in auto, solo registrati/caricati - vedi buildGpx()
+    // e cloud/DESIGN.md): drive mode (gia' decodificato con certezza, stesso enum usato in
+    // MainActivity), km EV/HEV cumulativi (stessa famiglia/formula di ID_TOTAL_MILEAGE, non
+    // confermati indipendentemente sul campo per questi due ID specifici), consumo
+    // istantaneo e livello di rigenerazione (entrambi valori grezzi, scala non confermata -
+    // vedi VDInfoClient).
+    private static final int KEY_DRIVE_MODE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DRIVE_MODE);
+    private static final int KEY_EV_MILEAGE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_EV_MILEAGE);
+    private static final int KEY_HEV_MILEAGE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_HEV_MILEAGE);
+    private static final int KEY_ENERGY_RECYCLE_LEVEL = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_RECYCLE_LEVEL);
+    private static final int KEY_INSTANTANEOUS_CONSUMPTION = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_INSTANTANEOUS_CONSUMPTION);
+    private int lastKnownDriveMode = -1;
+    private float lastKnownEvMileage = -1f;
+    private float lastKnownHevMileage = -1f;
+    private int lastKnownRegenLevel = -1;
+    private float lastKnownInstConsumption = -1f;
     private float lastKnownSocPct = -1f;
     private float lastKnownFuelPct = -1f;
     private int lastKnownKm = -1;
@@ -121,17 +138,25 @@ public class TrackingService extends Service {
     private final LocationListener locationListener = new LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
-            // Il 5o elemento e' il valore ENERGY_FLOW campionato nello stesso istante del
-            // punto GPS (-1 se non ancora disponibile), usato per colorare la traccia per
-            // segmento e calcolare le percentuali EV/serie/parallelo del viaggio. 6o e 7o:
-            // % batteria e % carburante nello stesso istante (-1 se non ancora disponibili).
+            // Elementi 0-6 come da commit precedenti (lat/lon/quota/tempo/energyFlow/soc%/
+            // fuel%). Aggiunti per il dataset upload-only cloud (mai mostrati in auto, vedi
+            // buildGpx()): 7=drive mode (0/1/2=ECO/NORMAL/SPORT, -1 se non disponibile),
+            // 8=velocita' GPS in km/h (Location.getSpeed() e' in m/s, *3.6 - stessa
+            // conversione gia' confermata sul campo per PERF_VEHICLE_SPEED, -1 se il
+            // provider non la fornisce), 9=consumo istantaneo grezzo, 10=livello
+            // rigenerazione grezzo (entrambi -1 se non ancora disponibili, scala non
+            // confermata - vedi VDInfoClient/TrackingService.connectVdbInfo()).
             points.add(new double[]{
                 location.getLatitude(), location.getLongitude(),
                 location.hasAltitude() ? location.getAltitude() : 0.0,
                 (double) location.getTime(),
                 (double) lastKnownEnergyFlow,
                 (double) lastKnownSocPct,
-                (double) lastKnownFuelPct
+                (double) lastKnownFuelPct,
+                (double) lastKnownDriveMode,
+                location.hasSpeed() ? location.getSpeed() * 3.6 : -1.0,
+                (double) lastKnownInstConsumption,
+                (double) lastKnownRegenLevel
             });
             updateNotification("Registrazione percorso: " + points.size() + " punti");
             if (points.size() % 5 == 0) {
@@ -251,6 +276,25 @@ public class TrackingService extends Service {
                     lastKnownSocPct = (value[0] * 256 + value[1]) / 100.0f;
                 } else if (key == KEY_FUEL_PERCENT && value.length >= 2) {
                     lastKnownFuelPct = (value[0] * 256 + value[1]) / 10.0f;
+                } else if (key == KEY_DRIVE_MODE && value.length > 0) {
+                    // Valore diretto (0=ECO/1=NORMAL/2=SPORT), stesso enum confermato sul
+                    // campo e gia' usato da MainActivity per la UI live.
+                    lastKnownDriveMode = value[0];
+                } else if (key == KEY_EV_MILEAGE) {
+                    // Stessa formula di ID_TOTAL_MILEAGE (stesso modulo/stessa famiglia di
+                    // contatori-odometro), non confermata indipendentemente sul campo per
+                    // questo ID specifico - vedi VDInfoClient.
+                    lastKnownEvMileage = VDInfoClient.decodeLastTwoAsInt(value);
+                } else if (key == KEY_HEV_MILEAGE) {
+                    lastKnownHevMileage = VDInfoClient.decodeLastTwoAsInt(value);
+                } else if (key == KEY_ENERGY_RECYCLE_LEVEL && value.length > 0) {
+                    lastKnownRegenLevel = value[0];
+                } else if (key == KEY_INSTANTANEOUS_CONSUMPTION) {
+                    // Valore grezzo, nessuna scala confermata per questo ID specifico (a
+                    // differenza della famiglia SUM_FUEL/AVG_FUEL_CONS/x0.1 gia' verificata
+                    // nel dispatcher di SVSetting.apk, che NON include questo cmdId) - vedi
+                    // VDInfoClient.
+                    lastKnownInstConsumption = VDInfoClient.decodeLastTwoAsInt(value);
                 }
                 tryMigrateManualLegacy();
             }
@@ -484,6 +528,11 @@ public class TrackingService extends Service {
     // in autonomia dal veicolo - vedi commenti su handleTripKm()/handleFuel()).
     private int tripStartKmLegacy = -1;
     private int tripStartFuelRawLegacy = -1;
+    // Km EV/HEV cumulativi all'apertura del viaggio, per calcolare per differenza lo split
+    // reale EV/HEV del singolo viaggio (kmEv/kmHev su TripRecord) - complementare alla stima
+    // basata sulla % di tempo passato in ciascun bucket ENERGY_FLOW, vedi SyncWorker.
+    private float tripStartEvMileage = -1f;
+    private float tripStartHevMileage = -1f;
 
     private void startTrip() {
         tracking = true;
@@ -492,6 +541,8 @@ public class TrackingService extends Service {
         currentTripFileName = "Percorso_" + DateFormat.format("yyyyMMdd_HHmmss", System.currentTimeMillis()) + ".gpx";
         tripStartKmLegacy = lastKnownKm;
         tripStartFuelRawLegacy = lastKnownFuelRaw;
+        tripStartEvMileage = lastKnownEvMileage;
+        tripStartHevMileage = lastKnownHevMileage;
 
         TripConsumption.startTrip(this);
         appendServiceLog("Trip avviato: " + currentTripFileName + " (km/litri da accumulatore, azzerati alla partenza)");
@@ -513,6 +564,18 @@ public class TrackingService extends Service {
         long startTime = TripConsumption.getStartTime(this);
         double kmDelta = TripConsumption.getKmDelta(this);
         int startFuelRaw = tripStartFuelRawLegacy;
+        // Delta EV/HEV solo se avevamo sia una baseline valida alla partenza sia una lettura
+        // valida all'arrivo - null altrimenti (es. avvio a freddo, o segnale mai arrivato),
+        // stessa logica prudente gia' usata per gli altri campi legacy. Un delta negativo
+        // (non dovrebbe accadere per contatori odometro-style, mai visti azzerarsi a
+        // differenza di ID_TRIP/SUM_FUEL) viene scartato invece di caricare un dato spurio.
+        Double kmEv = null, kmHev = null;
+        if (tripStartEvMileage >= 0 && lastKnownEvMileage >= tripStartEvMileage) {
+            kmEv = (double) (lastKnownEvMileage - tripStartEvMileage);
+        }
+        if (tripStartHevMileage >= 0 && lastKnownHevMileage >= tripStartHevMileage) {
+            kmHev = (double) (lastKnownHevMileage - tripStartHevMileage);
+        }
         TripConsumption.endTrip(this);
         appendServiceLog("Consumo medio viaggio: " + (tripAverageForGpx != null
             ? String.format(Locale.US, "%.2f km/l", tripAverageForGpx) : "non calcolabile")
@@ -527,7 +590,7 @@ public class TrackingService extends Service {
             String logPath = persistTripLog();
             double[] firstPoint = points.isEmpty() ? null : points.get(0);
             double[] lastPoint = points.isEmpty() ? null : points.get(points.size() - 1);
-            saveTripRecordAsync(startTime, kmDelta, startFuelRaw, litersDelta, logPath, firstPoint, lastPoint);
+            saveTripRecordAsync(startTime, kmDelta, startFuelRaw, litersDelta, logPath, firstPoint, lastPoint, kmEv, kmHev);
         }
         appendServiceLog("Trip terminato: " + currentTripFileName + " (" + points.size() + " punti)");
         updateNotification("In attesa di accensione...");
@@ -567,7 +630,8 @@ public class TrackingService extends Service {
     // l'ULTIMO (destinazione, TripRecord.label, gia' esistente) - due chiamate Nominatim
     // separate, accettabile dato che avviene una sola volta a fine viaggio, non in un ciclo.
     private void saveTripRecordAsync(long startTime, double kmDelta, int startFuelRaw, Double litersDelta,
-                                      String logPath, double[] firstPoint, double[] lastPoint) {
+                                      String logPath, double[] firstPoint, double[] lastPoint,
+                                      Double kmEv, Double kmHev) {
         int endKm = lastKnownKm;
         int startKm = tripStartKmLegacy;
         int endFuelRaw = lastKnownFuelRaw;
@@ -598,6 +662,8 @@ public class TrackingService extends Service {
             TripRecord record = new TripRecord(TripRecord.TYPE_AUTO, fStart, fEnd,
                 fStartKm, fEndKm, fKmDelta, fStartFuel, fEndFuel, litersDelta, fAvg, gpxPath, logPath, label);
             record.startLabel = startLabel;
+            record.kmEv = kmEv;
+            record.kmHev = kmHev;
             try {
                 TripDatabase.getInstance(this).insertTrip(record);
                 appendServiceLog("Trip salvato in TripDatabase" + (label != null ? " (destinazione: " + label + ")" : "")
@@ -687,6 +753,10 @@ public class TrackingService extends Service {
             int energyFlow = p.length > 4 ? (int) p[4] : -1;
             double socPct = p.length > 5 ? p[5] : -1;
             double fuelPct = p.length > 6 ? p[6] : -1;
+            int driveMode = p.length > 7 ? (int) p[7] : -1;
+            double speedKmh = p.length > 8 ? p[8] : -1;
+            double instConsumption = p.length > 9 ? p[9] : -1;
+            int regenLevel = p.length > 10 ? (int) p[10] : -1;
             sb.append(String.format(Locale.US,
                 "    <trkpt lat=\"%.6f\" lon=\"%.6f\"><ele>%.1f</ele><time>%s</time>",
                 p[0], p[1], p[2], iso));
@@ -694,6 +764,10 @@ public class TrackingService extends Service {
             if (energyFlow >= 0) ext.append("<jd:energyFlow>").append(energyFlow).append("</jd:energyFlow>");
             if (socPct >= 0) ext.append(String.format(Locale.US, "<jd:batteryPct>%.1f</jd:batteryPct>", socPct));
             if (fuelPct >= 0) ext.append(String.format(Locale.US, "<jd:fuelPct>%.1f</jd:fuelPct>", fuelPct));
+            if (driveMode >= 0) ext.append("<jd:driveMode>").append(driveMode).append("</jd:driveMode>");
+            if (speedKmh >= 0) ext.append(String.format(Locale.US, "<jd:speedKmh>%.1f</jd:speedKmh>", speedKmh));
+            if (instConsumption >= 0) ext.append(String.format(Locale.US, "<jd:instConsumption>%.1f</jd:instConsumption>", instConsumption));
+            if (regenLevel >= 0) ext.append("<jd:regenLevel>").append(regenLevel).append("</jd:regenLevel>");
             if (ext.length() > 0) sb.append("<extensions>").append(ext).append("</extensions>");
             sb.append("</trkpt>\n");
         }

@@ -71,6 +71,8 @@ public class SyncWorker extends Worker {
         payload.put("km", r.kmDelta);
         if (r.litersDelta != null) payload.put("liters", r.litersDelta);
         if (r.avgConsumption != null) payload.put("avgConsumption", r.avgConsumption);
+        if (r.kmEv != null) payload.put("kmEv", r.kmEv);
+        if (r.kmHev != null) payload.put("kmHev", r.kmHev);
 
         // Solo i trip AUTO hanno una traccia GPX - da li' sia il file grezzo da allegare
         // (gpxRaw) sia il breakdown EV/serie/parallelo/altro, ricalcolato dagli stessi punti
@@ -84,16 +86,40 @@ public class SyncWorker extends Worker {
                 } catch (IOException ignored) {
                     // Trip comunque caricabile senza traccia allegata, meglio di niente.
                 }
-                double[] breakdown = EnergyFlowUtil.computeUploadBreakdown(GpxReader.readPoints(gpxFile));
+                List<TripPoint> gpxPoints = GpxReader.readPoints(gpxFile);
+                double[] breakdown = EnergyFlowUtil.computeUploadBreakdown(gpxPoints);
                 if (breakdown != null) {
                     payload.put("pctEv", breakdown[0]);
                     payload.put("pctSeries", breakdown[1]);
                     payload.put("pctParallel", breakdown[2]);
                     payload.put("pctOther", breakdown[3]);
                 }
+                double[] driveModeBreakdown = computeDriveModeBreakdown(gpxPoints);
+                if (driveModeBreakdown != null) {
+                    payload.put("pctEco", driveModeBreakdown[0]);
+                    payload.put("pctNormal", driveModeBreakdown[1]);
+                    payload.put("pctSport", driveModeBreakdown[2]);
+                }
             }
         }
         return payload;
+    }
+
+    // % di campioni in ciascuna modalita' di guida (0/1/2=ECO/NORMAL/SPORT) sui punti della
+    // traccia GPX - stesso schema di EnergyFlowUtil.computeUploadBreakdown() ma per il drive
+    // mode invece del bucket energyFlow. Null se non c'e' nessun campione valido (es. traccia
+    // registrata prima che questo campo esistesse).
+    private double[] computeDriveModeBreakdown(List<TripPoint> points) {
+        int eco = 0, normal = 0, sport = 0, known = 0;
+        for (TripPoint p : points) {
+            if (p.driveMode < 0) continue;
+            known++;
+            if (p.driveMode == 0) eco++;
+            else if (p.driveMode == 1) normal++;
+            else if (p.driveMode == 2) sport++;
+        }
+        if (known == 0) return null;
+        return new double[]{100.0 * eco / known, 100.0 * normal / known, 100.0 * sport / known};
     }
 
     private String kindFor(TripRecord r) {

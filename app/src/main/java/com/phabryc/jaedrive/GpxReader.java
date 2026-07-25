@@ -27,9 +27,15 @@ public class GpxReader {
             boolean inEnergyFlow = false;
             boolean inBatteryPct = false;
             boolean inFuelPct = false;
+            boolean inDriveMode = false;
+            boolean inSpeedKmh = false;
+            boolean inInstConsumption = false;
+            boolean inRegenLevel = false;
             double lat = 0, lon = 0;
             int energyFlow = -1;
             float batteryPct = -1f, fuelPct = -1f;
+            int driveMode = -1, regenLevel = -1;
+            float speedKmh = -1f, instConsumption = -1f;
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 switch (eventType) {
@@ -40,6 +46,10 @@ public class GpxReader {
                             energyFlow = -1;
                             batteryPct = -1f;
                             fuelPct = -1f;
+                            driveMode = -1;
+                            regenLevel = -1;
+                            speedKmh = -1f;
+                            instConsumption = -1f;
                             lat = parseOrZero(parser.getAttributeValue(null, "lat"));
                             lon = parseOrZero(parser.getAttributeValue(null, "lon"));
                         } else if (inTrkpt && isExtensionTag(name, "energyFlow")) {
@@ -48,6 +58,14 @@ public class GpxReader {
                             inBatteryPct = true;
                         } else if (inTrkpt && isExtensionTag(name, "fuelPct")) {
                             inFuelPct = true;
+                        } else if (inTrkpt && isExtensionTag(name, "driveMode")) {
+                            inDriveMode = true;
+                        } else if (inTrkpt && isExtensionTag(name, "speedKmh")) {
+                            inSpeedKmh = true;
+                        } else if (inTrkpt && isExtensionTag(name, "instConsumption")) {
+                            inInstConsumption = true;
+                        } else if (inTrkpt && isExtensionTag(name, "regenLevel")) {
+                            inRegenLevel = true;
                         }
                         break;
                     }
@@ -67,6 +85,26 @@ public class GpxReader {
                                 fuelPct = Float.parseFloat(parser.getText().trim());
                             } catch (Exception ignored) {
                             }
+                        } else if (inDriveMode) {
+                            try {
+                                driveMode = Integer.parseInt(parser.getText().trim());
+                            } catch (Exception ignored) {
+                            }
+                        } else if (inSpeedKmh) {
+                            try {
+                                speedKmh = Float.parseFloat(parser.getText().trim());
+                            } catch (Exception ignored) {
+                            }
+                        } else if (inInstConsumption) {
+                            try {
+                                instConsumption = Float.parseFloat(parser.getText().trim());
+                            } catch (Exception ignored) {
+                            }
+                        } else if (inRegenLevel) {
+                            try {
+                                regenLevel = Integer.parseInt(parser.getText().trim());
+                            } catch (Exception ignored) {
+                            }
                         }
                         break;
                     }
@@ -78,8 +116,17 @@ public class GpxReader {
                             inBatteryPct = false;
                         } else if (isExtensionTag(name, "fuelPct")) {
                             inFuelPct = false;
+                        } else if (isExtensionTag(name, "driveMode")) {
+                            inDriveMode = false;
+                        } else if (isExtensionTag(name, "speedKmh")) {
+                            inSpeedKmh = false;
+                        } else if (isExtensionTag(name, "instConsumption")) {
+                            inInstConsumption = false;
+                        } else if (isExtensionTag(name, "regenLevel")) {
+                            inRegenLevel = false;
                         } else if ("trkpt".equals(name) && inTrkpt) {
-                            points.add(new TripPoint(lat, lon, energyFlow, batteryPct, fuelPct));
+                            points.add(new TripPoint(lat, lon, energyFlow, batteryPct, fuelPct,
+                                driveMode, speedKmh, instConsumption, regenLevel));
                             inTrkpt = false;
                         }
                         break;

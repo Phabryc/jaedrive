@@ -57,6 +57,13 @@ public class TripRecord {
     // usato come chiave di idempotenza primaria dal server cloud (vedi TripDatabase per il
     // dettaglio, e SyncWorker per l'invio nel payload di upload).
     public String clientUuid;
+    // Km reali in modalita' EV/HEV, per differenza sui contatori-odometro ID_EV_MILEAGE/
+    // ID_HEV_MILEAGE tra apertura e chiusura del viaggio (vedi TrackingService) - null se
+    // non disponibili (es. baseline mancante all'apertura). Solo AUTO, mai per i MANUAL.
+    // Complementare, non sostitutivo, alla stima pctEv/pctSeries/pctParallel basata sul
+    // tempo passato in ciascun bucket ENERGY_FLOW (vedi SyncWorker/EnergyFlowUtil).
+    public Double kmEv;
+    public Double kmHev;
 
     // Usato da TripDatabase per ricostruire i record letti dal db.
     public TripRecord() {
