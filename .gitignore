@@ -37,6 +37,11 @@ cloud/web/.env.local
 cloud/.env
 *.log
 
+# Firebase service-account admin keys - however/wherever they get downloaded, never in git.
+*firebase-adminsdk*.json
+*serviceAccount*.json
+/Firebase
+
 # === Personal / sensitive - device logs (GPS traces, addresses) and reference photos
 # (including a vendor unlock file bound to this specific VIN) - not source code, not meant
 # to be published even to a private repo history. Keep these local-only.
