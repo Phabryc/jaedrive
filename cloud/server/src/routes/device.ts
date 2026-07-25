@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireDevice } from "../auth/requireDevice.js";
 import { generatePairingCode } from "../lib/tokens.js";
+import { reverseGeocode, firstAndLastPoint } from "../lib/geocode.js";
 
 const PAIRING_TTL_MS = 10 * 60 * 1000;
 
@@ -13,6 +14,7 @@ const tripBodySchema = {
     startedAt: { type: "string", format: "date-time" },
     endedAt: { type: "string", format: "date-time", nullable: true },
     label: { type: "string", nullable: true },
+    startLabel: { type: "string", nullable: true },
     km: { type: "number", nullable: true },
     liters: { type: "number", nullable: true },
     avgConsumption: { type: "number", nullable: true },
@@ -107,6 +109,7 @@ export async function deviceRoutes(app: FastifyInstance) {
         startedAt: string;
         endedAt?: string | null;
         label?: string | null;
+        startLabel?: string | null;
         km?: number | null;
         liters?: number | null;
         avgConsumption?: number | null;
@@ -124,13 +127,30 @@ export async function deviceRoutes(app: FastifyInstance) {
       };
 
       const startedAt = new Date(body.startedAt);
+
+      // Fallback: se l'app non e' riuscita a geocodificare (nessuna connessione al momento
+      // della chiusura del viaggio - vedi TrackingService.saveTripRecordAsync()), ma il
+      // viaggio ha comunque una traccia GPX, ci proviamo qui - a questo punto l'upload
+      // stesso e' andato a buon fine, quindi la connessione c'e' di sicuro. Stesso servizio
+      // (Nominatim) e stessa logica dell'app, vedi lib/geocode.ts.
+      let label = body.label ?? null;
+      let startLabel = body.startLabel ?? null;
+      if ((!label || !startLabel) && body.gpxRaw) {
+        const points = firstAndLastPoint(body.gpxRaw);
+        if (points) {
+          if (!startLabel) startLabel = await reverseGeocode(points.first.lat, points.first.lon);
+          if (!label) label = await reverseGeocode(points.last.lat, points.last.lon);
+        }
+      }
+
       const data = {
         vehicleId: device.vehicleId,
         deviceId: device.id,
         kind: body.kind,
         startedAt,
         endedAt: body.endedAt ? new Date(body.endedAt) : null,
-        label: body.label ?? null,
+        label,
+        startLabel,
         km: body.km ?? null,
         liters: body.liters ?? null,
         avgConsumption: body.avgConsumption ?? null,

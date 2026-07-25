@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth/requireUser.js";
 import { generateDeviceToken, sha256Hex } from "../lib/tokens.js";
+import { reverseGeocode, firstAndLastPoint } from "../lib/geocode.js";
 
 const TRIPS_PAGE_SIZE = 20;
 
@@ -206,6 +207,7 @@ export async function userRoutes(app: FastifyInstance) {
           startedAt: true,
           endedAt: true,
           label: true,
+          startLabel: true,
           km: true,
           liters: true,
           avgConsumption: true,
@@ -218,6 +220,56 @@ export async function userRoutes(app: FastifyInstance) {
     ]);
 
     return reply.send({ total, page: pageNum, pageSize: TRIPS_PAGE_SIZE, trips });
+  });
+
+  // Recupero indirizzi mancanti per i trip caricati PRIMA del fallback di geocoding
+  // lato server (vedi routes/device.ts) - quelli restano "Percorso GPS" per sempre senza
+  // questo, anche se la traccia GPX (e quindi i punti da geocodificare) ce l'hanno gia'.
+  // Innescato manualmente dal web (un bottone), non automatico: e' un servizio pubblico
+  // gratuito (Nominatim), non ha senso interrogarlo in background senza che l'utente lo
+  // chieda esplicitamente. Sequenziale con una piccola pausa tra le chiamate, non
+  // parallelo, per restare nei limiti d'uso ragionevoli di un servizio gratuito.
+  app.post("/vehicles/:id/backfill-addresses", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    // Un batch alla volta (non tutti insieme): tra il rate limit di Nominatim (~1
+    // richiesta/secondo) e i trip che ne servono fino a 2 ciascuno, uno storico grande
+    // rischierebbe di far scadere il timeout del reverse proxy davanti al server. Il
+    // "remaining" nella risposta dice al web se richiamare ancora.
+    const BATCH_SIZE = 20;
+    const where = { vehicleId: id, gpxRaw: { not: null }, OR: [{ label: null }, { startLabel: null }] };
+    const [totalMissing, trips] = await Promise.all([
+      prisma.trip.count({ where }),
+      prisma.trip.findMany({ where, take: BATCH_SIZE, select: { id: true, label: true, startLabel: true, gpxRaw: true } }),
+    ]);
+
+    let updated = 0;
+    for (const t of trips) {
+      if (!t.gpxRaw) continue;
+      const points = firstAndLastPoint(t.gpxRaw);
+      if (!points) continue;
+
+      const data: { label?: string; startLabel?: string } = {};
+      if (!t.label) {
+        const l = await reverseGeocode(points.last.lat, points.last.lon);
+        if (l) data.label = l;
+      }
+      if (!t.startLabel) {
+        const sl = await reverseGeocode(points.first.lat, points.first.lon);
+        if (sl) data.startLabel = sl;
+      }
+      if (Object.keys(data).length > 0) {
+        await prisma.trip.update({ where: { id: t.id }, data });
+        updated++;
+      }
+      // Un rispetto minimo verso un servizio gratuito condiviso - vedi la policy d'uso di
+      // Nominatim (max ~1 richiesta/secondo).
+      await new Promise((r) => setTimeout(r, 1100));
+    }
+
+    return reply.send({ scanned: trips.length, updated, remaining: totalMissing - updated });
   });
 
   app.get("/trips/:id", async (req, reply) => {

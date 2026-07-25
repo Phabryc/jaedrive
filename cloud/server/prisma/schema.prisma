@@ -126,6 +126,11 @@ model Trip {
   startedAt      DateTime  @map("started_at")
   endedAt        DateTime? @map("ended_at")
   label          String?
+  // Indirizzo di PARTENZA (reverse-geocoded dal primo punto GPS, come "label" lo e' per
+  // l'ultimo) - calcolato lato Android da sempre ma non era mai stato incluso nel payload
+  // di upload finche' non ce ne siamo accorti (2026-07-26). Nullable per lo stesso motivo
+  // di "label": nessuna connessione al momento della chiusura del viaggio.
+  startLabel     String?   @map("start_label")
   km             Float?
   liters         Float?
   avgConsumption Float?    @map("avg_consumption")
