@@ -3,8 +3,11 @@ export interface Vehicle {
   userId: string;
   vin: string;
   nickname: string;
-  model: string | null;
-  modelYear: number | null;
+  // Impostati dall'onboarding obbligatorio Android (VehicleCatalog.java) - null finche'
+  // l'app non ha ancora inviato la prima sincronizzazione.
+  brand: "JAECOO" | "OMODA" | null;
+  model: string | null; // "5" | "7" | "8" | "9"
+  powertrain: string | null; // "ICE_2WD" | "ICE_4WD" | "SHS_H" | "SHS_P" | "SHS_P_4WD" | "BEV"
   createdAt: string;
 }
 

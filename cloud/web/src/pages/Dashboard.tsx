@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { vehicleTitle } from "../lib/vehicleCatalog";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export default function Dashboard() {
           >
             <p className="text-lg font-medium">{v.nickname}</p>
             <p className="mt-1 text-sm text-onsurface-variant">
-              {v.model ?? "Modello sconosciuto"} {v.modelYear ?? ""}
+              {vehicleTitle(v.brand, v.model, v.powertrain) || "Marca/modello non ancora sincronizzati"}
             </p>
             <p className="mt-3 font-mono text-xs text-onsurface-variant">{v.vin}</p>
           </Link>

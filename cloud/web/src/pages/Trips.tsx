@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
-import type { TripsPage } from "../lib/types";
+import type { TripsPage, Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { TripRow } from "../components/TripRow";
 import { VehicleStatsPanel } from "../components/VehicleStatsPanel";
+import { VehicleInfoCard } from "../components/VehicleInfoCard";
 
 const KIND_FILTERS = [
   { value: "", label: "Tutti" },
@@ -20,6 +21,14 @@ export default function Trips() {
   // Giorno selezionato dal calendario in VehicleStatsPanel (formato "YYYY-MM-DD") - filtra
   // la lista qui sotto tramite from/to, gia' supportati da /vehicles/:id/trips.
   const [dayFilter, setDayFilter] = useState<string | null>(null);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+
+  useEffect(() => {
+    if (!vehicleId) return;
+    // Nessun GET singolo /vehicles/:id lato server - la lista e' piccola per un uso
+    // personale, va bene filtrarla qui invece di aggiungere una rotta solo per questo.
+    api.vehicles().then((all) => setVehicle(all.find((v) => v.id === vehicleId) ?? null));
+  }, [vehicleId]);
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -42,6 +51,8 @@ export default function Trips() {
 
   return (
     <AppShell>
+      {vehicle && <VehicleInfoCard vehicle={vehicle} />}
+
       {vehicleId && (
         <VehicleStatsPanel
           vehicleId={vehicleId}
