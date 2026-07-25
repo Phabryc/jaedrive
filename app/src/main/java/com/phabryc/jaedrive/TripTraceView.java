@@ -3,8 +3,11 @@ package com.phabryc.jaedrive;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.View;
+
+import androidx.core.content.ContextCompat;
 
 import java.util.Collections;
 import java.util.List;
@@ -19,9 +22,14 @@ public class TripTraceView extends View {
     private List<TripPoint> points = Collections.emptyList();
     private final Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint startPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint endPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint emptyTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    // Stesse icone (e stesso significato) usate nella riga indirizzi del dettaglio viaggio
+    // e nella mappa OSM online (vedi MainActivity.buildTripMarker()) - pin di partenza
+    // (tinto), bandiera a scacchi di arrivo (mai tinta, il pattern bianco/nero e' il
+    // punto). Caricate una volta sola, dimensione fissa in px.
+    private final Drawable startIcon;
+    private final Drawable endIcon;
+    private final int markerSizePx;
 
     public TripTraceView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -35,12 +43,16 @@ public class TripTraceView extends View {
         glowPaint.setStrokeCap(Paint.Cap.ROUND);
         glowPaint.setStrokeJoin(Paint.Join.ROUND);
 
-        startPaint.setColor(0xFF00BFFF);
-        endPaint.setColor(0xFFFFB4AB);
-
         emptyTextPaint.setColor(0xFF888888);
         emptyTextPaint.setTextSize(sp(14));
         emptyTextPaint.setTextAlign(Paint.Align.CENTER);
+
+        markerSizePx = (int) dp(28);
+        Drawable pin = ContextCompat.getDrawable(context, R.drawable.ic_location);
+        startIcon = pin != null ? pin.mutate() : null;
+        if (startIcon != null) startIcon.setTint(0xFF00BFFF);
+        Drawable flag = ContextCompat.getDrawable(context, R.drawable.ic_flag_checkered);
+        endIcon = flag != null ? flag.mutate() : null;
     }
 
     private float dp(float v) {
@@ -109,7 +121,18 @@ public class TripTraceView extends View {
             canvas.drawLine(xs[i], ys[i], xs[i + 1], ys[i + 1], linePaint);
         }
 
-        canvas.drawCircle(xs[0], ys[0], dp(8), startPaint);
-        canvas.drawCircle(xs[xs.length - 1], ys[ys.length - 1], dp(8), endPaint);
+        // anchorX 0.5 = punta al centro (pin), 0.19 = punta sul lato sinistro (base
+        // dell'asta della bandiera, vedi ic_flag_checkered.xml) - stessa logica di
+        // ancoraggio usata per i marker sulla mappa OSM online.
+        drawMarker(canvas, startIcon, xs[0], ys[0], 0.5f);
+        drawMarker(canvas, endIcon, xs[xs.length - 1], ys[ys.length - 1], 0.19f);
+    }
+
+    private void drawMarker(Canvas canvas, Drawable icon, float x, float y, float anchorXFraction) {
+        if (icon == null) return;
+        int left = (int) (x - markerSizePx * anchorXFraction);
+        int top = (int) (y - markerSizePx);
+        icon.setBounds(left, top, left + markerSizePx, top + markerSizePx);
+        icon.draw(canvas);
     }
 }

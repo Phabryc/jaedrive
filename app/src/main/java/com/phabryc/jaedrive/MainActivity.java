@@ -37,6 +37,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
 import org.osmdroid.util.BoundingBox;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.Marker;
 import org.osmdroid.views.overlay.Polyline;
 
 import java.io.File;
@@ -1316,11 +1317,38 @@ public class MainActivity extends AppCompatActivity {
             segment.getOutlinePaint().setStrokeWidth(dp(4));
             mapView.getOverlays().add(segment);
         }
+
+        // Marker di partenza/arrivo - stesse icone (e stesso significato: pin=partenza,
+        // bandiera a scacchi=arrivo) gia' usate nella riga indirizzi del dettaglio viaggio,
+        // cosi' mappa e testo raccontano la stessa cosa con lo stesso linguaggio visivo.
+        mapView.getOverlays().add(buildTripMarker(geoPoints.get(0), R.drawable.ic_location, true));
+        mapView.getOverlays().add(buildTripMarker(geoPoints.get(geoPoints.size() - 1), R.drawable.ic_flag_checkered, false));
         mapView.invalidate();
 
         BoundingBox box = BoundingBox.fromGeoPoints(geoPoints);
         // Il bounding box va applicato dopo che la MapView ha una dimensione nota (layout gia' fatto).
         mapView.post(() -> mapView.zoomToBoundingBox(box, false, (int) dp(24)));
+    }
+
+    // Marker di partenza/arrivo per la mappa OSM online - il pin (partenza) ha la punta al
+    // centro-basso dell'icona (ancoraggio 0.5/1.0, quello di default), la bandiera (arrivo)
+    // ha l'asta sul lato sinistro dell'icona quindi l'ancoraggio va spostato di conseguenza
+    // (altrimenti il punto vero risulterebbe al centro della bandiera, non alla base
+    // dell'asta). La bandiera NON va tinta (vedi ic_flag_checkered.xml), il pin si'.
+    private Marker buildTripMarker(GeoPoint point, int drawableRes, boolean isStart) {
+        Marker marker = new Marker(mapView);
+        marker.setPosition(point);
+        android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(this, drawableRes);
+        if (icon != null) {
+            icon = icon.mutate();
+            int sizePx = (int) dp(32);
+            icon.setBounds(0, 0, sizePx, sizePx);
+            if (isStart) icon.setTint(ContextCompat.getColor(this, R.color.primary_container));
+            marker.setIcon(icon);
+        }
+        marker.setAnchor(isStart ? 0.5f : 0.2f, 1.0f);
+        marker.setInfoWindow(null);
+        return marker;
     }
 
     // Percentuali EV/serie/parallelo/ricarica/idle dell'intero viaggio, calcolate
