@@ -17,22 +17,41 @@ export default function Trips() {
   const [data, setData] = useState<TripsPage | null>(null);
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("");
+  // Giorno selezionato dal calendario in VehicleStatsPanel (formato "YYYY-MM-DD") - filtra
+  // la lista qui sotto tramite from/to, gia' supportati da /vehicles/:id/trips.
+  const [dayFilter, setDayFilter] = useState<string | null>(null);
 
   useEffect(() => {
     if (!vehicleId) return;
     setData(null);
-    api.trips(vehicleId, { page, kind: kind || undefined }).then(setData);
-  }, [vehicleId, page, kind]);
+    api
+      .trips(vehicleId, {
+        page,
+        kind: kind || undefined,
+        from: dayFilter ? `${dayFilter}T00:00:00.000Z` : undefined,
+        to: dayFilter ? `${dayFilter}T23:59:59.999Z` : undefined,
+      })
+      .then(setData);
+  }, [vehicleId, page, kind, dayFilter]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
     <AppShell>
-      {vehicleId && <VehicleStatsPanel vehicleId={vehicleId} />}
+      {vehicleId && (
+        <VehicleStatsPanel
+          vehicleId={vehicleId}
+          selectedDate={dayFilter}
+          onSelectDate={(d) => {
+            setDayFilter(d);
+            setPage(1);
+          }}
+        />
+      )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Viaggi</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {KIND_FILTERS.map((f) => (
             <button
               key={f.value}
@@ -49,6 +68,15 @@ export default function Trips() {
               {f.label}
             </button>
           ))}
+          {dayFilter && (
+            <button
+              onClick={() => setDayFilter(null)}
+              className="flex items-center gap-1.5 rounded-md border border-accent px-3 py-1 text-xs text-accent"
+            >
+              {formatDayLabel(dayFilter)}
+              <span aria-hidden>✕</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -84,4 +112,8 @@ export default function Trips() {
       )}
     </AppShell>
   );
+}
+
+function formatDayLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 }

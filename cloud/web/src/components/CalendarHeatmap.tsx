@@ -5,24 +5,47 @@ const MONTH_NAMES = [
   "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
   "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
 ];
-const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+const WEEKDAY_LABELS = ["L", "M", "M", "G", "V", "S", "D"];
+const CELL = 30; // px, lato di ogni casella - calendario compatto invece che a piena larghezza
+const GAP = 3;
 
 interface DayStat {
   date: string;
   km: number;
+  liters: number;
+  durationMin: number;
   tripCount: number;
   avgConsumption: number | null;
 }
 
-// Calendario mensile (non piu' l'intero anno in un'unica griglia ECharts) - piu' leggibile
-// per capire a colpo d'occhio un singolo mese, con il consumo medio del giorno visibile
-// passandoci sopra, non solo i km.
-export function CalendarHeatmap({ vehicleId }: { vehicleId: string }) {
+function formatDuration(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const rest = Math.round(min % 60);
+  return rest > 0 ? `${h}h ${rest}min` : `${h}h`;
+}
+
+function formatDayFull(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// Calendario mensile compatto: il consumo medio del giorno e' scritto direttamente nella
+// casella (non serve piu' passarci sopra), cliccando un giorno si filtra la lista viaggi
+// nella pagina (vedi Trips.tsx - selectedDate/onSelectDate sono sollevati li' perche' e'
+// quella pagina a possedere la query della lista).
+export function CalendarHeatmap({
+  vehicleId,
+  selectedDate,
+  onSelectDate,
+}: {
+  vehicleId: string;
+  selectedDate: string | null;
+  onSelectDate: (date: string | null) => void;
+}) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth()); // 0-11
   const [days, setDays] = useState<DayStat[] | null>(null);
-  const [activeDate, setActiveDate] = useState<string | null>(null);
 
   useEffect(() => {
     setDays(null);
@@ -41,7 +64,6 @@ export function CalendarHeatmap({ vehicleId }: { vehicleId: string }) {
     }
     setMonth(m);
     setYear(y);
-    setActiveDate(null);
   }
 
   const byDate = useMemo(() => {
@@ -68,18 +90,18 @@ export function CalendarHeatmap({ vehicleId }: { vehicleId: string }) {
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const active = activeDate ? byDate.get(activeDate) : undefined;
+  const gridWidth = CELL * 7 + GAP * 6;
 
   return (
     <div className="rounded-lg border border-surface-border bg-surface p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between" style={{ maxWidth: gridWidth + 16, margin: "0 auto 12px" }}>
         <p className="text-sm font-medium">Giorni guidati</p>
-        <div className="flex items-center gap-2 text-xs text-onsurface-variant">
-          <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-0.5 hover:text-onsurface">
+        <div className="flex items-center gap-1.5 text-xs text-onsurface-variant">
+          <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-1.5 py-0.5 hover:text-onsurface">
             ←
           </button>
-          <span className="w-28 text-center tabular-nums">{MONTH_NAMES[month]} {year}</span>
-          <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-0.5 hover:text-onsurface">
+          <span className="w-16 text-center tabular-nums text-[11px]">{MONTH_NAMES[month].slice(0, 3)} {year}</span>
+          <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-1.5 py-0.5 hover:text-onsurface">
             →
           </button>
         </div>
@@ -88,59 +110,81 @@ export function CalendarHeatmap({ vehicleId }: { vehicleId: string }) {
       {days === null ? (
         <p className="text-sm text-onsurface-variant">Caricamento...</p>
       ) : (
-        <>
-          <div className="grid grid-cols-7 gap-1.5 text-center">
-            {WEEKDAY_LABELS.map((w) => (
-              <div key={w} className="text-[11px] text-onsurface-variant">
-                {w}
-              </div>
-            ))}
-            {cells.map((date, i) => {
-              if (!date) return <div key={i} />;
-              const stat = byDate.get(date);
-              const dayNum = Number(date.slice(8, 10));
-              const km = stat?.km ?? 0;
-              const bg = km > 0 ? `rgba(0,191,255,${0.12 + 0.68 * (km / maxKm)})` : "rgba(255,255,255,0.03)";
-              const isActive = date === activeDate;
-              return (
-                <button
-                  key={date}
-                  onMouseEnter={() => setActiveDate(date)}
-                  onClick={() => setActiveDate(date)}
-                  className="flex aspect-square items-center justify-center rounded text-xs tabular-nums transition"
-                  style={{
-                    backgroundColor: bg,
-                    outline: isActive ? "1px solid #00BFFF" : undefined,
-                    color: km > 0 ? "#E5E2E1" : "#BCC8D1",
-                  }}
-                >
-                  {dayNum}
-                </button>
-              );
-            })}
-          </div>
+        <div
+          className="mx-auto grid"
+          style={{ gridTemplateColumns: `repeat(7, ${CELL}px)`, gap: GAP, width: gridWidth }}
+        >
+          {WEEKDAY_LABELS.map((w, i) => (
+            <div key={i} className="text-center text-[9px] text-onsurface-variant">
+              {w}
+            </div>
+          ))}
+          {cells.map((date, i) => {
+            if (!date) return <div key={i} style={{ width: CELL, height: CELL }} />;
+            const stat = byDate.get(date);
+            const dayNum = Number(date.slice(8, 10));
+            const km = stat?.km ?? 0;
+            const bg = km > 0 ? `rgba(0,191,255,${0.12 + 0.68 * (km / maxKm)})` : "rgba(255,255,255,0.03)";
+            const isSelected = date === selectedDate;
+            const title = stat
+              ? `${stat.km.toFixed(1)} km · ${stat.tripCount} ${stat.tripCount === 1 ? "viaggio" : "viaggi"}${
+                  stat.avgConsumption != null ? ` · ${stat.avgConsumption.toFixed(1)} km/l` : ""
+                }`
+              : "Nessun viaggio";
+            return (
+              <button
+                key={date}
+                title={title}
+                onClick={() => onSelectDate(isSelected ? null : date)}
+                className="flex flex-col items-center justify-center rounded transition"
+                style={{
+                  width: CELL,
+                  height: CELL,
+                  backgroundColor: bg,
+                  outline: isSelected ? "2px solid #00BFFF" : undefined,
+                  outlineOffset: -2,
+                }}
+              >
+                <span className="text-[8px] leading-none text-onsurface-variant">{dayNum}</span>
+                {stat?.avgConsumption != null && (
+                  <span className="text-[9px] font-semibold leading-tight tabular-nums text-onsurface">
+                    {stat.avgConsumption.toFixed(1)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-          <div className="mt-3 min-h-[1.25rem] text-xs text-onsurface-variant">
-            {active ? (
-              active.km > 0 ? (
-                <span>
-                  <span className="text-onsurface">{formatDate(active.date)}</span> — {active.km.toFixed(1)} km ·{" "}
-                  {active.tripCount} {active.tripCount === 1 ? "viaggio" : "viaggi"}
-                  {active.avgConsumption != null && <> · {active.avgConsumption.toFixed(1)} km/l</>}
-                </span>
-              ) : (
-                <span>{formatDate(active.date)} — nessun viaggio</span>
-              )
-            ) : (
-              <span>Passa il mouse (o tocca) un giorno per i dettagli.</span>
-            )}
-          </div>
-        </>
+      {selectedDate && (
+        <div className="mx-auto mt-4" style={{ maxWidth: gridWidth + 120 }}>
+          <p className="mb-2 text-center text-xs text-onsurface-variant">{formatDayFull(selectedDate)}</p>
+          {(() => {
+            const stat = byDate.get(selectedDate);
+            if (!stat || stat.tripCount === 0) {
+              return <p className="text-center text-sm text-onsurface-variant">Nessun viaggio questo giorno.</p>;
+            }
+            return (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <DayStatTile label="Km percorsi" value={stat.km.toFixed(1)} />
+                <DayStatTile label="Consumo medio" value={stat.avgConsumption != null ? `${stat.avgConsumption.toFixed(1)} km/l` : "–"} />
+                <DayStatTile label="Carburante" value={`${stat.liters.toFixed(2)} L`} />
+                <DayStatTile label="Tempo alla guida" value={formatDuration(stat.durationMin)} />
+              </div>
+            );
+          })()}
+        </div>
       )}
     </div>
   );
 }
 
-function formatDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+function DayStatTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-surface-border bg-bg/40 px-2 py-2 text-center">
+      <p className="text-sm font-semibold tabular-nums text-onsurface">{value}</p>
+      <p className="text-[10px] text-onsurface-variant">{label}</p>
+    </div>
+  );
 }

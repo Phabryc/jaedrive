@@ -9,7 +9,15 @@ import { CalendarHeatmap } from "./CalendarHeatmap";
 
 const DRIVE_MODE_COLOR = { ECO: "#2E7D32", NORMAL: "#00BFFF", SPORT: "#C62828" };
 
-export function VehicleStatsPanel({ vehicleId }: { vehicleId: string }) {
+export function VehicleStatsPanel({
+  vehicleId,
+  selectedDate,
+  onSelectDate,
+}: {
+  vehicleId: string;
+  selectedDate: string | null;
+  onSelectDate: (date: string | null) => void;
+}) {
   const [stats, setStats] = useState<VehicleStats | null>(null);
 
   useEffect(() => {
@@ -84,7 +92,7 @@ export function VehicleStatsPanel({ vehicleId }: { vehicleId: string }) {
         </div>
       )}
 
-      <CalendarHeatmap vehicleId={vehicleId} />
+      <CalendarHeatmap vehicleId={vehicleId} selectedDate={selectedDate} onSelectDate={onSelectDate} />
     </div>
   );
 }

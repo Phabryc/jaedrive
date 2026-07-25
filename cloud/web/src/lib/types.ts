@@ -63,5 +63,12 @@ export interface VehicleStats {
 
 export interface VehicleCalendarStats {
   year: number;
-  days: { date: string; km: number; tripCount: number; avgConsumption: number | null }[];
+  days: {
+    date: string;
+    km: number;
+    liters: number;
+    durationMin: number;
+    tripCount: number;
+    avgConsumption: number | null;
+  }[];
 }
