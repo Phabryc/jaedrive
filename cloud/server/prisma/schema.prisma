@@ -24,6 +24,17 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   lastLoginAt  DateTime? @map("last_login_at")
 
+  // Profile fields required by the app (see cloud/DESIGN.md and the web onboarding gate) -
+  // nullable at the DB level since the row is created lazily on first token verification,
+  // before the user has necessarily completed onboarding. firstName/lastName/photoUrl are
+  // best-effort prefilled from the Firebase ID token's name/picture claims on first login
+  // (present for Google sign-in, absent for plain email/password) - see requireUser.ts.
+  // nationality is never provided by any auth provider, always collected via onboarding.
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  nationality  String?
+  photoUrl     String?  @map("photo_url")
+
   vehicles         Vehicle[]
   pairingsClaimed  PairingRequest[]
 
@@ -106,6 +117,13 @@ model Trip {
   pctOther       Float?    @map("pct_other")
   gpxRaw         String?   @map("gpx_raw")
   createdAt      DateTime  @default(now()) @map("created_at")
+
+  // Client-generated UUID (Android's TripDatabase, backfilled retroactively for trips that
+  // predate this column) - the real idempotency key for uploads now, stronger than
+  // (vehicleId, kind, startedAt) alone (e.g. survives a device DB being restored/reset and
+  // re-uploading the same trips after re-pairing). Nullable + the old unique constraint
+  // kept alongside it for any client that hasn't sent one yet - see routes/device.ts.
+  clientUuid     String?   @unique @map("client_uuid")
 
   @@unique([vehicleId, kind, startedAt])
   @@index([vehicleId, startedAt(sort: Desc)])
