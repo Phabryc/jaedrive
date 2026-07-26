@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 import { vehicleTitle, vehicleImageFor } from "../lib/vehicleCatalog";
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[] | null>(null);
 
@@ -20,16 +22,16 @@ export default function Dashboard() {
   return (
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Le mie auto</h1>
+        <h1 className="text-xl font-semibold">{t("appShell.myVehicles")}</h1>
         <Link
           to="/pair"
           className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
         >
-          + Aggiungi auto
+          {t("dashboard.addVehicle")}
         </Link>
       </div>
 
-      {vehicles === null && <p className="text-onsurface-variant">Caricamento...</p>}
+      {vehicles === null && <p className="text-onsurface-variant">{t("common.loading")}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {vehicles?.map((v) => {
@@ -46,7 +48,7 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <p className="text-lg font-medium">{v.nickname}</p>
                 <p className="mt-1 text-sm text-onsurface-variant">
-                  {vehicleTitle(v.brand, v.model, v.powertrain) || "Marca/modello non ancora sincronizzati"}
+                  {vehicleTitle(v.brand, v.model, v.powertrain) || t("dashboard.notSynced")}
                 </p>
                 <p className="mt-3 font-mono text-xs text-onsurface-variant">{v.vin}</p>
               </div>

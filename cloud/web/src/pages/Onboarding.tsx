@@ -2,14 +2,17 @@ import { useState } from "react";
 import { useLocation, useNavigate, type Location } from "react-router-dom";
 import { api, ApiError, type Profile } from "../lib/api";
 import { useProfile } from "../lib/ProfileContext";
+import { useLanguage } from "../lib/i18n/LanguageContext";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import jdLogo from "../assets/jd_logo.png";
 
 export default function Onboarding() {
   const { profile, refresh } = useProfile();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: Location } | null)?.from;
-  const redirectTarget = from ? from.pathname + from.search : "/";
+  const redirectTarget = from ? from.pathname + from.search : "/dashboard";
 
   const [firstName, setFirstName] = useState(profile?.firstName ?? "");
   const [lastName, setLastName] = useState(profile?.lastName ?? "");
@@ -32,7 +35,7 @@ export default function Onboarding() {
       await refresh();
       navigate(redirectTarget, { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Si è verificato un errore. Riprova.");
+      setError(err instanceof ApiError ? err.message : t("common.genericError"));
     } finally {
       setBusy(false);
     }
@@ -41,28 +44,29 @@ export default function Onboarding() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm rounded-xl border border-surface-border bg-surface p-6">
-        <img src={jdLogo} alt="JaeDrive" className="mb-4 h-10 w-auto" />
+        <div className="mb-4 flex items-center justify-between">
+          <img src={jdLogo} alt="JaeDrive" className="h-10 w-auto" />
+          <LanguageSwitcher />
+        </div>
         <h1 className="mb-1 text-lg font-semibold">
-          {profile?.firstName ? "Termini aggiornati" : "Completa il profilo"}
+          {profile?.firstName ? t("onboarding.titleUpdated") : t("onboarding.titleComplete")}
         </h1>
         <p className="mb-6 text-sm text-onsurface-variant">
-          {profile?.firstName
-            ? "Abbiamo aggiornato Termini di Servizio e Informativa Privacy: per continuare devi accettarli di nuovo."
-            : "Ci servono questi dati prima di continuare."}
+          {profile?.firstName ? t("onboarding.subtitleUpdated") : t("onboarding.subtitleComplete")}
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             autoFocus
             required
-            placeholder="Nome"
+            placeholder={t("common.firstName")}
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
           />
           <input
             required
-            placeholder="Cognome"
+            placeholder={t("common.lastName")}
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
@@ -75,13 +79,13 @@ export default function Onboarding() {
               className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
             />
             <span>
-              Ho letto e accetto i{" "}
+              {t("onboarding.acceptLegalPart1")}{" "}
               <a href="/legal/eula" target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                Termini di Servizio
+                {t("legal.terms")}
               </a>{" "}
-              e l'
+              {t("onboarding.acceptLegalPart2")}{" "}
               <a href="/legal/privacy" target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                Informativa Privacy
+                {t("legal.privacy")}
               </a>
               .
             </span>
@@ -93,7 +97,7 @@ export default function Onboarding() {
             disabled={busy || !acceptLegal}
             className="mt-1 rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
           >
-            Continua
+            {t("common.continue")}
           </button>
         </form>
       </div>

@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom";
 import type { Vehicle } from "../lib/types";
 import { vehicleTitle, vehicleImageFor } from "../lib/vehicleCatalog";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 // Marca/modello/motorizzazione arrivano dall'onboarding obbligatorio Android (non
 // modificabili da qui) - il nickname invece si modifica in Impostazioni (gia' esistente),
 // linkato da qui invece di duplicare quella UI.
 export function VehicleInfoCard({ vehicle }: { vehicle: Vehicle }) {
+  const { t } = useLanguage();
   const title = vehicleTitle(vehicle.brand, vehicle.model, vehicle.powertrain);
   const image = vehicleImageFor(vehicle.brand, vehicle.model);
 
@@ -16,7 +18,7 @@ export function VehicleInfoCard({ vehicle }: { vehicle: Vehicle }) {
           <img src={image} alt={title} className="h-full w-full object-contain" />
         ) : (
           <span className="px-2 text-center text-[11px] leading-tight text-onsurface-variant">
-            {vehicle.brand ? `${vehicle.brand}${vehicle.model ? " " + vehicle.model : ""}` : "Auto non configurata"}
+            {vehicle.brand ? `${vehicle.brand}${vehicle.model ? " " + vehicle.model : ""}` : t("vehicleInfo.notConfigured")}
           </span>
         )}
       </div>
@@ -25,10 +27,10 @@ export function VehicleInfoCard({ vehicle }: { vehicle: Vehicle }) {
         {title ? (
           <p className="text-sm text-onsurface-variant">{title}</p>
         ) : (
-          <p className="text-sm text-onsurface-variant">Marca/modello non ancora sincronizzati dall'app</p>
+          <p className="text-sm text-onsurface-variant">{t("vehicleInfo.notSynced")}</p>
         )}
         <Link to="/settings" className="mt-1 inline-block text-xs text-accent hover:underline">
-          Modifica nome →
+          {t("vehicleInfo.editName")}
         </Link>
       </div>
     </div>

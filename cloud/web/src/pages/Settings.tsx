@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { useProfile } from "../lib/ProfileContext";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 export default function Settings() {
   const { profile } = useProfile();
+  const { t } = useLanguage();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editing, setEditing] = useState<Record<string, string>>({});
 
@@ -23,14 +26,14 @@ export default function Settings() {
   }
 
   async function deleteVehicle(id: string, nickname: string) {
-    if (!confirm(`Eliminare "${nickname}" e tutti i suoi viaggi? L'operazione non può essere annullata.`)) return;
+    if (!confirm(t("settings.deleteVehicleConfirm", { name: nickname }))) return;
     await api.deleteVehicle(id);
     reload();
   }
 
   return (
     <AppShell>
-      <h1 className="mb-6 text-xl font-semibold">Impostazioni</h1>
+      <h1 className="mb-6 text-xl font-semibold">{t("settings.title")}</h1>
 
       <section className="mb-8 flex items-center gap-4 rounded-lg border border-surface-border bg-surface p-4">
         {profile?.photoUrl ? (
@@ -48,8 +51,13 @@ export default function Settings() {
         </div>
       </section>
 
+      <section className="mb-8 flex items-center justify-between rounded-lg border border-surface-border bg-surface p-4">
+        <p className="text-sm font-medium">{t("settings.language")}</p>
+        <LanguageSwitcher />
+      </section>
+
       <section>
-        <p className="mb-3 text-sm font-medium">Le mie auto</p>
+        <p className="mb-3 text-sm font-medium">{t("appShell.myVehicles")}</p>
         <div className="flex flex-col gap-3">
           {vehicles.map((v) => (
             <div key={v.id} className="rounded-lg border border-surface-border bg-surface p-4">
@@ -62,12 +70,12 @@ export default function Settings() {
                   onClick={() => deleteVehicle(v.id, v.nickname)}
                   className="rounded-md border border-bad px-3 py-1 text-xs text-bad hover:bg-bad/10"
                 >
-                  Elimina auto
+                  {t("settings.deleteVehicle")}
                 </button>
               </div>
               <div className="mt-3 flex gap-2">
                 <input
-                  placeholder="Nuovo nome"
+                  placeholder={t("settings.newNamePlaceholder")}
                   value={editing[v.id] ?? ""}
                   onChange={(e) => setEditing((s) => ({ ...s, [v.id]: e.target.value }))}
                   className="flex-1 rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -76,7 +84,7 @@ export default function Settings() {
                   onClick={() => saveNickname(v.id)}
                   className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
                 >
-                  Rinomina
+                  {t("settings.rename")}
                 </button>
               </div>
             </div>

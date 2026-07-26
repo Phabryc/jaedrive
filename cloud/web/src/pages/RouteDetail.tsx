@@ -6,8 +6,10 @@ import { AppShell } from "../components/AppShell";
 import { TripRow } from "../components/TripRow";
 import { StatsBody } from "../components/VehicleStatsPanel";
 import { hasElectricData } from "../lib/vehicleCatalog";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 export default function RouteDetail() {
+  const { t } = useLanguage();
   const { vehicleId, routeId } = useParams<{ vehicleId: string; routeId: string }>();
   const navigate = useNavigate();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
@@ -21,7 +23,7 @@ export default function RouteDetail() {
 
   async function handleDelete() {
     if (!vehicleId || !routeId || !detail) return;
-    if (!confirm(`Eliminare il percorso "${detail.route.name}"? L'operazione non può essere annullata.`)) return;
+    if (!confirm(t("routeCommon.deleteConfirm", { name: detail.route.name }))) return;
     await api.deleteRoute(vehicleId, routeId);
     navigate(`/vehicles/${vehicleId}/routes`);
   }
@@ -29,7 +31,7 @@ export default function RouteDetail() {
   if (!detail) {
     return (
       <AppShell>
-        <p className="text-onsurface-variant">Caricamento...</p>
+        <p className="text-onsurface-variant">{t("common.loading")}</p>
       </AppShell>
     );
   }
@@ -39,43 +41,42 @@ export default function RouteDetail() {
   return (
     <AppShell>
       <Link to={`/vehicles/${vehicleId}/routes`} className="mb-4 inline-block text-sm text-onsurface-variant hover:text-onsurface">
-        ← Percorsi salvati
+        {t("routeDetail.backLink")}
       </Link>
 
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{route.name}</h1>
-          <p className="mt-1 text-sm text-onsurface-variant">Raggio di match: {route.radiusMeters.toFixed(0)} m</p>
+          <p className="mt-1 text-sm text-onsurface-variant">{t("routeDetail.radiusLabel", { radius: route.radiusMeters.toFixed(0) })}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Link
             to={`/vehicles/${vehicleId}/routes/${routeId}/edit`}
             className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
           >
-            Modifica
+            {t("common.edit")}
           </Link>
           <button onClick={handleDelete} className="rounded-md border border-bad px-3 py-1.5 text-sm text-bad hover:bg-bad/10">
-            Elimina
+            {t("common.delete")}
           </button>
         </div>
       </div>
 
       <p className="mb-4 text-sm text-onsurface-variant">
-        {trips.length} {trips.length === 1 ? "viaggio corrisponde" : "viaggi corrispondono"} a questo percorso (partenza e arrivo entro{" "}
-        {route.radiusMeters.toFixed(0)} m).
+        {t(trips.length === 1 ? "routeDetail.matchOne" : "routeDetail.matchMany", {
+          count: trips.length,
+          radius: route.radiusMeters.toFixed(0),
+        })}
       </p>
 
       {trips.length === 0 ? (
-        <p className="text-sm text-onsurface-variant">
-          Nessun viaggio corrisponde ancora a questo percorso. Il viaggio usato per crearlo dovrebbe comparire qui - se non lo vedi, prova
-          ad allargare il raggio di match modificando il percorso.
-        </p>
+        <p className="text-sm text-onsurface-variant">{t("routeDetail.emptyState")}</p>
       ) : (
         <div className="flex flex-col gap-4">
           <StatsBody stats={stats} showElectric={hasElectricData(vehicle?.powertrain ?? null)} />
           <div className="flex flex-col gap-2">
-            {trips.map((t) => (
-              <TripRow key={t.id} trip={t} />
+            {trips.map((trip) => (
+              <TripRow key={trip.id} trip={trip} />
             ))}
           </div>
         </div>

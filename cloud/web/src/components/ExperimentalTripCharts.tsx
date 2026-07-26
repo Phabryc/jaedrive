@@ -1,6 +1,7 @@
 import ReactECharts from "echarts-for-react";
 import type { GpxPoint } from "../lib/gpx";
 import { baseGridOptions, yAxisMuted, CHART_TEXT_MUTED } from "../lib/chartTheme";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 // Consumo istantaneo e livello di rigenerazione: segnali VDB reali ma con scala/unita' NON
 // confermate sul campo (vedi VDInfoClient.java, Android) - mostrati qui come valori grezzi,
@@ -9,6 +10,7 @@ import { baseGridOptions, yAxisMuted, CHART_TEXT_MUTED } from "../lib/chartTheme
 // la regola del progetto di non nascondere dati diagnostici ma di non inventarne il
 // significato - stesso spirito della vecchia card "VDB CAR_INFO (sperimentale)" in app.
 export function ExperimentalTripCharts({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+  const { t } = useLanguage();
   const hasConsumption = points.some((p) => p.instConsumption != null);
   const hasRegen = points.some((p) => p.regenLevel != null);
   if (!hasConsumption && !hasRegen) return null;
@@ -30,13 +32,11 @@ export function ExperimentalTripCharts({ points, distancesKm }: { points: GpxPoi
 
   return (
     <details className="rounded-lg border border-surface-border bg-surface p-4">
-      <summary className="cursor-pointer text-sm font-medium text-onsurface-variant">
-        Dati sperimentali (valori grezzi, scala non confermata)
-      </summary>
+      <summary className="cursor-pointer text-sm font-medium text-onsurface-variant">{t("charts.experimentalTitle")}</summary>
       <div className="mt-3 flex flex-col gap-4">
         {hasConsumption && (
           <div>
-            <p className="mb-1 text-xs text-onsurface-variant">Consumo istantaneo (grezzo)</p>
+            <p className="mb-1 text-xs text-onsurface-variant">{t("charts.instConsumption")}</p>
             <ReactECharts
               option={mkOption(points.map((p) => p.instConsumption))}
               style={{ height: 140 }}
@@ -46,7 +46,7 @@ export function ExperimentalTripCharts({ points, distancesKm }: { points: GpxPoi
         )}
         {hasRegen && (
           <div>
-            <p className="mb-1 text-xs text-onsurface-variant">Livello rigenerazione (grezzo)</p>
+            <p className="mb-1 text-xs text-onsurface-variant">{t("charts.regenLevel")}</p>
             <ReactECharts option={mkOption(points.map((p) => p.regenLevel))} style={{ height: 140 }} notMerge />
           </div>
         )}

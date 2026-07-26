@@ -4,6 +4,7 @@ import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
 import { computeRunSegments } from "../lib/segments";
 import { baseGridOptions, yAxisMuted, CHART_ACCENT, CHART_ACCENT_SOFT, CHART_WARN } from "../lib/chartTheme";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 const CARD = "rounded-lg border border-surface-border bg-surface p-4";
 const HEIGHT = 220;
@@ -25,9 +26,13 @@ interface TooltipParam {
 // attacco/distacco dell'EV coincide con un certo livello di batteria, cosa che due widget
 // separati non mostrerebbero senza dover incrociare manualmente le posizioni sull'asse X.
 export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+  const { t } = useLanguage();
   const hasBattery = points.some((p) => p.batteryPct != null);
   const hasFuel = points.some((p) => p.fuelPct != null);
   if (!hasBattery && !hasFuel) return null;
+
+  const batteryName = t("charts.battery");
+  const fuelName = t("charts.fuel");
 
   const bucketSegments = computeRunSegments(distancesKm, points.map((p) => p.bucket));
   const presentBuckets = Array.from(new Set(bucketSegments.map((s) => s.value)));
@@ -42,7 +47,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
 
   const option = {
     ...baseGridOptions,
-    legend: { data: ["Batteria", "Carburante"].filter((n) => (n === "Batteria" ? hasBattery : hasFuel)), top: 0, textStyle: { color: "#BCC8D1", fontSize: 11 } },
+    legend: { data: [batteryName, fuelName].filter((n) => (n === batteryName ? hasBattery : hasFuel)), top: 0, textStyle: { color: "#BCC8D1", fontSize: 11 } },
     grid: { ...baseGridOptions.grid, top: 28 },
     yAxis: { ...yAxisMuted, min: 0, max: 100, name: "%" },
     tooltip: {
@@ -54,7 +59,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
         const bucket = points[idx]?.bucket;
         if (bucket) {
           lines.push(
-            `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${BUCKET_COLOR[bucket]};margin-right:4px;"></span>Modalità: ${BUCKET_LABEL[bucket]}`,
+            `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${BUCKET_COLOR[bucket]};margin-right:4px;"></span>${t("charts.modeTooltipPrefix")}${BUCKET_LABEL[bucket]}`,
           );
         }
         return `${distancesKm[idx]?.toFixed(1) ?? "0"} km<br/>${lines.join("<br/>")}`;
@@ -62,7 +67,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
     },
     series: [
       hasBattery && {
-        name: "Batteria",
+        name: batteryName,
         type: "line",
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_ACCENT_SOFT },
@@ -71,7 +76,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
         markArea,
       },
       hasFuel && {
-        name: "Carburante",
+        name: fuelName,
         type: "line",
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_WARN },
@@ -86,8 +91,8 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
 
   return (
     <div className={CARD}>
-      <p className="mb-1 text-sm font-medium">Batteria e carburante</p>
-      <p className="mb-1 text-xs text-onsurface-variant">Sfondo colorato = modalità energia nel momento</p>
+      <p className="mb-1 text-sm font-medium">{t("charts.batteryFuelTitle")}</p>
+      <p className="mb-1 text-xs text-onsurface-variant">{t("charts.batteryFuelHint")}</p>
       <ReactECharts option={option} style={{ height: HEIGHT }} notMerge />
       {presentBuckets.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-onsurface-variant">
@@ -104,6 +109,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
 }
 
 export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+  const { t } = useLanguage();
   if (!points.some((p) => p.speedKmh != null)) return null;
 
   const option = {
@@ -111,7 +117,7 @@ export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distan
     yAxis: { ...yAxisMuted, name: "km/h", min: 0 },
     series: [
       {
-        name: "Velocità",
+        name: t("charts.speed"),
         type: "line",
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_ACCENT },
@@ -124,7 +130,7 @@ export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distan
 
   return (
     <div className={CARD}>
-      <p className="mb-1 text-sm font-medium">Velocità</p>
+      <p className="mb-1 text-sm font-medium">{t("charts.speed")}</p>
       <ReactECharts option={option} style={{ height: HEIGHT }} notMerge />
     </div>
   );
@@ -134,6 +140,7 @@ export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distan
 // di BatteryFuelChart - l'utente vuole vedere se un tratto in salita/discesa coincide con
 // una certa modalita' di guida.
 export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+  const { t } = useLanguage();
   if (!points.some((p) => p.ele != null)) return null;
 
   const modeSegments = computeRunSegments(distancesKm, points.map((p) => (p.driveMode != null ? String(p.driveMode) : null)));
@@ -160,7 +167,7 @@ export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; di
         if (mode != null) {
           const key = String(mode) as "0" | "1" | "2";
           lines.push(
-            `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${DRIVE_MODE_COLOR[key]};margin-right:4px;"></span>Modalità: ${DRIVE_MODE_LABEL[key]}`,
+            `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${DRIVE_MODE_COLOR[key]};margin-right:4px;"></span>${t("charts.modeTooltipPrefix")}${DRIVE_MODE_LABEL[key]}`,
           );
         }
         return `${distancesKm[idx]?.toFixed(1) ?? "0"} km<br/>${lines.join("<br/>")}`;
@@ -168,7 +175,7 @@ export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; di
     },
     series: [
       {
-        name: "Altitudine",
+        name: t("charts.elevationSeries"),
         type: "line",
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_ACCENT_SOFT },
@@ -182,8 +189,8 @@ export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; di
 
   return (
     <div className={CARD}>
-      <p className="mb-1 text-sm font-medium">Profilo altimetrico</p>
-      <p className="mb-1 text-xs text-onsurface-variant">Sfondo colorato = modalità di guida nel momento</p>
+      <p className="mb-1 text-sm font-medium">{t("charts.elevationTitle")}</p>
+      <p className="mb-1 text-xs text-onsurface-variant">{t("charts.elevationHint")}</p>
       <ReactECharts option={option} style={{ height: HEIGHT }} notMerge />
       {presentModes.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-onsurface-variant">

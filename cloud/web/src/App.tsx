@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { RequireProfile } from "./components/RequireProfile";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Onboarding from "./pages/Onboarding";
 import Pair from "./pages/Pair";
@@ -24,11 +25,14 @@ function Protected({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <Routes>
+      {/* Pubblica (marketing) - la dashboard autenticata e' su /dashboard, vedi
+          jaedrive_todo #7. Landing.tsx reindirizza da sola chi ha gia' una sessione attiva. */}
+      <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       {/* Pubblica, nessun ProtectedRoute - deve restare leggibile anche prima del login. */}
       <Route path="/legal/:doc" element={<LegalDocument />} />
       <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-      <Route path="/" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/pair" element={<Protected><Pair /></Protected>} />
       <Route path="/vehicles/:vehicleId/trips" element={<Protected><Trips /></Protected>} />
       <Route path="/vehicles/:vehicleId/routes" element={<Protected><RoutesPage /></Protected>} />

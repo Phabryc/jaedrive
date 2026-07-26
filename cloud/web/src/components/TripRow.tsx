@@ -1,22 +1,25 @@
 import { Link } from "react-router-dom";
 import type { TripSummary } from "../lib/types";
 import { IconLocationPin, IconFlagCheckered } from "./icons";
+import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 
-const KIND_LABEL: Record<TripSummary["kind"], string> = {
-  auto: "Percorso GPS",
-  manual: "Viaggio manuale",
+const KIND_LABEL_KEY: Record<TripSummary["kind"], TranslationKey> = {
+  auto: "trip.kindAuto",
+  manual: "trip.kindManual",
 };
 
-function formatRange(startedAt: string, endedAt: string | null): string {
-  const start = new Date(startedAt);
-  const dateStr = start.toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" });
-  const startTime = start.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-  if (!endedAt) return `${dateStr}, ${startTime} · in corso`;
-  const endTime = new Date(endedAt).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-  return `${dateStr}, ${startTime} - ${endTime}`;
-}
-
 export function TripRow({ trip }: { trip: TripSummary }) {
+  const { t, locale } = useLanguage();
+
+  function formatRange(startedAt: string, endedAt: string | null): string {
+    const start = new Date(startedAt);
+    const dateStr = start.toLocaleDateString(locale, { day: "2-digit", month: "short", year: "numeric" });
+    const startTime = start.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    if (!endedAt) return `${dateStr}, ${startTime} · ${t("trip.ongoing")}`;
+    const endTime = new Date(endedAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    return `${dateStr}, ${startTime} - ${endTime}`;
+  }
+
   return (
     <Link
       to={`/trips/${trip.id}`}
@@ -39,23 +42,23 @@ export function TripRow({ trip }: { trip: TripSummary }) {
             )}
           </div>
         ) : (
-          <p className="truncate font-medium">{KIND_LABEL[trip.kind]}</p>
+          <p className="truncate font-medium">{t(KIND_LABEL_KEY[trip.kind])}</p>
         )}
         <p className="mt-1 text-xs text-onsurface-variant">
-          {KIND_LABEL[trip.kind]} · {formatRange(trip.startedAt, trip.endedAt)}
+          {t(KIND_LABEL_KEY[trip.kind])} · {formatRange(trip.startedAt, trip.endedAt)}
         </p>
       </div>
       <div className="flex shrink-0 gap-4 text-right text-sm tabular-nums">
         <div>
-          <p className="text-onsurface-variant">Km</p>
+          <p className="text-onsurface-variant">{t("trip.km")}</p>
           <p>{trip.km != null ? trip.km.toFixed(1) : "–"}</p>
         </div>
         <div>
-          <p className="text-onsurface-variant">Litri</p>
+          <p className="text-onsurface-variant">{t("trip.liters")}</p>
           <p>{trip.liters != null ? trip.liters.toFixed(2) : "–"}</p>
         </div>
         <div>
-          <p className="text-onsurface-variant">Km/l</p>
+          <p className="text-onsurface-variant">{t("trip.kmPerL")}</p>
           <p>{trip.avgConsumption != null ? trip.avgConsumption.toFixed(1) : "–"}</p>
         </div>
       </div>

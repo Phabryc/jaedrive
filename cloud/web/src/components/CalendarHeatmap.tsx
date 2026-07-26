@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { IconRoute, IconGauge, IconFuel, IconClock } from "./icons";
+import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 
-const MONTH_NAMES = [
-  "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-  "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+const MONTH_KEYS: TranslationKey[] = [
+  "calendar.month0", "calendar.month1", "calendar.month2", "calendar.month3",
+  "calendar.month4", "calendar.month5", "calendar.month6", "calendar.month7",
+  "calendar.month8", "calendar.month9", "calendar.month10", "calendar.month11",
 ];
-const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+const WEEKDAY_KEYS: TranslationKey[] = [
+  "calendar.weekday0", "calendar.weekday1", "calendar.weekday2", "calendar.weekday3",
+  "calendar.weekday4", "calendar.weekday5", "calendar.weekday6",
+];
 const CELL = 42; // px, lato di ogni casella - compatto ma leggibile, non a piena larghezza
 const GAP = 5;
 
@@ -17,17 +22,6 @@ interface DayStat {
   durationMin: number;
   tripCount: number;
   avgConsumption: number | null;
-}
-
-function formatDuration(min: number): string {
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  const rest = Math.round(min % 60);
-  return rest > 0 ? `${h}h ${rest}min` : `${h}h`;
-}
-
-function formatDayFull(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
 }
 
 // Calendario mensile compatto: il consumo medio del giorno e' scritto direttamente nella
@@ -43,6 +37,7 @@ export function CalendarHeatmap({
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
 }) {
+  const { t, locale } = useLanguage();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth()); // 0-11
@@ -52,6 +47,17 @@ export function CalendarHeatmap({
     setDays(null);
     api.statsCalendar(vehicleId, year).then((r) => setDays(r.days));
   }, [vehicleId, year]);
+
+  function formatDuration(min: number): string {
+    if (min < 60) return t("calendar.durationMinutesOnly", { m: min });
+    const h = Math.floor(min / 60);
+    const rest = Math.round(min % 60);
+    return rest > 0 ? t("calendar.durationHoursMinutes", { h, m: rest }) : t("calendar.durationHoursOnly", { h });
+  }
+
+  function formatDayFull(iso: string): string {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
+  }
 
   function shiftMonth(delta: number) {
     let m = month + delta;
@@ -98,12 +104,12 @@ export function CalendarHeatmap({
   return (
     <div className="rounded-lg border border-surface-border bg-surface p-4">
       <div className="mb-4 flex items-center justify-between" style={{ maxWidth: gridWidth + 16, margin: "0 auto 16px" }}>
-        <p className="text-sm font-medium">Giorni guidati</p>
+        <p className="text-sm font-medium">{t("calendar.title")}</p>
         <div className="flex items-center gap-2 text-xs text-onsurface-variant">
           <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
             ←
           </button>
-          <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{MONTH_NAMES[month]} {year}</span>
+          <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
           <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
             →
           </button>
@@ -111,15 +117,15 @@ export function CalendarHeatmap({
       </div>
 
       {days === null ? (
-        <p className="text-sm text-onsurface-variant">Caricamento...</p>
+        <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
       ) : (
         <div
           className="mx-auto grid"
           style={{ gridTemplateColumns: `repeat(7, ${CELL}px)`, gap: GAP, width: gridWidth }}
         >
-          {WEEKDAY_LABELS.map((w, i) => (
+          {WEEKDAY_KEYS.map((w, i) => (
             <div key={i} className="text-center text-[11px] text-onsurface-variant">
-              {w}
+              {t(w)}
             </div>
           ))}
           {cells.map((date, i) => {
@@ -130,10 +136,10 @@ export function CalendarHeatmap({
             const bg = km > 0 ? `rgba(0,191,255,${0.14 + 0.66 * (km / maxKm)})` : "rgba(255,255,255,0.04)";
             const isSelected = date === selectedDate;
             const title = stat
-              ? `${stat.km.toFixed(1)} km · ${stat.tripCount} ${stat.tripCount === 1 ? "viaggio" : "viaggi"}${
+              ? `${stat.km.toFixed(1)} km · ${stat.tripCount} ${t(stat.tripCount === 1 ? "calendar.tripSingular" : "calendar.tripPlural")}${
                   stat.avgConsumption != null ? ` · ${stat.avgConsumption.toFixed(1)} km/l` : ""
                 }`
-              : "Nessun viaggio";
+              : t("calendar.noTrips");
             return (
               <button
                 key={date}
@@ -164,20 +170,20 @@ export function CalendarHeatmap({
         <div className="mx-auto mt-5" style={{ maxWidth: gridWidth + 140 }}>
           <p className="mb-2 text-center text-xs text-onsurface-variant">{formatDayFull(selectedDate)}</p>
           {!selectedStat || selectedStat.tripCount === 0 ? (
-            <p className="text-center text-sm text-onsurface-variant">Nessun viaggio questo giorno.</p>
+            <p className="text-center text-sm text-onsurface-variant">{t("calendar.noTripsThisDay")}</p>
           ) : (
             <div className="flex items-stretch rounded-lg border border-surface-border bg-bg/40 p-3">
-              <DayStatBlock icon={<IconRoute size={18} />} value={`${selectedStat.km.toFixed(1)} km`} label="Percorsi" />
+              <DayStatBlock icon={<IconRoute size={18} />} value={`${selectedStat.km.toFixed(1)} km`} label={t("calendar.statDistance")} />
               <Divider />
               <DayStatBlock
                 icon={<IconGauge size={18} />}
                 value={selectedStat.avgConsumption != null ? `${selectedStat.avgConsumption.toFixed(1)} km/l` : "–"}
-                label="Consumo medio"
+                label={t("calendar.statConsumption")}
               />
               <Divider />
-              <DayStatBlock icon={<IconFuel size={18} />} value={`${selectedStat.liters.toFixed(2)} L`} label="Carburante" />
+              <DayStatBlock icon={<IconFuel size={18} />} value={`${selectedStat.liters.toFixed(2)} L`} label={t("calendar.statFuel")} />
               <Divider />
-              <DayStatBlock icon={<IconClock size={18} />} value={formatDuration(selectedStat.durationMin)} label="Alla guida" />
+              <DayStatBlock icon={<IconClock size={18} />} value={formatDuration(selectedStat.durationMin)} label={t("calendar.statDuration")} />
             </div>
           )}
         </div>

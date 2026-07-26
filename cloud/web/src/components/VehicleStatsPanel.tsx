@@ -7,6 +7,7 @@ import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { baseGridOptions, CHART_SURFACE, CHART_BORDER, CHART_TEXT_MUTED } from "../lib/chartTheme";
 import { CalendarHeatmap } from "./CalendarHeatmap";
 import { hasElectricData } from "../lib/vehicleCatalog";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 const DRIVE_MODE_COLOR = { ECO: "#2E7D32", NORMAL: "#00BFFF", SPORT: "#C62828" };
 
@@ -21,6 +22,7 @@ export function VehicleStatsPanel({
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
 }) {
+  const { t } = useLanguage();
   const [stats, setStats] = useState<VehicleStats | null>(null);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export function VehicleStatsPanel({
     api.stats(vehicleId).then(setStats);
   }, [vehicleId]);
 
-  if (!stats) return <p className="mb-4 text-sm text-onsurface-variant">Caricamento statistiche...</p>;
+  if (!stats) return <p className="mb-4 text-sm text-onsurface-variant">{t("stats.loading")}</p>;
 
   // Un'auto solo ICE non ha mai questi dati popolati (SyncWorker li esclude gia' dal
   // payload) - nascondiamo le sezioni invece di mostrare un donut/KPI vuoti o un
@@ -49,21 +51,22 @@ export function VehicleStatsPanel({
 // senso (il periodo e' gia' arbitrario/ristretto). Il chiamante fa il fetch e passa lo
 // `stats` gia' pronto.
 export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showElectric: boolean }) {
+  const { t } = useLanguage();
   const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
   const hasTrend = consumptionTrend.length >= 2;
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label="Km totali" value={totals.km.toFixed(0)} />
-        <Kpi label="Litri totali" value={totals.liters.toFixed(1)} />
-        <Kpi label="Viaggi" value={String(totals.tripCount)} />
-        <Kpi label="CO₂ stimata" value={`${totals.co2Kg.toFixed(0)} kg`} />
+        <Kpi label={t("stats.totalKm")} value={totals.km.toFixed(0)} />
+        <Kpi label={t("stats.totalLiters")} value={totals.liters.toFixed(1)} />
+        <Kpi label={t("stats.trips")} value={String(totals.tripCount)} />
+        <Kpi label={t("stats.co2")} value={`${totals.co2Kg.toFixed(0)} kg`} />
       </div>
 
       {hasTrend && (
         <div className="rounded-lg border border-surface-border bg-surface p-4">
-          <p className="mb-1 text-sm font-medium">Andamento consumo</p>
+          <p className="mb-1 text-sm font-medium">{t("stats.consumptionTrend")}</p>
           <ReactECharts
             option={{
               ...baseGridOptions,
@@ -89,14 +92,16 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
       <div className={`grid gap-4 ${showElectric ? "sm:grid-cols-2" : ""}`}>
         {showElectric && (
           <Donut
-            title="Ripartizione energia"
+            title={t("stats.energyBreakdown")}
+            noDataLabel={t("stats.noDataYet")}
             values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
             colorMap={BUCKET_COLOR}
             labelMap={BUCKET_LABEL}
           />
         )}
         <Donut
-          title="Ripartizione modalità di guida"
+          title={t("stats.driveModeBreakdown")}
+          noDataLabel={t("stats.noDataYet")}
           values={{ ECO: driveModeBreakdown.pctEco, NORMAL: driveModeBreakdown.pctNormal, SPORT: driveModeBreakdown.pctSport }}
           colorMap={DRIVE_MODE_COLOR}
         />
@@ -104,15 +109,15 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
 
       {showElectric && evHevKmSplit && (
         <div className="grid grid-cols-2 gap-3">
-          <Kpi label="Km in elettrico" value={evHevKmSplit.kmEv.toFixed(0)} />
-          <Kpi label="Km in ibrido" value={evHevKmSplit.kmHev.toFixed(0)} />
+          <Kpi label={t("stats.kmElectric")} value={evHevKmSplit.kmEv.toFixed(0)} />
+          <Kpi label={t("stats.kmHybrid")} value={evHevKmSplit.kmHev.toFixed(0)} />
         </div>
       )}
 
       {(bestTrip || worstTrip) && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {bestTrip && <TripRefCard label="Miglior viaggio" trip={bestTrip} tone="good" />}
-          {worstTrip && <TripRefCard label="Peggior viaggio" trip={worstTrip} tone="bad" />}
+          {bestTrip && <TripRefCard label={t("stats.bestTrip")} trip={bestTrip} tone="good" />}
+          {worstTrip && <TripRefCard label={t("stats.worstTrip")} trip={worstTrip} tone="bad" />}
         </div>
       )}
     </>
@@ -130,11 +135,13 @@ function Kpi({ label, value }: { label: string; value: string }) {
 
 function Donut({
   title,
+  noDataLabel,
   values,
   colorMap,
   labelMap,
 }: {
   title: string;
+  noDataLabel: string;
   values: Record<string, number | null>;
   colorMap: Record<string, string>;
   labelMap?: Record<string, string>;
@@ -144,7 +151,7 @@ function Donut({
     return (
       <div className="rounded-lg border border-surface-border bg-surface p-4">
         <p className="mb-1 text-sm font-medium">{title}</p>
-        <p className="text-sm text-onsurface-variant">Dati non ancora disponibili.</p>
+        <p className="text-sm text-onsurface-variant">{noDataLabel}</p>
       </div>
     );
   }
@@ -191,11 +198,12 @@ function TripRefCard({
   trip: { id: string; label: string | null; startedAt: string; avgConsumption: number | null; km: number | null };
   tone: "good" | "bad";
 }) {
+  const { locale } = useLanguage();
   const border = tone === "good" ? "border-good hover:bg-good/10" : "border-bad hover:bg-bad/10";
   return (
     <Link to={`/trips/${trip.id}`} className={`rounded-lg border ${border} bg-surface p-4 transition`}>
       <p className="text-xs text-onsurface-variant">{label}</p>
-      <p className="mt-1 font-medium">{trip.label ?? new Date(trip.startedAt).toLocaleDateString("it-IT")}</p>
+      <p className="mt-1 font-medium">{trip.label ?? new Date(trip.startedAt).toLocaleDateString(locale)}</p>
       <p className="mt-1 text-sm tabular-nums text-onsurface-variant">
         {trip.avgConsumption?.toFixed(1)} km/l · {trip.km?.toFixed(1)} km
       </p>

@@ -14,13 +14,15 @@ import { CategoryBand } from "../components/CategoryBand";
 import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
 import { IconLocationPin, IconFlagCheckered } from "../components/icons";
 import { hasElectricData } from "../lib/vehicleCatalog";
+import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 
-const KIND_LABEL: Record<TripDetailType["kind"], string> = {
-  auto: "Percorso GPS",
-  manual: "Viaggio manuale",
+const KIND_LABEL_KEY: Record<TripDetailType["kind"], TranslationKey> = {
+  auto: "trip.kindAuto",
+  manual: "trip.kindManual",
 };
 
 export default function TripDetail() {
+  const { t, locale } = useLanguage();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [trip, setTrip] = useState<TripDetailType | null>(null);
@@ -72,7 +74,7 @@ export default function TripDetail() {
   const distancesKm = useMemo(() => cumulativeDistanceKm(points), [points]);
 
   async function handleDelete() {
-    if (!trip || !confirm("Eliminare questo viaggio? L'operazione non può essere annullata.")) return;
+    if (!trip || !confirm(t("tripDetail.deleteConfirm"))) return;
     setDeleting(true);
     await api.deleteTrip(trip.id);
     navigate(-1);
@@ -89,7 +91,7 @@ export default function TripDetail() {
       setSavedRoute(route);
       setShowSaveRoute(false);
     } catch {
-      setSaveRouteError("Impossibile salvare il percorso. Riprova.");
+      setSaveRouteError(t("routeCommon.saveError"));
     } finally {
       setSavingRoute(false);
     }
@@ -98,7 +100,7 @@ export default function TripDetail() {
   if (!trip) {
     return (
       <AppShell>
-        <p className="text-onsurface-variant">Caricamento...</p>
+        <p className="text-onsurface-variant">{t("common.loading")}</p>
       </AppShell>
     );
   }
@@ -114,7 +116,7 @@ export default function TripDetail() {
   return (
     <AppShell>
       <button onClick={() => navigate(-1)} className="mb-4 text-sm text-onsurface-variant hover:text-onsurface">
-        ← Indietro
+        {t("common.back")}
       </button>
 
       <div className="mb-4 flex items-start justify-between gap-4">
@@ -135,10 +137,10 @@ export default function TripDetail() {
               )}
             </div>
           ) : (
-            <h1 className="text-xl font-semibold">{KIND_LABEL[trip.kind]}</h1>
+            <h1 className="text-xl font-semibold">{t(KIND_LABEL_KEY[trip.kind])}</h1>
           )}
           <p className="mt-1 text-sm text-onsurface-variant">
-            {KIND_LABEL[trip.kind]} · {new Date(trip.startedAt).toLocaleString("it-IT")}
+            {t(KIND_LABEL_KEY[trip.kind])} · {new Date(trip.startedAt).toLocaleString(locale)}
           </p>
         </div>
         <div className="flex shrink-0 gap-2">
@@ -147,7 +149,7 @@ export default function TripDetail() {
               onClick={() => setShowSaveRoute((s) => !s)}
               className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
             >
-              Salva come percorso
+              {t("tripDetail.saveAsRoute")}
             </button>
           )}
           <button
@@ -155,7 +157,7 @@ export default function TripDetail() {
             disabled={deleting}
             className="rounded-md border border-bad px-3 py-1.5 text-sm text-bad hover:bg-bad/10 disabled:opacity-50"
           >
-            Elimina
+            {t("common.delete")}
           </button>
         </div>
       </div>
@@ -164,7 +166,7 @@ export default function TripDetail() {
         <div className="mb-4 flex flex-col gap-2 rounded-lg border border-surface-border bg-surface p-4 sm:flex-row sm:items-center">
           <input
             autoFocus
-            placeholder="Nome del percorso (es. Casa-Lavoro)"
+            placeholder={t("tripDetail.routeNamePlaceholder")}
             value={routeName}
             onChange={(e) => setRouteName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSaveRoute()}
@@ -175,16 +177,16 @@ export default function TripDetail() {
             disabled={savingRoute || !routeName.trim()}
             className="rounded-md border border-accent px-3 py-1.5 text-sm text-accent disabled:opacity-50"
           >
-            {savingRoute ? "Salvataggio..." : "Salva"}
+            {savingRoute ? t("common.saving") : t("common.save")}
           </button>
         </div>
       )}
       {saveRouteError && <p className="mb-4 text-sm text-bad">{saveRouteError}</p>}
       {savedRoute && (
         <p className="mb-4 text-sm text-good">
-          Percorso salvato.{" "}
+          {t("tripDetail.routeSaved")}{" "}
           <Link to={`/vehicles/${trip.vehicleId}/routes/${savedRoute.id}`} className="underline hover:text-onsurface">
-            Vedi il percorso →
+            {t("tripDetail.viewRoute")}
           </Link>
         </p>
       )}
@@ -192,9 +194,9 @@ export default function TripDetail() {
       {trip.gpxRaw && <TripMap gpxRaw={trip.gpxRaw} />}
 
       <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-3">
-        <Stat label="Km percorsi" value={trip.km != null ? trip.km.toFixed(1) : "–"} />
-        <Stat label="Litri" value={trip.liters != null ? trip.liters.toFixed(2) : "–"} />
-        <Stat label="Consumo medio" value={trip.avgConsumption != null ? `${trip.avgConsumption.toFixed(1)} km/l` : "–"} />
+        <Stat label={t("trip.kmTraveled")} value={trip.km != null ? trip.km.toFixed(1) : "–"} />
+        <Stat label={t("trip.liters")} value={trip.liters != null ? trip.liters.toFixed(2) : "–"} />
+        <Stat label={t("trip.avgConsumption")} value={trip.avgConsumption != null ? `${trip.avgConsumption.toFixed(1)} km/l` : "–"} />
       </div>
 
       {hasBreakdown && (
@@ -215,7 +217,7 @@ export default function TripDetail() {
       {points.length > 1 && (
         <div className="mt-4 flex flex-col gap-4">
           <CategoryBand
-            title="Modalità di guida"
+            title={t("tripDetail.driveModeTitle")}
             distancesKm={distancesKm}
             values={points.map((p) => (p.driveMode != null ? (String(p.driveMode) as "0" | "1" | "2") : null))}
             colorMap={DRIVE_MODE_COLOR}
@@ -230,19 +232,17 @@ export default function TripDetail() {
 
       {trip.kind === "manual" && (
         <div className="mt-6 flex flex-col gap-4">
-          <h2 className="text-lg font-semibold">Viaggi GPS in questo periodo</h2>
-          {manualRangeTrips === null && <p className="text-sm text-onsurface-variant">Caricamento...</p>}
+          <h2 className="text-lg font-semibold">{t("tripDetail.manualRangeTitle")}</h2>
+          {manualRangeTrips === null && <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>}
           {manualRangeTrips && manualRangeTrips.length === 0 && (
-            <p className="text-sm text-onsurface-variant">
-              Nessun percorso GPS registrato tra l'inizio e la fine di questo accumulo manuale.
-            </p>
+            <p className="text-sm text-onsurface-variant">{t("tripDetail.manualRangeEmpty")}</p>
           )}
           {manualRangeStats && manualRangeTrips && manualRangeTrips.length > 0 && (
             <>
               <StatsBody stats={manualRangeStats} showElectric={hasElectricData(vehicle?.powertrain ?? null)} />
               <div className="flex flex-col gap-2">
-                {manualRangeTrips.map((t) => (
-                  <TripRow key={t.id} trip={t} />
+                {manualRangeTrips.map((rangeTrip) => (
+                  <TripRow key={rangeTrip.id} trip={rangeTrip} />
                 ))}
               </div>
             </>

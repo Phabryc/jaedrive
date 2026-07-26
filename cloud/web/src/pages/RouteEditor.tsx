@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { AddressSearch } from "../components/AddressSearch";
 import { RouteMapEditor, type LatLon } from "../components/RouteMapEditor";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 const DEFAULT_RADIUS = 150;
 
@@ -13,6 +14,7 @@ const DEFAULT_RADIUS = 150;
 // l'interazione mappa (click/trascina/ricerca indirizzo) e la visualizzazione del cerchio
 // di raggio.
 export default function RouteEditor() {
+  const { t } = useLanguage();
   const { vehicleId, routeId } = useParams<{ vehicleId: string; routeId?: string }>();
   const navigate = useNavigate();
   const isEdit = Boolean(routeId);
@@ -68,7 +70,7 @@ export default function RouteEditor() {
         navigate(`/vehicles/${vehicleId}/routes/${route.id}`);
       }
     } catch {
-      setError("Impossibile salvare il percorso. Riprova.");
+      setError(t("routeCommon.saveError"));
     } finally {
       setSaving(false);
     }
@@ -77,7 +79,7 @@ export default function RouteEditor() {
   if (!loaded) {
     return (
       <AppShell>
-        <p className="text-onsurface-variant">Caricamento...</p>
+        <p className="text-onsurface-variant">{t("common.loading")}</p>
       </AppShell>
     );
   }
@@ -88,16 +90,16 @@ export default function RouteEditor() {
         to={isEdit ? `/vehicles/${vehicleId}/routes/${routeId}` : `/vehicles/${vehicleId}/routes`}
         className="mb-4 inline-block text-sm text-onsurface-variant hover:text-onsurface"
       >
-        ← Indietro
+        {t("common.back")}
       </Link>
-      <h1 className="mb-6 text-xl font-semibold">{isEdit ? "Modifica percorso" : "Nuovo percorso"}</h1>
+      <h1 className="mb-6 text-xl font-semibold">{isEdit ? t("routeEditor.editTitle") : t("routeEditor.newTitle")}</h1>
 
       <div className="mb-4">
-        <label className="mb-1 block text-xs text-onsurface-variant">Nome</label>
+        <label className="mb-1 block text-xs text-onsurface-variant">{t("common.name")}</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="es. Casa-Lavoro"
+          placeholder={t("routeEditor.namePlaceholder")}
           className="w-full rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
         />
       </div>
@@ -105,46 +107,42 @@ export default function RouteEditor() {
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
         <div>
           <label className="mb-1 flex items-center justify-between text-xs text-onsurface-variant">
-            <span>Partenza</span>
+            <span>{t("routeEditor.start")}</span>
             {start && (
               <button onClick={() => setStart(null)} className="text-accent hover:underline">
-                reimposta
+                {t("common.reset")}
               </button>
             )}
           </label>
           <AddressSearch
-            placeholder="Cerca un indirizzo di partenza..."
+            placeholder={t("routeEditor.searchStartPlaceholder")}
             onSelect={(r) => {
               setStart({ lat: r.lat, lon: r.lon });
-              setFocusTrigger((t) => t + 1);
+              setFocusTrigger((n) => n + 1);
             }}
           />
         </div>
         <div>
           <label className="mb-1 flex items-center justify-between text-xs text-onsurface-variant">
-            <span>Arrivo</span>
+            <span>{t("routeEditor.end")}</span>
             {end && (
               <button onClick={() => setEnd(null)} className="text-accent hover:underline">
-                reimposta
+                {t("common.reset")}
               </button>
             )}
           </label>
           <AddressSearch
-            placeholder="Cerca un indirizzo di arrivo..."
+            placeholder={t("routeEditor.searchEndPlaceholder")}
             onSelect={(r) => {
               setEnd({ lat: r.lat, lon: r.lon });
-              setFocusTrigger((t) => t + 1);
+              setFocusTrigger((n) => n + 1);
             }}
           />
         </div>
       </div>
 
       <p className="mb-2 text-xs text-onsurface-variant">
-        {!start
-          ? "Clicca sulla mappa per impostare la partenza, oppure cerca un indirizzo qui sopra."
-          : !end
-            ? "Clicca sulla mappa per impostare l'arrivo, oppure cerca un indirizzo qui sopra."
-            : "Trascina i due marker sulla mappa per affinare la posizione."}
+        {!start ? t("routeEditor.hintSetStart") : !end ? t("routeEditor.hintSetEnd") : t("routeEditor.hintDrag")}
       </p>
 
       <RouteMapEditor
@@ -158,7 +156,7 @@ export default function RouteEditor() {
       />
 
       <div className="mt-4 max-w-xs">
-        <label className="mb-1 block text-xs text-onsurface-variant">Raggio di tolleranza: {radiusMeters} m</label>
+        <label className="mb-1 block text-xs text-onsurface-variant">{t("routeEditor.radiusLabel", { radius: radiusMeters })}</label>
         <input
           type="range"
           min={30}
@@ -177,7 +175,7 @@ export default function RouteEditor() {
         disabled={saving || !name.trim() || !start || !end}
         className="mt-6 rounded-md border border-accent px-4 py-2 text-sm text-accent disabled:opacity-50 disabled:border-surface-border disabled:text-onsurface-variant"
       >
-        {saving ? "Salvataggio..." : "Salva percorso"}
+        {saving ? t("common.saving") : t("routeEditor.saveButton")}
       </button>
     </AppShell>
   );

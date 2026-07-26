@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { AppShell } from "../components/AppShell";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 export default function Pair() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const codeFromUrl = searchParams.get("code");
@@ -21,7 +23,7 @@ export default function Pair() {
       const { vehicleId } = await api.claimPairingCode(value.trim());
       navigate(`/vehicles/${vehicleId}/trips`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Codice non valido o scaduto.");
+      setError(err instanceof ApiError ? err.message : t("pair.invalidCode"));
     } finally {
       setBusy(false);
     }
@@ -47,20 +49,17 @@ export default function Pair() {
   return (
     <AppShell>
       <div className="mx-auto max-w-md">
-        <h1 className="mb-2 text-xl font-semibold">Aggiungi auto</h1>
+        <h1 className="mb-2 text-xl font-semibold">{t("pair.title")}</h1>
         {autoClaiming ? (
-          <p className="mb-6 text-sm text-onsurface-variant">Codice rilevato dal QR, associazione in corso...</p>
+          <p className="mb-6 text-sm text-onsurface-variant">{t("pair.autoClaiming")}</p>
         ) : (
-          <p className="mb-6 text-sm text-onsurface-variant">
-            Apri JaeDrive sull'auto: nella pagina di associazione viene mostrato un codice a 8
-            caratteri (o un QR da inquadrare). Inseriscilo qui per collegare l'auto al tuo account.
-          </p>
+          <p className="mb-6 text-sm text-onsurface-variant">{t("pair.instructions")}</p>
         )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             autoFocus
             required
-            placeholder="Es. K7H2P9QX"
+            placeholder={t("pair.placeholderExample")}
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             maxLength={16}
@@ -72,7 +71,7 @@ export default function Pair() {
             disabled={busy || code.trim().length < 4}
             className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
           >
-            Collega auto
+            {t("pair.submitButton")}
           </button>
         </form>
       </div>

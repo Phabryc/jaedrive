@@ -7,18 +7,21 @@ import {
 } from "firebase/auth";
 import { auth, googleProvider } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
+import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { ApiError } from "../lib/api";
 import jdLogo from "../assets/jd_logo.png";
 
 export default function Login() {
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   // Set by ProtectedRoute when it bounced an unauthenticated visitor here - e.g. someone
   // scanning the car's pairing QR code lands on /pair?code=XXXX first, then here, then
   // should go straight back to /pair?code=XXXX instead of the generic dashboard.
   const from = (location.state as { from?: Location } | null)?.from;
-  const redirectTarget = from ? from.pathname + from.search : "/";
+  const redirectTarget = from ? from.pathname + from.search : "/dashboard";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +42,7 @@ export default function Login() {
       }
       navigate(redirectTarget);
     } catch (err) {
-      setError(friendlyError(err));
+      setError(friendlyError(err, t));
     } finally {
       setBusy(false);
     }
@@ -52,7 +55,7 @@ export default function Login() {
       await signInWithPopup(auth, googleProvider);
       navigate(redirectTarget);
     } catch (err) {
-      setError(friendlyError(err));
+      setError(friendlyError(err, t));
     } finally {
       setBusy(false);
     }
@@ -61,16 +64,19 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm rounded-xl border border-surface-border bg-surface p-6">
-        <img src={jdLogo} alt="JaeDrive" className="mb-4 h-10 w-auto" />
+        <div className="mb-4 flex items-center justify-between">
+          <img src={jdLogo} alt="JaeDrive" className="h-10 w-auto" />
+          <LanguageSwitcher />
+        </div>
         <p className="mb-6 text-sm text-onsurface-variant">
-          {mode === "signin" ? "Accedi al tuo account" : "Crea un nuovo account"}
+          {mode === "signin" ? t("login.signinSubtitle") : t("login.signupSubtitle")}
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             type="email"
             required
-            placeholder="Email"
+            placeholder={t("common.email")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
@@ -79,7 +85,7 @@ export default function Login() {
             type="password"
             required
             minLength={6}
-            placeholder="Password"
+            placeholder={t("common.password")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
@@ -90,13 +96,13 @@ export default function Login() {
             disabled={busy}
             className="mt-1 rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
           >
-            {mode === "signin" ? "Accedi" : "Registrati"}
+            {mode === "signin" ? t("common.login") : t("login.signupButton")}
           </button>
         </form>
 
         <div className="my-4 flex items-center gap-2 text-xs text-onsurface-variant">
           <div className="h-px flex-1 bg-surface-border" />
-          oppure
+          {t("common.or")}
           <div className="h-px flex-1 bg-surface-border" />
         </div>
 
@@ -106,23 +112,23 @@ export default function Login() {
           className="flex w-full items-center justify-center gap-3 rounded-md border border-[#dadce0] bg-white px-3 py-2 text-sm font-medium text-[#3c4043] shadow-sm transition hover:bg-[#f8f9fa] hover:shadow disabled:opacity-50"
         >
           <GoogleIcon />
-          Continua con Google
+          {t("login.continueWithGoogle")}
         </button>
 
         <button
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           className="mt-4 w-full text-center text-xs text-onsurface-variant hover:text-onsurface"
         >
-          {mode === "signin" ? "Non hai un account? Registrati" : "Hai già un account? Accedi"}
+          {mode === "signin" ? t("login.switchToSignup") : t("login.switchToSignin")}
         </button>
 
         <p className="mt-4 text-center text-[11px] text-onsurface-variant">
           <a href="/legal/eula" className="hover:text-onsurface hover:underline">
-            Termini di Servizio
+            {t("legal.terms")}
           </a>
           <span className="mx-1.5">·</span>
           <a href="/legal/privacy" className="hover:text-onsurface hover:underline">
-            Informativa Privacy
+            {t("legal.privacy")}
           </a>
         </p>
       </div>
@@ -144,22 +150,19 @@ function GoogleIcon() {
   );
 }
 
-function friendlyError(err: unknown): string {
+function friendlyError(err: unknown, t: (key: TranslationKey) => string): string {
   if (err instanceof ApiError) return err.message;
   const code = (err as { code?: string })?.code ?? "";
   // Logged raw so the real Firebase error code/message is always visible in devtools, even
   // for cases not explicitly mapped below.
   console.error("Auth error:", err);
-  if (code.includes("wrong-password") || code.includes("invalid-credential")) return "Email o password errati.";
-  if (code.includes("email-already-in-use")) return "Esiste già un account con questa email.";
-  if (code.includes("weak-password")) return "Password troppo corta (minimo 6 caratteri).";
-  if (code.includes("user-not-found")) return "Nessun account con questa email.";
-  if (code.includes("unauthorized-domain"))
-    return "Questo dominio non è autorizzato per l'accesso Google. Aggiungilo in Firebase Console → Authentication → Settings → Authorized domains.";
-  if (code.includes("operation-not-allowed"))
-    return "L'accesso con Google non è abilitato per questo progetto Firebase (Authentication → Sign-in method).";
-  if (code.includes("popup-blocked"))
-    return "Il browser ha bloccato il popup di accesso Google. Consenti i popup per questo sito e riprova.";
+  if (code.includes("wrong-password") || code.includes("invalid-credential")) return t("login.error.wrongPassword");
+  if (code.includes("email-already-in-use")) return t("login.error.emailInUse");
+  if (code.includes("weak-password")) return t("login.error.weakPassword");
+  if (code.includes("user-not-found")) return t("login.error.userNotFound");
+  if (code.includes("unauthorized-domain")) return t("login.error.unauthorizedDomain");
+  if (code.includes("operation-not-allowed")) return t("login.error.operationNotAllowed");
+  if (code.includes("popup-blocked")) return t("login.error.popupBlocked");
   if (code.includes("popup-closed-by-user") || code.includes("cancelled-popup-request")) return "";
-  return "Si è verificato un errore. Riprova.";
+  return t("common.genericError");
 }

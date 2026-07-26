@@ -6,14 +6,16 @@ import { AppShell } from "../components/AppShell";
 import { TripRow } from "../components/TripRow";
 import { VehicleStatsPanel } from "../components/VehicleStatsPanel";
 import { VehicleInfoCard } from "../components/VehicleInfoCard";
+import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 
-const KIND_FILTERS = [
-  { value: "", label: "Tutti" },
-  { value: "auto", label: "Percorsi GPS" },
-  { value: "manual", label: "Viaggi manuali" },
-] as const;
+const KIND_FILTERS: { value: string; labelKey: TranslationKey }[] = [
+  { value: "", labelKey: "trips.filterAll" },
+  { value: "auto", labelKey: "trips.filterAuto" },
+  { value: "manual", labelKey: "trips.filterManual" },
+];
 
 export default function Trips() {
+  const { t, locale } = useLanguage();
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [data, setData] = useState<TripsPage | null>(null);
   const [page, setPage] = useState(1);
@@ -62,19 +64,23 @@ export default function Trips() {
     try {
       const res = await api.backfillAddresses(vehicleId);
       if (res.scanned === 0) {
-        setBackfillStatus("Tutti gli indirizzi sono già presenti.");
+        setBackfillStatus(t("trips.backfillAllPresent"));
       } else {
         setBackfillStatus(
-          `Aggiornati ${res.updated} indirizzi su ${res.scanned} controllati.` +
-            (res.remaining > 0 ? " Clicca di nuovo per continuare." : ""),
+          t("trips.backfillResult", { updated: res.updated, scanned: res.scanned }) +
+            (res.remaining > 0 ? t("trips.backfillContinue") : ""),
         );
       }
       setRefreshKey((k) => k + 1);
     } catch {
-      setBackfillStatus("Errore durante il recupero degli indirizzi.");
+      setBackfillStatus(t("trips.backfillError"));
     } finally {
       setBackfillBusy(false);
     }
+  }
+
+  function formatDayLabel(iso: string): string {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "short" });
   }
 
   return (
@@ -95,10 +101,10 @@ export default function Trips() {
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">Viaggi</h1>
+          <h1 className="text-xl font-semibold">{t("trips.title")}</h1>
           {vehicleId && (
             <Link to={`/vehicles/${vehicleId}/routes`} className="text-sm text-onsurface-variant hover:text-onsurface hover:underline">
-              Percorsi salvati →
+              {t("trips.savedRoutesLink")}
             </Link>
           )}
         </div>
@@ -117,7 +123,7 @@ export default function Trips() {
                   : "border-surface-border text-onsurface-variant hover:text-onsurface"
               }`}
             >
-              {f.label}
+              {t(f.labelKey)}
             </button>
           ))}
           {dayFilter && (
@@ -138,18 +144,18 @@ export default function Trips() {
           disabled={backfillBusy}
           className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
         >
-          {backfillBusy ? "Recupero in corso..." : "Recupera indirizzi mancanti"}
+          {backfillBusy ? t("trips.backfillBusy") : t("trips.backfillButton")}
         </button>
         {backfillStatus && <span className="text-onsurface-variant">{backfillStatus}</span>}
       </div>
 
-      {data === null && <p className="text-onsurface-variant">Caricamento...</p>}
+      {data === null && <p className="text-onsurface-variant">{t("common.loading")}</p>}
       {data && data.trips.length === 0 && (
-        <p className="text-onsurface-variant">Nessun viaggio trovato.</p>
+        <p className="text-onsurface-variant">{t("trips.noTrips")}</p>
       )}
 
       <div className="flex flex-col gap-2">
-        {data?.trips.map((t) => <TripRow key={t.id} trip={t} />)}
+        {data?.trips.map((trip) => <TripRow key={trip.id} trip={trip} />)}
       </div>
 
       {data && totalPages > 1 && (
@@ -159,24 +165,18 @@ export default function Trips() {
             onClick={() => setPage((p) => p - 1)}
             className="rounded-md border border-surface-border px-3 py-1 disabled:opacity-40"
           >
-            ← Precedenti
+            {t("trips.prevPage")}
           </button>
-          <span className="text-onsurface-variant">
-            Pagina {page} di {totalPages}
-          </span>
+          <span className="text-onsurface-variant">{t("trips.pageOf", { page, total: totalPages })}</span>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage((p) => p + 1)}
             className="rounded-md border border-surface-border px-3 py-1 disabled:opacity-40"
           >
-            Successivi →
+            {t("trips.nextPage")}
           </button>
         </div>
       )}
     </AppShell>
   );
-}
-
-function formatDayLabel(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("it-IT", { day: "numeric", month: "short" });
 }

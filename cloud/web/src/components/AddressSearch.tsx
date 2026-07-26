@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { AddressResult } from "../lib/types";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 // Campo di ricerca indirizzo con autocompletamento (jaedrive_todo #14, editor mappa
 // percorsi) - debounced (450ms, sotto la soglia dei 3 caratteri niente richiesta) per
@@ -14,6 +15,7 @@ export function AddressSearch({
   placeholder: string;
   onSelect: (result: AddressResult) => void;
 }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AddressResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -52,7 +54,7 @@ export function AddressSearch({
         placeholder={placeholder}
         className="w-full rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
       />
-      {loading && <p className="absolute mt-1 text-xs text-onsurface-variant">Ricerca...</p>}
+      {loading && <p className="absolute mt-1 text-xs text-onsurface-variant">{t("addressSearch.searching")}</p>}
       {open && results.length > 0 && (
         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-surface-border bg-surface shadow-lg">
           {results.map((r, i) => (

@@ -41,6 +41,24 @@ export function IconClock({ size = 16 }: { size?: number }) {
   );
 }
 
+export function IconCloud({ size = 16 }: { size?: number }) {
+  return (
+    <svg {...BASE} width={size} height={size}>
+      <path d="M7 18a4.5 4.5 0 0 1-.5-8.98A5.5 5.5 0 0 1 17.2 8.06 4 4 0 0 1 17 16H7z" />
+    </svg>
+  );
+}
+
+export function IconBattery({ size = 16 }: { size?: number }) {
+  return (
+    <svg {...BASE} width={size} height={size}>
+      <rect x="3" y="7" width="15" height="10" rx="2" />
+      <path d="M20 10v4" />
+      <path d="M8 9.5 6 12.5h3l-2 3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // Stessa pathData esatta di app/src/main/res/drawable/ic_location.xml (Android) - pin di
 // partenza, tinta via currentColor (li' e' tinta in codice allo stesso modo).
 export function IconLocationPin({ size = 16, className }: { size?: number; className?: string }) {
