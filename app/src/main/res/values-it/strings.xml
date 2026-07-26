@@ -95,6 +95,9 @@
     <string name="toast_cloud_unpaired">Associazione rimossa</string>
     <string name="dialog_unpair_cloud_title">Eliminare quest\'auto anche dal cloud?</string>
     <string name="dialog_unpair_cloud_message">Elimina definitivamente l\'auto e tutti i viaggi caricati da jaedrive.com. Questa azione non puo\' essere annullata.</string>
+    <string name="dialog_unpaired_remotely_title">Non piu\' associata</string>
+    <string name="dialog_unpaired_remotely_message">Quest\'auto non e\' piu\' associata a nessun account JaeDrive (l\'auto o l\'intero account sono stati eliminati da jaedrive.com). La sincronizzazione dei viaggi si e\' fermata - vai in Impostazioni per associarla di nuovo.</string>
+    <string name="dialog_btn_ok">HO CAPITO</string>
     <string name="dialog_delete_trips_cloud_title">Eliminare anche dal cloud?</string>
     <string name="dialog_delete_trips_cloud_message">I viaggi selezionati erano gia\' stati caricati su jaedrive.com. Eliminarli anche li\'? Questa azione non puo\' essere annullata.</string>
     <string name="dialog_pairing_title">Associa auto al cloud</string>

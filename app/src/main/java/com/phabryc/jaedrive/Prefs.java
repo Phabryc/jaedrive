@@ -22,6 +22,7 @@ public class Prefs {
     private static final String KEY_VEHICLE_MODEL = "vehicle_model";
     private static final String KEY_VEHICLE_POWERTRAIN = "vehicle_powertrain";
     private static final String KEY_SYNCED_VIN = "synced_vin";
+    private static final String KEY_CLOUD_UNPAIRED_REMOTELY = "cloud_unpaired_remotely";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -94,6 +95,29 @@ public class Prefs {
             .remove(KEY_CLOUD_DEVICE_TOKEN)
             .remove(KEY_CLOUD_VEHICLE_ID)
             .apply();
+    }
+
+    // Disassociazione "a sorpresa" lato server (SyncWorker riceve 409 "Device is not paired
+    // to a vehicle" durante un upload - vedi routes/device.ts) - succede quando l'utente
+    // elimina l'auto o l'intero account dal sito, non tramite il bottone RIMUOVI dell'app
+    // stessa (quello chiama clearCloudPairing() direttamente, l'utente sa gia' cosa sta
+    // succedendo). Alza un flag "one-shot" che MainActivity consuma alla prossima apertura
+    // per mostrare un avviso esplicito, invece di lasciare che l'auto smetta di sincronizzare
+    // in silenzio senza che nessuno se ne accorga.
+    public static void clearCloudPairingRemotely(Context ctx) {
+        clearCloudPairing(ctx);
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_CLOUD_UNPAIRED_REMOTELY, true)
+            .apply();
+    }
+
+    // "Consuma" il flag (lo legge e lo azzera subito) cosi' l'avviso in MainActivity compare
+    // una volta sola, non ad ogni apertura successiva dell'app.
+    public static boolean consumeCloudUnpairedRemotelyFlag(Context ctx) {
+        SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        boolean flag = p.getBoolean(KEY_CLOUD_UNPAIRED_REMOTELY, false);
+        if (flag) p.edit().putBoolean(KEY_CLOUD_UNPAIRED_REMOTELY, false).apply();
+        return flag;
     }
 
     // Identificativo stabile generato localmente la prima volta che serve, usato come

@@ -46,6 +46,22 @@ public class SyncWorker extends Worker {
                 JSONObject payload = buildPayload(r);
                 String cloudTripId = CloudApiClient.uploadTrip(token, payload);
                 TripDatabase.getInstance(ctx).markUploaded(r.id, cloudTripId);
+            } catch (CloudApiClient.ApiException e) {
+                if (e.httpCode == 409) {
+                    // "Device is not paired to a vehicle" (vedi routes/device.ts POST
+                    // /trips) - non un problema di rete transitorio: l'utente ha eliminato
+                    // l'auto o l'intero account dal sito, il token che questo dispositivo
+                    // conserva localmente non corrisponde piu' a nulla. Ripetere non
+                    // risolverebbe mai nulla (continuerebbe a fallire per sempre) - meglio
+                    // ripulire subito l'associazione locale, come dopo un RIMUOVI manuale,
+                    // e avvisare l'utente alla prossima apertura dell'app (vedi
+                    // Prefs.clearCloudPairingRemotely()/MainActivity.onCreate()).
+                    Log.w(TAG, "Device non piu' associato (409) - rimuovo l'associazione locale");
+                    Prefs.clearCloudPairingRemotely(ctx);
+                    return Result.success();
+                }
+                Log.w(TAG, "Upload trip " + r.id + " fallito, riprovo piu' tardi: " + e);
+                return Result.retry();
             } catch (IOException e) {
                 // Probabile problema di rete/server transitorio: i trip successivi
                 // falliranno probabilmente allo stesso modo, meglio fermarsi e far ripartire

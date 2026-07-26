@@ -92,6 +92,9 @@
     <string name="toast_cloud_unpaired">Car unlinked</string>
     <string name="dialog_unpair_cloud_title">Also delete this car from the cloud?</string>
     <string name="dialog_unpair_cloud_message">This permanently deletes the car and every uploaded trip from jaedrive.com. This action cannot be undone.</string>
+    <string name="dialog_unpaired_remotely_title">No longer linked</string>
+    <string name="dialog_unpaired_remotely_message">This car is no longer linked to any JaeDrive account (the car or the whole account was deleted from jaedrive.com). Trip syncing has stopped - go to Settings to link it again.</string>
+    <string name="dialog_btn_ok">GOT IT</string>
     <string name="dialog_delete_trips_cloud_title">Also delete from the cloud?</string>
     <string name="dialog_delete_trips_cloud_message">The selected trips were already uploaded to jaedrive.com. Delete them there too? This action cannot be undone.</string>
     <string name="dialog_pairing_title">Link car to cloud</string>

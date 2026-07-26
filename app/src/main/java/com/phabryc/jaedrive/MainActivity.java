@@ -2,6 +2,8 @@ package com.phabryc.jaedrive;
 
 import android.Manifest;
 import android.animation.ObjectAnimator;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.car.Car;
 import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
@@ -31,6 +33,8 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 
 import org.osmdroid.config.Configuration;
@@ -368,9 +372,16 @@ public class MainActivity extends AppCompatActivity {
         // vedi Prefs.isVehicleInfoSet()/VehicleCatalog. Non cancellabile in questo caso
         // (nessun bottone CHIUDI, nessun dismiss col tasto indietro).
         if (!Prefs.isVehicleInfoSet(this)) showVehicleOnboardingDialog(true);
+        // Avviso una tantum se SyncWorker ha rilevato (409, vedi Prefs.clearCloudPairingRemotely())
+        // che l'auto o l'intero account sono stati eliminati dal sito - senza questo,
+        // l'associazione risulterebbe rimossa in silenzio, senza che l'utente se ne accorga.
+        if (Prefs.consumeCloudUnpairedRemotelyFlag(this)) {
+            showInfoDialog(getString(R.string.dialog_unpaired_remotely_title), getString(R.string.dialog_unpaired_remotely_message));
+        }
         startLiveDotPulse();
 
         requestNeededPermissions();
+        sendTestSystemNotification();
         requestIgnoreBatteryOptimizations();
         ContextCompat.startForegroundService(this, new Intent(this, TrackingService.class));
 
@@ -472,6 +483,33 @@ public class MainActivity extends AppCompatActivity {
             dialog.dismiss();
             onConfirm.run();
         });
+        dialog.show();
+    }
+
+    // Variante a un solo bottone dello stesso dialog_confirm.xml (nasconde il negativo) -
+    // per avvisi puramente informativi da riconoscere, non da confermare/annullare. Usata
+    // per l'avviso "non piu' associata" (vedi consumeCloudUnpairedRemotelyFlag() in
+    // onCreate()).
+    private void showInfoDialog(String title, String message) {
+        View view = getLayoutInflater().inflate(R.layout.dialog_confirm, null);
+        TextView tvTitle = view.findViewById(R.id.tv_confirm_title);
+        TextView tvMessage = view.findViewById(R.id.tv_confirm_message);
+        TextView btnNegative = view.findViewById(R.id.btn_confirm_negative);
+        TextView btnPositive = view.findViewById(R.id.btn_confirm_positive);
+
+        tvTitle.setText(title);
+        tvMessage.setText(message);
+        btnNegative.setVisibility(View.GONE);
+        btnPositive.setText(getString(R.string.dialog_btn_ok));
+        btnPositive.setBackgroundResource(R.drawable.btn_primary_bg);
+        btnPositive.setTextColor(ContextCompat.getColor(this, R.color.on_primary));
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+            .setView(view)
+            .create();
+        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        dialog.setCancelable(false);
+        btnPositive.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
@@ -838,6 +876,45 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < permissions.length; i++) {
             boolean granted = grantResults[i] == PackageManager.PERMISSION_GRANTED;
             appendLog("Esito permesso " + permissions[i] + ": " + (granted ? "CONCESSO" : "NEGATO"));
+            if (permissions[i].equals(Manifest.permission.POST_NOTIFICATIONS) && granted) sendTestSystemNotification();
+        }
+    }
+
+    // ESPERIMENTO TEMPORANEO (2026-07-26), NON legato alla disassociazione da remoto sopra -
+    // manda una notifica di sistema Android standard (canale separato da quello, silenzioso,
+    // di TrackingService) solo per capire empiricamente, guardando lo schermo dell'head unit,
+    // se questa ROM Desay mostra le notifiche Android standard cosi' come sono (tendina di
+    // sistema classica) o se le intercetta/nasconde/ridisegna con una UI proprietaria - nei
+    // sei APK Desay decompilati non e' emerso nulla che suggerisca un sistema di notifiche
+    // sostitutivo (solo smali riconducibile alla libreria AOSP "settingslib" per la UI di
+    // gestione canali/Non disturbare, nessuna classe "notification" propria) ma l'unico modo
+    // per saperlo con certezza e' vederla apparire (o non apparire) dal vivo. Da rimuovere o
+    // trasformare in qualcosa di permanente a seconda dell'esito.
+    private static final String TEST_NOTIF_CHANNEL_ID = "jaedrive_test";
+
+    private void sendTestSystemNotification() {
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
+            appendLog("[Test notifica] saltata: permesso notifiche non ancora concesso");
+            return;
+        }
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                TEST_NOTIF_CHANNEL_ID, "JaeDrive test", NotificationManager.IMPORTANCE_DEFAULT);
+            manager.createNotificationChannel(channel);
+        }
+        android.app.Notification notification = new NotificationCompat.Builder(this, TEST_NOTIF_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("JaeDrive - notifica di test")
+            .setContentText("Se vedi questa notifica nella tendina di sistema, le notifiche Android standard funzionano su questo head unit.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build();
+        try {
+            manager.notify(9001, notification);
+            appendLog("[Test notifica] inviata (canale=" + TEST_NOTIF_CHANNEL_ID + ")");
+        } catch (SecurityException e) {
+            appendLog("[Test notifica] errore permesso: " + e);
         }
     }
 
