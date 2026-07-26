@@ -141,6 +141,7 @@ Frontend: use the Firebase JS SDK's prebuilt `FirebaseUI` or a simple custom ema
 Offloading auth to Firebase does not remove this project's obligations for the *rest* of the data — GPS trip tracks are quite sensitive personal data (they reveal home/work addresses). Minimum viable compliance for v1:
 - A short, honest privacy policy page (what's collected, why, who can see it — realistically just the account owner).
 - `DELETE /api/user/vehicles/{id}` cascades to devices and trips (satisfies "right to erasure" for that vehicle's data).
+- `DELETE /api/user/me` (full account erasure): deletes the Firebase Authentication identity itself (`firebase-admin`'s `getAuth().deleteUser()`) *and* the `users` Postgres row, which cascades to every remaining vehicle/device/trip/preset route the same way the per-vehicle delete does. Firebase is deleted first — it's the network call most likely to fail, and failing there leaves the account still fully intact for a clean retry instead of half-erased.
 - Don't log GPX contents or precise coordinates in application logs.
 
 ## 7. Pairing flow ("Netflix-style")
@@ -184,6 +185,7 @@ User-facing (web app, Firebase ID token):
 | Method | Path | Body / Query | Response |
 |---|---|---|---|
 | GET | `/api/user/me` | — | profile |
+| DELETE | `/api/user/me` | — | full account erasure (Firebase identity + Postgres row, cascades everything) |
 | GET | `/api/user/vehicles` | — | list of vehicles owned by the user |
 | PATCH | `/api/user/vehicles/:id` | `{ nickname }` | updated vehicle |
 | DELETE | `/api/user/vehicles/:id` | — | cascades devices + trips |

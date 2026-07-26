@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { api, ApiError } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
@@ -9,8 +12,11 @@ import { useLanguage } from "../lib/i18n/LanguageContext";
 export default function Settings() {
   const { profile } = useProfile();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
 
   function reload() {
     api.vehicles().then(setVehicles);
@@ -29,6 +35,24 @@ export default function Settings() {
     if (!confirm(t("settings.deleteVehicleConfirm", { name: nickname }))) return;
     await api.deleteVehicle(id);
     reload();
+  }
+
+  // Cancellazione account completa (jaedrive_todo #1) - a differenza di deleteVehicle()
+  // sopra, dopo la chiamata al server l'utente non ha piu' un'identita' valida: bisogna
+  // anche fare signOut() locale (il token gia' emesso da Firebase resterebbe altrimenti in
+  // memoria/localStorage finche' non scade da solo) e portarlo fuori dall'app autenticata.
+  async function deleteAccount() {
+    if (!confirm(t("settings.deleteAccountConfirm"))) return;
+    setDeletingAccount(true);
+    setDeleteAccountError(null);
+    try {
+      await api.deleteAccount();
+      await signOut(auth);
+      navigate("/", { replace: true });
+    } catch (err) {
+      setDeleteAccountError(err instanceof ApiError ? err.message : t("settings.deleteAccountError"));
+      setDeletingAccount(false);
+    }
   }
 
   return (
@@ -56,7 +80,7 @@ export default function Settings() {
         <LanguageSwitcher />
       </section>
 
-      <section>
+      <section className="mb-8">
         <p className="mb-3 text-sm font-medium">{t("appShell.myVehicles")}</p>
         <div className="flex flex-col gap-3">
           {vehicles.map((v) => (
@@ -90,6 +114,19 @@ export default function Settings() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-lg border border-bad/40 bg-bad/5 p-4">
+        <p className="mb-1 text-sm font-medium text-bad">{t("settings.dangerZoneTitle")}</p>
+        <p className="mb-3 text-sm text-onsurface-variant">{t("settings.deleteAccountDescription")}</p>
+        {deleteAccountError && <p className="mb-3 text-sm text-bad">{deleteAccountError}</p>}
+        <button
+          onClick={deleteAccount}
+          disabled={deletingAccount}
+          className="rounded-md border border-bad px-3 py-1.5 text-sm text-bad hover:bg-bad/10 disabled:opacity-50"
+        >
+          {t("settings.deleteAccount")}
+        </button>
       </section>
     </AppShell>
   );

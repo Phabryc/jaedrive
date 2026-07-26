@@ -5,6 +5,7 @@ import { generateDeviceToken, sha256Hex } from "../lib/tokens.js";
 import { reverseGeocode, firstAndLastPoint, searchAddress } from "../lib/geocode.js";
 import { computeVehicleStats } from "../lib/stats.js";
 import { haversineMeters } from "../lib/geo.js";
+import { deleteFirebaseUser } from "../auth/firebase.js";
 
 const ROUTE_TRIP_SELECT = {
   id: true,
@@ -96,6 +97,22 @@ export async function userRoutes(app: FastifyInstance) {
       });
     },
   );
+
+  // Cancellazione account (jaedrive_todo #1) - "diritto all'oblio" GDPR completo, non solo
+  // per-veicolo (vedi DESIGN.md §6, che finora copriva solo DELETE .../vehicles/:id).
+  // L'identita' Firebase viene cancellata PRIMA della riga Postgres apposta: e' la chiamata
+  // di rete (quindi quella con piu' probabilita' di fallire) e se fallisce non deve lasciare
+  // l'account a meta' cancellato - meglio fallire prima di aver toccato Postgres, cosi'
+  // l'utente puo' riprovare l'intera operazione da uno stato ancora consistente. Il delete
+  // di Postgres da solo e' un'operazione locale, molto piu' affidabile, e cascata gia' su
+  // vehicles/devices/trips/preset_routes tramite le regole onDelete dello schema (vedi
+  // Vehicle - Cascade - e i suoi stessi figli).
+  app.delete("/me", async (req, reply) => {
+    const u = req.authUser!;
+    await deleteFirebaseUser(u.firebaseUid);
+    await prisma.user.delete({ where: { id: u.id } });
+    return reply.code(204).send();
+  });
 
   app.get("/vehicles", async (req, reply) => {
     const vehicles = await prisma.vehicle.findMany({

@@ -103,6 +103,13 @@ export const en: Record<keyof typeof it, string> = {
   "settings.newNamePlaceholder": "New name",
   "settings.rename": "Rename",
   "settings.language": "Language",
+  "settings.dangerZoneTitle": "Danger zone",
+  "settings.deleteAccount": "Delete account",
+  "settings.deleteAccountDescription":
+    "Permanently delete your account: every car, trip and saved route will be erased and you won't be able to log in with this account anymore.",
+  "settings.deleteAccountConfirm":
+    "Permanently delete your account? Every car, trip and saved route will be lost and you won't be able to log in anymore. This cannot be undone.",
+  "settings.deleteAccountError": "Couldn't delete the account. Please try again or contact support.",
 
   "trips.filterAll": "All",
   "trips.filterAuto": "GPS trips",

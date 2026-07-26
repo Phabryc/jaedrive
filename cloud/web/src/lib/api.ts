@@ -50,6 +50,12 @@ export const api = {
   updateProfile: (data: { firstName: string; lastName: string; acceptLegal: true }) =>
     request<Profile>("/me", { method: "PATCH", body: JSON.stringify(data) }),
 
+  // Cancellazione account completa (jaedrive_todo #1) - Firebase + Postgres lato server,
+  // vedi routes/user.ts. Il chiamante deve comunque fare signOut() lato client dopo: il
+  // token gia' emesso resta valido finche' non scade anche se l'identita' che lo ha
+  // firmato non esiste piu' server-side.
+  deleteAccount: () => request<void>("/me", { method: "DELETE" }),
+
   vehicles: () => request<Vehicle[]>("/vehicles"),
 
   renameVehicle: (id: string, nickname: string) =>

@@ -115,6 +115,13 @@ export const it = {
   "settings.newNamePlaceholder": "Nuovo nome",
   "settings.rename": "Rinomina",
   "settings.language": "Lingua",
+  "settings.dangerZoneTitle": "Zona pericolosa",
+  "settings.deleteAccount": "Elimina account",
+  "settings.deleteAccountDescription":
+    "Elimina definitivamente il tuo account: tutte le auto, i viaggi e i percorsi salvati verranno cancellati e non potrai più accedere con questo account.",
+  "settings.deleteAccountConfirm":
+    "Eliminare definitivamente il tuo account? Tutte le auto, i viaggi e i percorsi salvati andranno persi e non potrai più accedere. Questa azione non può essere annullata.",
+  "settings.deleteAccountError": "Impossibile eliminare l'account. Riprova o contatta l'assistenza.",
 
   // Trips (elenco viaggi di un veicolo)
   "trips.filterAll": "Tutti",
