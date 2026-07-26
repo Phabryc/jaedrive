@@ -114,6 +114,13 @@
     <string name="label_vehicle_brand">BRAND</string>
     <string name="label_vehicle_model">MODEL</string>
     <string name="label_vehicle_powertrain">POWERTRAIN</string>
+    <string name="label_vehicle_vin">VIN</string>
+    <string name="label_vehicle_vin_unknown">Not detected</string>
+    <string name="label_vehicle_vin_refresh">GET VIN</string>
+    <string name="toast_vin_not_detected">No VIN could be detected on this car right now.</string>
+    <string name="toast_vin_saved">VIN saved: %1$s</string>
+    <string name="toast_vin_conflict">This VIN is already linked to another account.</string>
+    <string name="toast_vin_error">Could not save the VIN. Check the connection and try again.</string>
     <string name="label_footer_range">Range:</string>
 
     <!-- Log -->

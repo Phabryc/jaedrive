@@ -83,6 +83,59 @@
             android:layout_marginBottom="24dp"
             android:visibility="gone"/>
 
+        <!-- VIN reale (Settings.Global "ivi.sn", vedi MainActivity.refreshVinFromCar()) - visibile
+             solo quando l'auto e' gia' associata al cloud (esiste gia' un VIN/identificativo da
+             correggere), non durante il primo onboarding obbligatorio: li' il VIN e' catturato
+             automaticamente e usato in silenzio al momento del pairing, vedi tryReadIviSn(). -->
+        <LinearLayout
+            android:id="@+id/vehicle_vin_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/label_vehicle_vin"
+                android:textColor="@color/primary"
+                android:textSize="14sp"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="10dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/tv_vehicle_vin_onboarding"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/label_vehicle_vin_unknown"
+                    android:textColor="@color/on_surface_variant"
+                    android:textSize="15sp"
+                    android:layout_marginEnd="12dp"/>
+
+                <TextView
+                    android:id="@+id/btn_vehicle_vin_refresh"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_vehicle_vin_refresh"
+                    android:background="@drawable/btn_secondary_bg"
+                    android:textColor="@color/on_secondary_container"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:paddingHorizontal="18dp"
+                    android:paddingVertical="10dp"
+                    android:clickable="true"
+                    android:focusable="true"/>
+            </LinearLayout>
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

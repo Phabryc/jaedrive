@@ -1606,12 +1606,28 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout powertrainContainer = root.findViewById(R.id.vehicle_powertrain_container);
         TextView btnClose = root.findViewById(R.id.btn_vehicle_onboarding_close);
         TextView btnConfirm = root.findViewById(R.id.btn_vehicle_onboarding_confirm);
+        View vinSection = root.findViewById(R.id.vehicle_vin_section);
+        TextView tvVinOnboarding = root.findViewById(R.id.tv_vehicle_vin_onboarding);
+        TextView btnVinRefresh = root.findViewById(R.id.btn_vehicle_vin_refresh);
 
         // Stato mutabile catturato dalle lambda sotto (array di 1 elemento invece di variabili
         // locali, che in Java devono essere effectively final per essere catturate).
         String[] selected = {
             Prefs.getVehicleBrand(this), Prefs.getVehicleModel(this), Prefs.getVehiclePowertrain(this)
         };
+
+        // Sezione VIN interattiva: visibile solo riaprendo il dialogo per un'auto gia'
+        // associata al cloud (esiste gia' un VIN/identificativo da correggere). Durante il
+        // primo onboarding obbligatorio resta nascosta - li' il VIN viene catturato in
+        // automatico e usato in silenzio al momento del pairing, vedi tryReadIviSn().
+        if (!mandatory && Prefs.isCloudPaired(this)) {
+            vinSection.setVisibility(View.VISIBLE);
+            String known = Prefs.getSyncedVin(this);
+            if (known != null) tvVinOnboarding.setText(known);
+            btnVinRefresh.setOnClickListener(v -> refreshVinFromCar(tvVinOnboarding));
+        } else {
+            vinSection.setVisibility(View.GONE);
+        }
 
         androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
             .setView(root)
@@ -2447,33 +2463,54 @@ public class MainActivity extends AppCompatActivity {
             String vin = Settings.Global.getString(getContentResolver(), SETTING_IVI_SN);
             appendLog("[Settings.Global] " + SETTING_IVI_SN + " = \"" + vin + "\"");
             if (vin == null || vin.trim().isEmpty()) return;
-            String trimmed = vin.trim();
             if (!vinResolved) {
-                tvVehicleVin.setText(trimmed);
+                tvVehicleVin.setText(vin.trim());
                 vinResolved = true;
             }
-            syncVinIfNeeded(trimmed);
         } catch (Exception e) {
             appendLog("[Settings.Global] Errore lettura " + SETTING_IVI_SN + ": " + e);
         }
     }
 
-    // Corregge sul cloud il VIN di un'auto gia' associata quando il VIN autorevole (ivi.sn)
-    // risulta diverso dall'ultimo inviato - copre sia chi ha associato l'auto inserendo un
-    // VIN a mano prima che questa lettura fosse disponibile, sia chi ha usato l'identificativo
-    // di fallback (Prefs.getOrCreateDeviceGuid()). No-op se l'auto non e' associata (il VIN
-    // verra' comunque usato al prossimo pairing, vedi resetPairingFlow()) o se e' gia'
-    // sincronizzato, per non fare una PATCH ad ogni avvio dell'app.
-    private void syncVinIfNeeded(String vin) {
-        if (!Prefs.isCloudPaired(this) || vin.equals(Prefs.getSyncedVin(this))) return;
+    // Pulsante "Rileva VIN" nel dialogo Veicolo (vedi showVehicleOnboardingDialog(), sezione
+    // vehicle_vin_section - mostrata solo per un'auto gia' associata al cloud): a differenza
+    // della prima versione di questa feature, la correzione NON e' piu' automatica in
+    // background - l'utente preme il pulsante, vede subito il VIN rilevato e l'esito del
+    // salvataggio (incluso un errore esplicito se quel VIN risulta gia' in uso da un'altra
+    // auto/account, invece di fallire in silenzio in un log che nessuno guarda). Rilegge
+    // ivi.sn fresco invece di fidarsi solo del valore letto all'avvio, con fallback su
+    // qualunque VIN gia' risolto (VDB/CarPropertyManager) se ivi.sn e' vuoto su questo avvio.
+    private void refreshVinFromCar(TextView tvVinDisplay) {
+        String vin = null;
+        try {
+            String raw = Settings.Global.getString(getContentResolver(), SETTING_IVI_SN);
+            if (raw != null && !raw.trim().isEmpty()) vin = raw.trim();
+        } catch (Exception e) {
+            appendLog("[Settings.Global] Errore lettura " + SETTING_IVI_SN + ": " + e);
+        }
+        if (vin == null && vinResolved) vin = tvVehicleVin.getText().toString().trim();
+        if (vin == null || vin.isEmpty()) {
+            Toast.makeText(this, getString(R.string.toast_vin_not_detected), Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String token = Prefs.getCloudDeviceToken(this);
+        String finalVin = vin;
+        tvVinDisplay.setText(finalVin);
         new Thread(() -> {
             try {
-                CloudApiClient.updateVehicleVin(token, vin);
-                Prefs.setSyncedVin(this, vin);
-                appendLog("[Cloud] VIN corretto/sincronizzato: " + vin);
+                CloudApiClient.updateVehicleVin(token, finalVin);
+                Prefs.setSyncedVin(this, finalVin);
+                appendLog("[Cloud] VIN aggiornato: " + finalVin);
+                runOnUiThread(() -> Toast.makeText(this,
+                    getString(R.string.toast_vin_saved, finalVin), Toast.LENGTH_LONG).show());
+            } catch (CloudApiClient.ApiException e) {
+                appendLog("[Cloud] Errore salvataggio VIN (HTTP " + e.httpCode + "): " + e.getMessage());
+                int msgRes = e.httpCode == 409 ? R.string.toast_vin_conflict : R.string.toast_vin_error;
+                runOnUiThread(() -> Toast.makeText(this, getString(msgRes), Toast.LENGTH_LONG).show());
             } catch (Exception e) {
-                appendLog("[Cloud] Errore sincronizzazione VIN: " + e);
+                appendLog("[Cloud] Errore salvataggio VIN: " + e);
+                runOnUiThread(() -> Toast.makeText(this, getString(R.string.toast_vin_error), Toast.LENGTH_LONG).show());
             }
         }, "JaeDrive-VinSync").start();
     }

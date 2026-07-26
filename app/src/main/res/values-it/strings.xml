@@ -117,6 +117,13 @@
     <string name="label_vehicle_brand">MARCA</string>
     <string name="label_vehicle_model">MODELLO</string>
     <string name="label_vehicle_powertrain">MOTORIZZAZIONE</string>
+    <string name="label_vehicle_vin">VIN</string>
+    <string name="label_vehicle_vin_unknown">Non rilevato</string>
+    <string name="label_vehicle_vin_refresh">RILEVA VIN</string>
+    <string name="toast_vin_not_detected">Nessun VIN rilevabile al momento su quest\'auto.</string>
+    <string name="toast_vin_saved">VIN salvato: %1$s</string>
+    <string name="toast_vin_conflict">Questo VIN e\' gia\' associato a un altro account.</string>
+    <string name="toast_vin_error">Impossibile salvare il VIN. Verifica la connessione e riprova.</string>
     <string name="label_footer_range">Autonomia:</string>
 
     <!-- Log -->

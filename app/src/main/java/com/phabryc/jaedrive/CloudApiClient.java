@@ -175,6 +175,19 @@ public class CloudApiClient {
         return conn;
     }
 
+    // IOException con lo status HTTP allegato - permette al chiamante (vedi
+    // MainActivity.refreshVinFromCar()) di distinguere un errore applicativo preciso (es. 409,
+    // VIN gia' in uso da un'altra auto) da un generico errore di rete, senza dover fare
+    // parsing fragile del messaggio testuale.
+    public static class ApiException extends IOException {
+        public final int httpCode;
+
+        ApiException(int httpCode, String message) {
+            super(message);
+            this.httpCode = httpCode;
+        }
+    }
+
     private static JSONObject readResponse(HttpURLConnection conn) throws IOException, JSONException {
         int code = conn.getResponseCode();
         InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
@@ -186,7 +199,7 @@ public class CloudApiClient {
             } catch (Exception ignored) {
                 // Corpo non-JSON (es. errore 502 da un proxy) - usiamo il testo grezzo.
             }
-            throw new IOException("HTTP " + code + ": " + msg);
+            throw new ApiException(code, msg);
         }
         return body.isEmpty() ? new JSONObject() : new JSONObject(body);
     }
