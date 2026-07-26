@@ -141,10 +141,11 @@ public class Prefs {
     }
 
     // Ultimo VIN inviato con successo al cloud (dal pairing stesso, o da un aggiornamento
-    // successivo - vedi MainActivity.syncVinIfNeeded()) - null per le installazioni/pairing
+    // successivo - vedi MainActivity.refreshVinFromCar()) - null per le installazioni/pairing
     // precedenti a questa feature. Serve solo a evitare PATCH ripetute quando il VIN
-    // risolto (Settings.Global "ivi.sn") e' gia' quello che il cloud ha; NON e' il VIN
-    // stesso, che resta risolto a ogni avvio da tryReadIviSn()/tryReadStandardVin()/VDB.
+    // risolto (system property "sys.vehicle.hardware.vin.code") e' gia' quello che il cloud
+    // ha; NON e' il VIN stesso, che resta risolto a ogni avvio da tryReadRealVin()/
+    // tryReadStandardVin()/VDB.
     public static String getSyncedVin(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SYNCED_VIN, null);
     }

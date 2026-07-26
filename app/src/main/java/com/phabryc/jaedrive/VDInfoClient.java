@@ -49,10 +49,16 @@ public class VDInfoClient {
     // a 16 bit big-endian ((arr[0]&0xff)<<8 | (arr[1]&0xff)), nessuna scala applicata
     // (cast diretto a float), poi passato a un metodo che aggiorna il testo "autonomia" in
     // UI - "Display Mileage" segue la stessa convenzione di nome di "Display SOC" (il
-    // numero mostrato sul cruscotto, non un totalizzatore). Usiamo comunque
-    // decodeLastTwoAsInt() (equivalente a "primi due" solo se l'array ha esattamente 2
-    // elementi, come sembra il caso qui - non ancora confermato sul campo per questo ID
-    // specifico se l'array e' piu' lungo).
+    // numero mostrato sul cruscotto, non un totalizzatore).
+    // BUG TROVATO SUL CAMPO (2026-07-26): l'autonomia mostrata in app restava sempre a 0
+    // nonostante fosse visibile e diversa da zero nel pannello "Nuova energia" della vettura -
+    // il primo tentativo usava decodeLastTwoAsInt() per coerenza con ID_TOTAL_MILEAGE/
+    // ID_EV_MILEAGE/ID_HEV_MILEAGE, ma il dispatcher confermato per QUESTO id legge invece i
+    // PRIMI due elementi: se l'array ha piu' di 2 elementi (ipotesi gia' segnalata come non
+    // confermata quando questo campo fu aggiunto), leggere gli ultimi due prende byte di
+    // padding a zero invece del valore vero. Fix: usare decodeFirstTwoAsInt() per questo id
+    // specifico (vedi MainActivity.updateFooterStatus()), che e' anche coerente con come SOC/
+    // fuel% vengono gia' decodificati inline nello stesso metodo (primi due elementi).
     public static final int ID_DISPLAY_MILEAGE = 0x2a;
     public static final int ID_VEHICLE_MODE_ID = 0x78;
     // Confermato REALE (non solo "registrato ma senza caller"): il dispatcher UI di
@@ -165,6 +171,17 @@ public class VDInfoClient {
         if (value == null || value.length == 0) return 0;
         if (value.length == 1) return value[0];
         return value[value.length - 2] * 256 + value[value.length - 1];
+    }
+
+    // Variante che combina i PRIMI due elementi invece degli ultimi due - necessaria per
+    // ID_DISPLAY_MILEAGE (vedi il suo commento sopra: dispatcher confermato che legge
+    // arr[0]/arr[1], non gli ultimi due). Stessa formula usata inline per SOC/fuel% in
+    // MainActivity.updateFooterStatus(). Equivalente a decodeLastTwoAsInt() solo se l'array
+    // ha esattamente 2 elementi.
+    public static int decodeFirstTwoAsInt(int[] value) {
+        if (value == null || value.length == 0) return 0;
+        if (value.length == 1) return value[0];
+        return (value[0] & 0xFF) * 256 + (value[1] & 0xFF);
     }
 
     // Combina TUTTI gli elementi dell'array come singoli byte big-endian in un intero a 32
@@ -290,9 +307,14 @@ public class VDInfoClient {
     // sempre, moltiplicato per ogni istanza di VDInfoClient attiva) era la causa
     // principale del rallentamento segnalato aprendo il tab LOG: il buffer di testo
     // cresceva senza limite con migliaia di righe ripetute e inutili. Logghiamo un
-    // esito solo quando CAMBIA rispetto al ciclo precedente (per key modulo+cmdId),
-    // non ad ogni singolo poll.
-    private final Map<Integer, Boolean> lastNullState = new HashMap<>();
+    // esito solo al primo IS_NULL consecutivo, poi periodicamente (non ad ogni poll) -
+    // la sola dedup "logga solo se cambia" lasciava un log lungo (es. un'intera sessione
+    // di guida) SENZA alcuna riga per un segnale rimasto IS_NULL fin dall'inizio, se
+    // quell'unica riga iniziale scorreva fuori dal buffer visibile del tab LOG prima che
+    // l'utente salvasse il log - reso evidente verificando un log di 2+ ore per il TPMS,
+    // dove non compariva nessun esito per ID_TIRE_PRESSURE nonostante fosse polled.
+    private final Map<Integer, Integer> consecutiveNullCount = new HashMap<>();
+    private static final int NULL_REANNOUNCE_CYCLES = 150; // ~5 minuti a 2s/poll
 
     private void queryOne(int module, int cmdId) {
         int key = keyFor(module, cmdId);
@@ -316,7 +338,7 @@ public class VDInfoClient {
                 logIfChanged(key, module, cmdId, "IS_NULL/valore assente");
                 return;
             }
-            lastNullState.put(key, false);
+            consecutiveNullCount.remove(key);
             listener.onValue(key, value);
         } catch (Exception e) {
             listener.onLog(String.format("Errore get modulo=0x%x CMD_ID=0x%x: %s", module, cmdId, e));
@@ -324,9 +346,10 @@ public class VDInfoClient {
     }
 
     private void logIfChanged(int key, int module, int cmdId, String reason) {
-        Boolean wasNull = lastNullState.get(key);
-        lastNullState.put(key, true);
-        if (wasNull != null && wasNull) return; // stesso esito del ciclo precedente, non ripetere
-        listener.onLog(String.format("modulo=0x%x CMD_ID=0x%x: %s", module, cmdId, reason));
+        int count = consecutiveNullCount.getOrDefault(key, 0) + 1;
+        consecutiveNullCount.put(key, count);
+        if (count == 1 || count % NULL_REANNOUNCE_CYCLES == 0) {
+            listener.onLog(String.format("modulo=0x%x CMD_ID=0x%x: %s", module, cmdId, reason));
+        }
     }
 }

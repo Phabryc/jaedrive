@@ -74,6 +74,7 @@
     <string name="label_vehicle">Vehicle</string>
     <string name="label_vin">VIN</string>
     <string name="label_vin_unavailable">Not available</string>
+    <string name="label_vin_fallback_dmc">DMC S/N (VIN unavailable)</string>
     <string name="section_language_title">LANGUAGE</string>
     <string name="label_language_title">App language</string>
     <string name="label_language_subtitle">Choose Italian or English, independent of the system language</string>

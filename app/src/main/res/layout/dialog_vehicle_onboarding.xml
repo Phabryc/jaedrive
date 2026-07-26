@@ -83,11 +83,15 @@
             android:layout_marginBottom="24dp"
             android:visibility="gone"/>
 
-        <!-- VIN reale (Settings.Global "ivi.sn", vedi MainActivity.showVehicleOnboardingDialog()/
-             refreshVinFromCar()) - sempre visibile, anche nel primo onboarding obbligatorio (li'
-             mostra solo il valore gia' rilevato, in sola lettura: il pulsante RILEVA VIN/GET VIN
-             compare solo se l'auto e' gia' associata al cloud, quando serve correggere un VIN
-             gia' inviato in passato). -->
+        <!-- VIN (system property "sys.vehicle.hardware.vin.code", con fallback su
+             Settings.Global "ivi.sn" - S/N del DMC, non un VIN vero - sui modelli/SW che non
+             espongono la property: vedi MainActivity.tryReadRealVin()/refreshVinFromCar()) -
+             sempre visibile, anche nel primo onboarding obbligatorio (li' mostra solo il
+             valore gia' rilevato, in sola lettura: il pulsante RILEVA VIN/GET VIN compare
+             solo se l'auto e' gia' associata al cloud, quando serve correggere un valore
+             gia' inviato in passato). L'etichetta sopra il valore (tv_vehicle_vin_onboarding_
+             label) cambia dinamicamente tra "VIN" e "S/N DMC" secondo quale fonte ha
+             risposto - vedi MainActivity.updateVinLabel(). -->
         <LinearLayout
             android:id="@+id/vehicle_vin_section"
             android:layout_width="match_parent"
@@ -96,6 +100,7 @@
             android:layout_marginBottom="24dp">
 
             <TextView
+                android:id="@+id/tv_vehicle_vin_onboarding_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/label_vehicle_vin"

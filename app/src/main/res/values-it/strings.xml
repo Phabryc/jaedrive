@@ -77,6 +77,7 @@
     <string name="label_vehicle">Veicolo</string>
     <string name="label_vin">Telaio (VIN)</string>
     <string name="label_vin_unavailable">Non disponibile</string>
+    <string name="label_vin_fallback_dmc">N. serie DMC (VIN non disp.)</string>
     <string name="section_language_title">LINGUA</string>
     <string name="label_language_title">Lingua app</string>
     <string name="label_language_subtitle">Scegli italiano o inglese, indipendentemente dalla lingua di sistema</string>
