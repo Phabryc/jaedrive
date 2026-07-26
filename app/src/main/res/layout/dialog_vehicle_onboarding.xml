@@ -83,17 +83,17 @@
             android:layout_marginBottom="24dp"
             android:visibility="gone"/>
 
-        <!-- VIN reale (Settings.Global "ivi.sn", vedi MainActivity.refreshVinFromCar()) - visibile
-             solo quando l'auto e' gia' associata al cloud (esiste gia' un VIN/identificativo da
-             correggere), non durante il primo onboarding obbligatorio: li' il VIN e' catturato
-             automaticamente e usato in silenzio al momento del pairing, vedi tryReadIviSn(). -->
+        <!-- VIN reale (Settings.Global "ivi.sn", vedi MainActivity.showVehicleOnboardingDialog()/
+             refreshVinFromCar()) - sempre visibile, anche nel primo onboarding obbligatorio (li'
+             mostra solo il valore gia' rilevato, in sola lettura: il pulsante RILEVA VIN/GET VIN
+             compare solo se l'auto e' gia' associata al cloud, quando serve correggere un VIN
+             gia' inviato in passato). -->
         <LinearLayout
             android:id="@+id/vehicle_vin_section"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:layout_marginBottom="24dp"
-            android:visibility="gone">
+            android:layout_marginBottom="24dp">
 
             <TextView
                 android:layout_width="match_parent"

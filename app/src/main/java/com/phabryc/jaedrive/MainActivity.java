@@ -1616,17 +1616,27 @@ public class MainActivity extends AppCompatActivity {
             Prefs.getVehicleBrand(this), Prefs.getVehicleModel(this), Prefs.getVehiclePowertrain(this)
         };
 
-        // Sezione VIN interattiva: visibile solo riaprendo il dialogo per un'auto gia'
-        // associata al cloud (esiste gia' un VIN/identificativo da correggere). Durante il
-        // primo onboarding obbligatorio resta nascosta - li' il VIN viene catturato in
-        // automatico e usato in silenzio al momento del pairing, vedi tryReadIviSn().
-        if (!mandatory && Prefs.isCloudPaired(this)) {
-            vinSection.setVisibility(View.VISIBLE);
-            String known = Prefs.getSyncedVin(this);
-            if (known != null) tvVinOnboarding.setText(known);
+        // Sezione VIN: sempre visibile, anche nel primo onboarding obbligatorio - mostra
+        // semplicemente il VIN gia' rilevato (tryReadIviSn() gira in onCreate PRIMA di questo
+        // dialogo, vedi chiamata li' sopra), cosi' l'utente vede subito cosa verra' usato per
+        // il pairing (vedi resetPairingFlow(), che legge lo stesso tvVehicleVin/vinResolved -
+        // e' il VIN che il server incrocia con quelli gia' registrati, vedi routes/user.ts
+        // "pairing/claim"). Il pulsante di correzione ha senso solo se l'auto e' gia'
+        // associata (altrimenti non c'e' ancora nulla su cui fare la PATCH), quindi resta
+        // nascosto durante il primo onboarding.
+        vinSection.setVisibility(View.VISIBLE);
+        boolean alreadyPaired = Prefs.isCloudPaired(this);
+        String known = alreadyPaired ? Prefs.getSyncedVin(this) : null;
+        if (known != null) {
+            tvVinOnboarding.setText(known);
+        } else if (vinResolved) {
+            tvVinOnboarding.setText(tvVehicleVin.getText());
+        }
+        if (alreadyPaired) {
+            btnVinRefresh.setVisibility(View.VISIBLE);
             btnVinRefresh.setOnClickListener(v -> refreshVinFromCar(tvVinOnboarding));
         } else {
-            vinSection.setVisibility(View.GONE);
+            btnVinRefresh.setVisibility(View.GONE);
         }
 
         androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
