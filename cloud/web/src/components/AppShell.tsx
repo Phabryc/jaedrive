@@ -15,22 +15,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-bg text-onsurface">
       <header className="sticky top-0 z-10 border-b border-surface-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link to="/dashboard">
+        {/* flex-wrap + gap-y sul contenitore esterno: sotto sm il logo e la nav diventano
+            due righe invece di stringersi in una sola (era il bug reale trovato con uno
+            screenshot mobile - "My"/"vehicles" e "Log"/"out" andavano a capo a META' parola).
+            whitespace-nowrap su ogni voce fa si' che, se anche la nav da sola non ci sta su
+            una riga, vada a capo un elemento intero alla volta, mai dentro una singola parola. */}
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+          <Link to="/dashboard" className="shrink-0">
             <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
           </Link>
-          <nav className="flex items-center gap-4 text-sm text-onsurface-variant">
-            <Link to="/dashboard" className="hover:text-onsurface">
+          <nav className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-onsurface-variant sm:gap-x-4">
+            <Link to="/dashboard" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.myVehicles")}
             </Link>
-            <Link to="/settings" className="hover:text-onsurface">
+            <Link to="/settings" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.settings")}
             </Link>
-            <span className="hidden sm:inline">{user?.email}</span>
+            <span className="hidden whitespace-nowrap sm:inline">{user?.email}</span>
             <LanguageSwitcher />
             <button
               onClick={() => signOut(auth).then(() => navigate("/login"))}
-              className="rounded-md border border-surface-border px-3 py-1 hover:border-accent hover:text-onsurface"
+              className="whitespace-nowrap rounded-md border border-surface-border px-3 py-1 hover:border-accent hover:text-onsurface"
             >
               {t("appShell.logout")}
             </button>

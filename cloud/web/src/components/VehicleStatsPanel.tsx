@@ -177,7 +177,11 @@ function Donut({
               radius: ["45%", "70%"],
               center: ["50%", "42%"],
               itemStyle: { borderColor: "#0A0A0A", borderWidth: 2 },
-              label: { color: "#E5E2E1", fontSize: 11 },
+              // Le etichette sulla torta (con linea di richiamo) venivano troncate ("H...")
+              // su contenitori stretti come una card mobile a piena larghezza - la legenda
+              // qui sotto identifica gia' ogni fetta per intero, quindi disattivate invece
+              // di provare a farci stare un testo lungo in poco spazio.
+              label: { show: false },
               data: entries.map(([key, value]) => ({ name: labelMap?.[key] ?? key, value, itemStyle: { color: colorMap[key] } })),
             },
           ],

@@ -12,8 +12,14 @@ const WEEKDAY_KEYS: TranslationKey[] = [
   "calendar.weekday0", "calendar.weekday1", "calendar.weekday2", "calendar.weekday3",
   "calendar.weekday4", "calendar.weekday5", "calendar.weekday6",
 ];
-const CELL = 42; // px, lato di ogni casella - compatto ma leggibile, non a piena larghezza
-const GAP = 5;
+// Larghezza massima del calendario (etichetta mesi + griglia) su schermi larghi - le celle
+// stesse sono a griglia fluida (repeat(7, minmax(0,1fr)) + aspect-square), non piu' a
+// dimensione fissa in px: la versione a pixel fissi (42px/cella) andava in overflow sotto
+// ~390px di larghezza (trovato con uno screenshot mobile reale - la card contenitore su un
+// telefono da 360px lascia solo ~296px liberi dopo il proprio padding, meno dei 324px che la
+// griglia a celle fisse richiedeva sempre).
+const MAX_WIDTH = 320;
+const DETAIL_MAX_WIDTH = 440;
 
 interface DayStat {
   date: string;
@@ -97,13 +103,11 @@ export function CalendarHeatmap({
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const gridWidth = CELL * 7 + GAP * 6;
-
   const selectedStat = selectedDate ? byDate.get(selectedDate) : undefined;
 
   return (
     <div className="rounded-lg border border-surface-border bg-surface p-4">
-      <div className="mb-4 flex items-center justify-between" style={{ maxWidth: gridWidth + 16, margin: "0 auto 16px" }}>
+      <div className="mx-auto mb-4 flex w-full items-center justify-between" style={{ maxWidth: MAX_WIDTH }}>
         <p className="text-sm font-medium">{t("calendar.title")}</p>
         <div className="flex items-center gap-2 text-xs text-onsurface-variant">
           <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
@@ -120,8 +124,8 @@ export function CalendarHeatmap({
         <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
       ) : (
         <div
-          className="mx-auto grid"
-          style={{ gridTemplateColumns: `repeat(7, ${CELL}px)`, gap: GAP, width: gridWidth }}
+          className="mx-auto grid w-full grid-cols-7 gap-1.5"
+          style={{ maxWidth: MAX_WIDTH }}
         >
           {WEEKDAY_KEYS.map((w, i) => (
             <div key={i} className="text-center text-[11px] text-onsurface-variant">
@@ -129,7 +133,10 @@ export function CalendarHeatmap({
             </div>
           ))}
           {cells.map((date, i) => {
-            if (!date) return <div key={i} style={{ width: CELL, height: CELL }} />;
+            // Placeholder vuoto (giorni prima dell'1 del mese) - stesso ingombro di una
+            // casella vera (aspect-square, non piu' un width/height fisso in px) cosi' la
+            // griglia resta allineata a qualunque larghezza.
+            if (!date) return <div key={i} className="aspect-square" />;
             const stat = byDate.get(date);
             const dayNum = Number(date.slice(8, 10));
             const km = stat?.km ?? 0;
@@ -145,10 +152,8 @@ export function CalendarHeatmap({
                 key={date}
                 title={title}
                 onClick={() => onSelectDate(isSelected ? null : date)}
-                className="flex flex-col items-center justify-center gap-0.5 rounded-md transition"
+                className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md transition"
                 style={{
-                  width: CELL,
-                  height: CELL,
                   backgroundColor: bg,
                   outline: isSelected ? "2px solid #00BFFF" : "1px solid rgba(255,255,255,0.06)",
                   outlineOffset: -1,
@@ -167,7 +172,7 @@ export function CalendarHeatmap({
       )}
 
       {selectedDate && (
-        <div className="mx-auto mt-5" style={{ maxWidth: gridWidth + 140 }}>
+        <div className="mx-auto mt-5 w-full" style={{ maxWidth: DETAIL_MAX_WIDTH }}>
           <p className="mb-2 text-center text-xs text-onsurface-variant">{formatDayFull(selectedDate)}</p>
           {!selectedStat || selectedStat.tripCount === 0 ? (
             <p className="text-center text-sm text-onsurface-variant">{t("calendar.noTripsThisDay")}</p>
