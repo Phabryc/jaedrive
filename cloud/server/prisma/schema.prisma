@@ -17,21 +17,21 @@ datasource db {
 // Mirrors a Firebase-authenticated identity. NOT the source of truth for credentials -
 // Firebase is. Row is created/updated lazily on first successful token verification.
 model User {
-  id           String   @id @default(uuid())
-  firebaseUid  String   @unique @map("firebase_uid")
-  email        String?
-  displayName  String?  @map("display_name")
-  createdAt    DateTime @default(now()) @map("created_at")
-  lastLoginAt  DateTime? @map("last_login_at")
+  id          String    @id @default(uuid())
+  firebaseUid String    @unique @map("firebase_uid")
+  email       String?
+  displayName String?   @map("display_name")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  lastLoginAt DateTime? @map("last_login_at")
 
   // Profile fields required by the app (see cloud/DESIGN.md and the web onboarding gate) -
   // nullable at the DB level since the row is created lazily on first token verification,
   // before the user has necessarily completed onboarding. Best-effort prefilled from the
   // Firebase ID token's name/picture claims on first login (present for Google sign-in,
   // absent for plain email/password) - see requireUser.ts.
-  firstName    String?  @map("first_name")
-  lastName     String?  @map("last_name")
-  photoUrl     String?  @map("photo_url")
+  firstName String? @map("first_name")
+  lastName  String? @map("last_name")
+  photoUrl  String? @map("photo_url")
 
   // Accettazione di EULA/Privacy Policy, gia' incorporata nello stesso step di onboarding
   // obbligatorio (vedi RequireProfile.tsx/Onboarding.tsx) invece di un gate separato.
@@ -42,8 +42,8 @@ model User {
   legalAcceptedAt DateTime? @map("legal_accepted_at")
   legalVersion    String?   @map("legal_version")
 
-  vehicles         Vehicle[]
-  pairingsClaimed  PairingRequest[]
+  vehicles        Vehicle[]
+  pairingsClaimed PairingRequest[]
 
   @@map("users")
 }
@@ -60,26 +60,51 @@ model Vehicle {
   // via VDB (ritirato - vedi jaedrive_decompiled_apks memory). `model` esisteva gia' ma
   // non era mai stato scritto da nessuna rotta; `modelYear` e' stato rimosso (stessa
   // situazione, mai popolato) a favore di `brand`/`powertrain`.
-  brand      String?  // "JAECOO" | "OMODA"
-  model      String?  // "5" | "7" | "8" | "9"
-  powertrain String?  // "ICE_2WD" | "ICE_4WD" | "SHS_H" | "SHS_P" | "SHS_P_4WD" | "BEV"
+  brand      String? // "JAECOO" | "OMODA"
+  model      String? // "5" | "7" | "8" | "9"
+  powertrain String? // "ICE_2WD" | "ICE_4WD" | "SHS_H" | "SHS_P" | "SHS_P_4WD" | "BEV"
   createdAt  DateTime @default(now()) @map("created_at")
 
-  devices Device[]
-  trips   Trip[]
+  devices      Device[]
+  trips        Trip[]
+  presetRoutes PresetRoute[]
 
   @@map("vehicles")
 }
 
+// Percorso ricorrente salvato dall'utente (es. "Casa-Lavoro") per aggregare in automatico i
+// trip AUTO che lo percorrono - vedi jaedrive_todo #14. Creato a partire da un trip AUTO
+// esistente scelto come "modello" (routes/user.ts POST .../routes): partenza/arrivo sono le
+// stesse coordinate del primo/ultimo punto GPX di quel trip (vedi lib/geocode.ts
+// firstAndLastPoint()), non un punto scelto su una mappa - niente UI di disegno mappa da
+// costruire, e il trip "modello" stesso finira' comunque tra i risultati (e' un match di se'
+// stesso). Il match con altri trip resta calcolato al volo in lib/geo.ts (haversine su
+// partenza E arrivo entro radiusMeters), non precalcolato/salvato su ogni trip.
+model PresetRoute {
+  id           String   @id @default(uuid())
+  vehicleId    String   @map("vehicle_id")
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  name         String
+  startLat     Float    @map("start_lat")
+  startLon     Float    @map("start_lon")
+  endLat       Float    @map("end_lat")
+  endLon       Float    @map("end_lon")
+  radiusMeters Float    @default(150) @map("radius_meters")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([vehicleId])
+  @@map("preset_routes")
+}
+
 // One head-unit app install. A device belongs to at most one vehicle at a time.
 model Device {
-  id               String    @id @default(uuid())
-  vehicleId        String?   @map("vehicle_id")
-  vehicle          Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  deviceTokenHash  String    @unique @map("device_token_hash")
-  appVersion       String?   @map("app_version")
-  lastSeenAt       DateTime? @map("last_seen_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid())
+  vehicleId       String?   @map("vehicle_id")
+  vehicle         Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  deviceTokenHash String    @unique @map("device_token_hash")
+  appVersion      String?   @map("app_version")
+  lastSeenAt      DateTime? @map("last_seen_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
   trips           Trip[]
   pairingRequests PairingRequest[]
@@ -89,17 +114,17 @@ model Device {
 
 // Short-lived pairing session, "Netflix-style" device code flow. See DESIGN.md §7.
 model PairingRequest {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  vin         String
-  deviceHint  String?  @map("device_hint")
-  status      String   @default("pending") // pending | claimed | expired
-  deviceId    String?  @map("device_id")
-  device      Device?  @relation(fields: [deviceId], references: [id])
-  expiresAt   DateTime @map("expires_at")
-  claimedBy   String?  @map("claimed_by")
-  claimedByUser User?  @relation(fields: [claimedBy], references: [id])
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  code          String   @unique
+  vin           String
+  deviceHint    String?  @map("device_hint")
+  status        String   @default("pending") // pending | claimed | expired
+  deviceId      String?  @map("device_id")
+  device        Device?  @relation(fields: [deviceId], references: [id])
+  expiresAt     DateTime @map("expires_at")
+  claimedBy     String?  @map("claimed_by")
+  claimedByUser User?    @relation(fields: [claimedBy], references: [id])
+  createdAt     DateTime @default(now()) @map("created_at")
 
   // Plaintext device token, held only transiently between claim and the car app's first
   // successful poll pickup (row expires/is cleaned up shortly after anyway - see DESIGN.md
@@ -158,7 +183,7 @@ model Trip {
   // (vehicleId, kind, startedAt) alone (e.g. survives a device DB being restored/reset and
   // re-uploading the same trips after re-pairing). Nullable + the old unique constraint
   // kept alongside it for any client that hasn't sent one yet - see routes/device.ts.
-  clientUuid     String?   @unique @map("client_uuid")
+  clientUuid String? @unique @map("client_uuid")
 
   @@unique([vehicleId, kind, startedAt])
   @@index([vehicleId, startedAt(sort: Desc)])

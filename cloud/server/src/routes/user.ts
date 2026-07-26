@@ -2,7 +2,29 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth/requireUser.js";
 import { generateDeviceToken, sha256Hex } from "../lib/tokens.js";
-import { reverseGeocode, firstAndLastPoint } from "../lib/geocode.js";
+import { reverseGeocode, firstAndLastPoint, searchAddress } from "../lib/geocode.js";
+import { computeVehicleStats } from "../lib/stats.js";
+import { haversineMeters } from "../lib/geo.js";
+
+const ROUTE_TRIP_SELECT = {
+  id: true,
+  kind: true,
+  startedAt: true,
+  endedAt: true,
+  label: true,
+  startLabel: true,
+  km: true,
+  liters: true,
+  avgConsumption: true,
+  pctEv: true,
+  pctSeries: true,
+  pctParallel: true,
+  pctOther: true,
+} as const;
+
+const DEFAULT_ROUTE_RADIUS_M = 150;
+const MIN_ROUTE_RADIUS_M = 30;
+const MAX_ROUTE_RADIUS_M = 2000;
 
 const TRIPS_PAGE_SIZE = 20;
 
@@ -301,9 +323,13 @@ export async function userRoutes(app: FastifyInstance) {
     const owned = await loadOwnedVehicle(req.authUser!.id, id);
     if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
 
-    const { from, to } = req.query as { from?: string; to?: string };
+    // "kind" opzionale (2026-07-26): aggiunto per il dettaglio di un trip manuale (vedi
+    // jaedrive_todo #15), che vuole le statistiche calcolate SOLO sui trip AUTO caduti nel
+    // suo range di date - lo stesso filtro gia' supportato da GET .../trips.
+    const { from, to, kind } = req.query as { from?: string; to?: string; kind?: string };
     const where = {
       vehicleId: id,
+      ...(kind ? { kind } : {}),
       ...(from || to
         ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
         : {}),
@@ -332,86 +358,7 @@ export async function userRoutes(app: FastifyInstance) {
       },
     });
 
-    // Media pesata per km: un viaggio di 200km pesa piu' di uno di 2km nella % complessiva,
-    // a differenza di una semplice media aritmetica tra viaggi.
-    function weightedPct(field: "pctEv" | "pctSeries" | "pctParallel" | "pctOther" | "pctEco" | "pctNormal" | "pctSport") {
-      let weightedSum = 0;
-      let totalKm = 0;
-      for (const t of trips) {
-        if (t[field] == null || t.km == null) continue;
-        weightedSum += t[field]! * t.km;
-        totalKm += t.km;
-      }
-      return totalKm > 0 ? weightedSum / totalKm : null;
-    }
-
-    const totalKm = trips.reduce((s, t) => s + (t.km ?? 0), 0);
-    const totalLiters = trips.reduce((s, t) => s + (t.liters ?? 0), 0);
-    // Fattore di emissione benzina standard (~2.31 kg CO2/litro) - stima rispetto a un
-    // "tutto benzina" (vedi DESIGN.md §12), non una misura reale delle emissioni del
-    // powertrain ibrido: e' semplicemente i litri effettivamente bruciati * fattore fisso.
-    const co2Kg = totalLiters * 2.31;
-
-    const consumable = trips.filter((t) => t.avgConsumption != null && t.km != null && t.km >= 1);
-    const bestTrip = consumable.length
-      ? consumable.reduce((a, b) => (b.avgConsumption! > a.avgConsumption! ? b : a))
-      : null;
-    const worstTrip = consumable.length
-      ? consumable.reduce((a, b) => (b.avgConsumption! < a.avgConsumption! ? b : a))
-      : null;
-
-    const kindBreakdown: Record<string, { count: number; km: number }> = {};
-    for (const t of trips) {
-      const k = kindBreakdown[t.kind] ?? { count: 0, km: 0 };
-      k.count += 1;
-      k.km += t.km ?? 0;
-      kindBreakdown[t.kind] = k;
-    }
-
-    // Trend consumo: media (non pesata) tra i viaggi dello stesso giorno - una linea al
-    // giorno e' gia' abbastanza densa per l'uso personale di questo veicolo, niente
-    // aggregazione settimanale/mensile per ora (si puo' aggiungere se il range diventa lungo).
-    const trendByDay = new Map<string, { sum: number; count: number }>();
-    for (const t of trips) {
-      if (t.avgConsumption == null) continue;
-      const day = t.startedAt.toISOString().slice(0, 10);
-      const entry = trendByDay.get(day) ?? { sum: 0, count: 0 };
-      entry.sum += t.avgConsumption;
-      entry.count += 1;
-      trendByDay.set(day, entry);
-    }
-    const consumptionTrend = Array.from(trendByDay.entries())
-      .map(([date, { sum, count }]) => ({ date, avgConsumption: sum / count }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    const kmEvTotal = trips.reduce((s, t) => s + (t.kmEv ?? 0), 0);
-    const kmHevTotal = trips.reduce((s, t) => s + (t.kmHev ?? 0), 0);
-    const evHevSampleCount = trips.filter((t) => t.kmEv != null || t.kmHev != null).length;
-
-    return reply.send({
-      totals: { km: totalKm, liters: totalLiters, tripCount: trips.length, co2Kg },
-      energyFlowBreakdown: {
-        pctEv: weightedPct("pctEv"),
-        pctSeries: weightedPct("pctSeries"),
-        pctParallel: weightedPct("pctParallel"),
-        pctOther: weightedPct("pctOther"),
-      },
-      driveModeBreakdown: {
-        pctEco: weightedPct("pctEco"),
-        pctNormal: weightedPct("pctNormal"),
-        pctSport: weightedPct("pctSport"),
-      },
-      // null se nessun trip ha ancora questo dato (feature piu' recente di pctEv/...).
-      evHevKmSplit: evHevSampleCount > 0 ? { kmEv: kmEvTotal, kmHev: kmHevTotal } : null,
-      kindBreakdown,
-      consumptionTrend,
-      bestTrip: bestTrip
-        ? { id: bestTrip.id, label: bestTrip.label, startedAt: bestTrip.startedAt, avgConsumption: bestTrip.avgConsumption, km: bestTrip.km }
-        : null,
-      worstTrip: worstTrip
-        ? { id: worstTrip.id, label: worstTrip.label, startedAt: worstTrip.startedAt, avgConsumption: worstTrip.avgConsumption, km: worstTrip.km }
-        : null,
-    });
+    return reply.send(computeVehicleStats(trips));
   });
 
   // Giorni guidati (per la heatmap calendario) - un anno alla volta, default l'anno corrente.
@@ -466,6 +413,244 @@ export async function userRoutes(app: FastifyInstance) {
           avgConsumption: v.consumptionCount > 0 ? v.consumptionSum / v.consumptionCount : null,
         }))
         .sort((a, b) => a.date.localeCompare(b.date)),
+    });
+  });
+
+  // Ricerca indirizzo per l'editor mappa dei percorsi preimpostati (jaedrive_todo #14,
+  // vedi RouteMapEditor.tsx/AddressSearch.tsx) - proxy verso Nominatim invece di chiamarlo
+  // direttamente dal browser (stesso User-Agent/policy gia' usati per il reverse geocoding
+  // in lib/geocode.ts). Rate-limited perche' l'utente digita interattivamente (una chiamata
+  // per ogni ricerca, debounced lato client, ma comunque piu' frequente di un'azione
+  // esplicita come pairing/claim).
+  app.get(
+    "/geocode/search",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const { q } = req.query as { q?: string };
+      if (!q || q.trim().length < 3) return reply.send([]);
+      const results = await searchAddress(q.trim());
+      return reply.send(results);
+    },
+  );
+
+  // Percorsi preimpostati (jaedrive_todo #14) - vedi PresetRoute in schema.prisma per il
+  // perche' non c'e' una UI di disegno mappa: un percorso si crea scegliendo un trip AUTO
+  // gia' esistente come "modello", le sue coordinate di partenza/arrivo diventano quelle
+  // del percorso. Elenco leggero (nessun conteggio match qui: richiederebbe leggere il
+  // gpxRaw di ogni trip AUTO per ogni percorso, costoso - il conteggio si vede aprendo il
+  // dettaglio del singolo percorso).
+  app.get("/vehicles/:id/routes", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    const routes = await prisma.presetRoute.findMany({
+      where: { vehicleId: id },
+      orderBy: { createdAt: "asc" },
+    });
+    return reply.send(routes);
+  });
+
+  app.post(
+    "/vehicles/:id/routes",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["name"],
+          properties: {
+            name: { type: "string", minLength: 1, maxLength: 80 },
+            // Due modi di specificare partenza/arrivo (jaedrive_todo #14): "sourceTripId"
+            // (scorciatoia da TripDetail.tsx, "Salva come percorso" su un trip gia'
+            // esistente) oppure le quattro coordinate esplicite (dall'editor mappa,
+            // RouteMapEditor.tsx) - validato nell'handler, non nello schema, perche' e' un
+            // OR fra due gruppi di campi che JSON Schema esprimerebbe in modo piu' contorto
+            // di un semplice if.
+            sourceTripId: { type: "string" },
+            startLat: { type: "number", minimum: -90, maximum: 90 },
+            startLon: { type: "number", minimum: -180, maximum: 180 },
+            endLat: { type: "number", minimum: -90, maximum: 90 },
+            endLon: { type: "number", minimum: -180, maximum: 180 },
+            radiusMeters: { type: "number", minimum: MIN_ROUTE_RADIUS_M, maximum: MAX_ROUTE_RADIUS_M },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const owned = await loadOwnedVehicle(req.authUser!.id, id);
+      if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+      const { name, sourceTripId, startLat, startLon, endLat, endLon, radiusMeters } = req.body as {
+        name: string;
+        sourceTripId?: string;
+        startLat?: number;
+        startLon?: number;
+        endLat?: number;
+        endLon?: number;
+        radiusMeters?: number;
+      };
+
+      let start: { lat: number; lon: number };
+      let end: { lat: number; lon: number };
+
+      if (sourceTripId) {
+        const sourceTrip = await prisma.trip.findFirst({ where: { id: sourceTripId, vehicleId: id, kind: "auto" } });
+        if (!sourceTrip) return reply.code(404).send({ error: "Source trip not found" });
+        if (!sourceTrip.gpxRaw) return reply.code(400).send({ error: "Source trip has no GPS track" });
+        const points = firstAndLastPoint(sourceTrip.gpxRaw);
+        if (!points) return reply.code(400).send({ error: "Could not extract start/end points from source trip" });
+        start = points.first;
+        end = points.last;
+      } else if (startLat != null && startLon != null && endLat != null && endLon != null) {
+        start = { lat: startLat, lon: startLon };
+        end = { lat: endLat, lon: endLon };
+      } else {
+        return reply.code(400).send({ error: "Provide either sourceTripId or startLat/startLon/endLat/endLon" });
+      }
+
+      const route = await prisma.presetRoute.create({
+        data: {
+          vehicleId: id,
+          name,
+          startLat: start.lat,
+          startLon: start.lon,
+          endLat: end.lat,
+          endLon: end.lon,
+          radiusMeters: radiusMeters ?? DEFAULT_ROUTE_RADIUS_M,
+        },
+      });
+      return reply.code(201).send(route);
+    },
+  );
+
+  app.patch(
+    "/vehicles/:id/routes/:routeId",
+    {
+      schema: {
+        body: {
+          type: "object",
+          minProperties: 1,
+          properties: {
+            name: { type: "string", minLength: 1, maxLength: 80 },
+            radiusMeters: { type: "number", minimum: MIN_ROUTE_RADIUS_M, maximum: MAX_ROUTE_RADIUS_M },
+            startLat: { type: "number", minimum: -90, maximum: 90 },
+            startLon: { type: "number", minimum: -180, maximum: 180 },
+            endLat: { type: "number", minimum: -90, maximum: 90 },
+            endLon: { type: "number", minimum: -180, maximum: 180 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { id, routeId } = req.params as { id: string; routeId: string };
+      const owned = await loadOwnedVehicle(req.authUser!.id, id);
+      if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+      const existing = await prisma.presetRoute.findFirst({ where: { id: routeId, vehicleId: id } });
+      if (!existing) return reply.code(404).send({ error: "Route not found" });
+
+      const { name, radiusMeters, startLat, startLon, endLat, endLon } = req.body as {
+        name?: string;
+        radiusMeters?: number;
+        startLat?: number;
+        startLon?: number;
+        endLat?: number;
+        endLon?: number;
+      };
+      const route = await prisma.presetRoute.update({
+        where: { id: routeId },
+        data: {
+          ...(name !== undefined ? { name } : {}),
+          ...(radiusMeters !== undefined ? { radiusMeters } : {}),
+          ...(startLat !== undefined ? { startLat } : {}),
+          ...(startLon !== undefined ? { startLon } : {}),
+          ...(endLat !== undefined ? { endLat } : {}),
+          ...(endLon !== undefined ? { endLon } : {}),
+        },
+      });
+      return reply.send(route);
+    },
+  );
+
+  app.delete("/vehicles/:id/routes/:routeId", async (req, reply) => {
+    const { id, routeId } = req.params as { id: string; routeId: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    const existing = await prisma.presetRoute.findFirst({ where: { id: routeId, vehicleId: id } });
+    if (!existing) return reply.code(404).send({ error: "Route not found" });
+
+    await prisma.presetRoute.delete({ where: { id: routeId } });
+    return reply.code(204).send();
+  });
+
+  // Dettaglio percorso: quali trip AUTO lo hanno effettivamente percorso (partenza E arrivo
+  // entro radiusMeters dal percorso, haversine - vedi lib/geo.ts) + le statistiche
+  // aggregate su quel sottoinsieme, riusando la stessa aggregazione di GET .../stats (vedi
+  // lib/stats.ts). Legge il gpxRaw di OGNI trip AUTO del veicolo per calcolare il match
+  // (nessuna coordinata di partenza/arrivo e' salvata separatamente sul trip) - accettabile
+  // alla scala personale di questo progetto (vedi lo stesso trade-off gia' documentato su
+  // GET .../stats), ma e' l'endpoint piu' pesante di questo file: select ridotta al minimo
+  // indispensabile (id/startedAt/gpxRaw) per limitare il danno.
+  app.get("/vehicles/:id/routes/:routeId", async (req, reply) => {
+    const { id, routeId } = req.params as { id: string; routeId: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    const route = await prisma.presetRoute.findFirst({ where: { id: routeId, vehicleId: id } });
+    if (!route) return reply.code(404).send({ error: "Route not found" });
+
+    const candidates = await prisma.trip.findMany({
+      where: { vehicleId: id, kind: "auto", gpxRaw: { not: null } },
+      select: { id: true, gpxRaw: true },
+    });
+
+    const matchedIds = new Set<string>();
+    for (const c of candidates) {
+      const points = firstAndLastPoint(c.gpxRaw!);
+      if (!points) continue;
+      const startOk = haversineMeters(points.first, { lat: route.startLat, lon: route.startLon }) <= route.radiusMeters;
+      const endOk = haversineMeters(points.last, { lat: route.endLat, lon: route.endLon }) <= route.radiusMeters;
+      if (startOk && endOk) matchedIds.add(c.id);
+    }
+
+    const idsArray = Array.from(matchedIds);
+    // Due select separate sugli stessi id: quella "lista" rispecchia TripSummary (leggera,
+    // e' quella che il web mostra come elenco), quella "stats" ha i campi in piu' che
+    // servono solo a computeVehicleStats() (stessa select gia' usata da GET .../stats) - piu'
+    // pulito di allargare ROUTE_TRIP_SELECT con campi che la UI della lista non usa.
+    const [matchedTrips, statsTrips] = idsArray.length
+      ? await Promise.all([
+          prisma.trip.findMany({ where: { id: { in: idsArray } }, orderBy: { startedAt: "desc" }, select: ROUTE_TRIP_SELECT }),
+          prisma.trip.findMany({
+            where: { id: { in: idsArray } },
+            select: {
+              id: true,
+              kind: true,
+              startedAt: true,
+              label: true,
+              km: true,
+              liters: true,
+              avgConsumption: true,
+              pctEv: true,
+              pctSeries: true,
+              pctParallel: true,
+              pctOther: true,
+              pctEco: true,
+              pctNormal: true,
+              pctSport: true,
+              kmEv: true,
+              kmHev: true,
+            },
+          }),
+        ])
+      : [[], []];
+
+    return reply.send({
+      route,
+      trips: matchedTrips,
+      stats: computeVehicleStats(statsTrips),
     });
   });
 }

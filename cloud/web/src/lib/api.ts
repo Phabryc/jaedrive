@@ -1,5 +1,5 @@
 import { auth } from "./firebase";
-import type { Vehicle, TripDetail, TripsPage, VehicleStats, VehicleCalendarStats } from "./types";
+import type { Vehicle, TripDetail, TripsPage, VehicleStats, VehicleCalendarStats, PresetRoute, PresetRouteDetail, AddressResult } from "./types";
 
 class ApiError extends Error {
   constructor(
@@ -74,16 +74,51 @@ export const api = {
 
   deleteTrip: (id: string) => request<void>(`/trips/${id}`, { method: "DELETE" }),
 
-  stats: (vehicleId: string, params: { from?: string; to?: string } = {}) => {
+  stats: (vehicleId: string, params: { from?: string; to?: string; kind?: string } = {}) => {
     const qs = new URLSearchParams();
     if (params.from) qs.set("from", params.from);
     if (params.to) qs.set("to", params.to);
+    if (params.kind) qs.set("kind", params.kind);
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return request<VehicleStats>(`/vehicles/${vehicleId}/stats${suffix}`);
   },
 
   statsCalendar: (vehicleId: string, year?: number) =>
     request<VehicleCalendarStats>(`/vehicles/${vehicleId}/stats/calendar${year ? `?year=${year}` : ""}`),
+
+  // Ricerca indirizzo (editor mappa percorsi, jaedrive_todo #14) - proxy verso Nominatim,
+  // vedi routes/user.ts.
+  geocodeSearch: (q: string) => request<AddressResult[]>(`/geocode/search?q=${encodeURIComponent(q)}`),
+
+  // Percorsi preimpostati (jaedrive_todo #14) - vedi routes/user.ts. Le coordinate sono
+  // opzionali sia in creazione (in alternativa a sourceTripId) sia in modifica (l'editor
+  // mappa puo' riposizionare partenza/arrivo di un percorso gia' esistente).
+  routes: (vehicleId: string) => request<PresetRoute[]>(`/vehicles/${vehicleId}/routes`),
+
+  createRoute: (
+    vehicleId: string,
+    data: {
+      name: string;
+      sourceTripId?: string;
+      startLat?: number;
+      startLon?: number;
+      endLat?: number;
+      endLon?: number;
+      radiusMeters?: number;
+    },
+  ) => request<PresetRoute>(`/vehicles/${vehicleId}/routes`, { method: "POST", body: JSON.stringify(data) }),
+
+  updateRoute: (
+    vehicleId: string,
+    routeId: string,
+    data: { name?: string; radiusMeters?: number; startLat?: number; startLon?: number; endLat?: number; endLon?: number },
+  ) => request<PresetRoute>(`/vehicles/${vehicleId}/routes/${routeId}`, { method: "PATCH", body: JSON.stringify(data) }),
+
+  deleteRoute: (vehicleId: string, routeId: string) =>
+    request<void>(`/vehicles/${vehicleId}/routes/${routeId}`, { method: "DELETE" }),
+
+  routeDetail: (vehicleId: string, routeId: string) =>
+    request<PresetRouteDetail>(`/vehicles/${vehicleId}/routes/${routeId}`),
 
   // Un batch alla volta (vedi routes/user.ts) - "remaining" > 0 vuol dire richiamare
   // ancora per completare tutto lo storico.

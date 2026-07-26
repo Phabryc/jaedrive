@@ -36,6 +36,28 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string |
   }
 }
 
+// Ricerca indirizzo -> coordinate (Nominatim /search), usata dall'editor mappa dei percorsi
+// preimpostati (jaedrive_todo #14, vedi routes/user.ts GET .../geocode/search e
+// RouteMapEditor.tsx) - l'unico altro uso di Nominatim finora era reverseGeocode() sopra
+// (coordinate -> indirizzo), direzione opposta.
+export interface AddressResult {
+  lat: number;
+  lon: number;
+  displayName: string;
+}
+
+export async function searchAddress(query: string): Promise<AddressResult[]> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=0`;
+    const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { lat: string; lon: string; display_name: string }[];
+    return json.map((r) => ({ lat: Number(r.lat), lon: Number(r.lon), displayName: r.display_name }));
+  } catch {
+    return [];
+  }
+}
+
 // Estrae lat/lon del primo e ultimo <trkpt> da un GPX grezzo - una regex invece di un
 // parser XML completo, sufficiente per questo unico scopo (ci serve solo l'attributo di
 // due punti specifici, non l'intero documento).

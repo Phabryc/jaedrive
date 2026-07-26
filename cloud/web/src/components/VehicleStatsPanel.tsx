@@ -30,8 +30,6 @@ export function VehicleStatsPanel({
 
   if (!stats) return <p className="mb-4 text-sm text-onsurface-variant">Caricamento statistiche...</p>;
 
-  const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
-  const hasTrend = consumptionTrend.length >= 2;
   // Un'auto solo ICE non ha mai questi dati popolati (SyncWorker li esclude gia' dal
   // payload) - nascondiamo le sezioni invece di mostrare un donut/KPI vuoti o un
   // fuorviante "dati non ancora disponibili" per qualcosa che non arrivera' mai.
@@ -39,6 +37,23 @@ export function VehicleStatsPanel({
 
   return (
     <div className="mb-6 flex flex-col gap-4">
+      <StatsBody stats={stats} showElectric={showElectric} />
+      <CalendarHeatmap vehicleId={vehicleId} selectedDate={selectedDate} onSelectDate={onSelectDate} />
+    </div>
+  );
+}
+
+// Corpo delle statistiche senza il calendario ne' il fetch - estratto (2026-07-26) perche'
+// serve identico anche per un sottoinsieme di trip (percorso preimpostato, o il range di
+// date di un trip manuale - vedi jaedrive_todo #14/#15), dove un calendario annuale non ha
+// senso (il periodo e' gia' arbitrario/ristretto). Il chiamante fa il fetch e passa lo
+// `stats` gia' pronto.
+export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showElectric: boolean }) {
+  const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
+  const hasTrend = consumptionTrend.length >= 2;
+
+  return (
+    <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi label="Km totali" value={totals.km.toFixed(0)} />
         <Kpi label="Litri totali" value={totals.liters.toFixed(1)} />
@@ -100,9 +115,7 @@ export function VehicleStatsPanel({
           {worstTrip && <TripRefCard label="Peggior viaggio" trip={worstTrip} tone="bad" />}
         </div>
       )}
-
-      <CalendarHeatmap vehicleId={vehicleId} selectedDate={selectedDate} onSelectDate={onSelectDate} />
-    </div>
+    </>
   );
 }
 

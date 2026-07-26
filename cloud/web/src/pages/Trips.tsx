@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { TripsPage, Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
@@ -94,7 +94,14 @@ export default function Trips() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Viaggi</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold">Viaggi</h1>
+          {vehicleId && (
+            <Link to={`/vehicles/${vehicleId}/routes`} className="text-sm text-onsurface-variant hover:text-onsurface hover:underline">
+              Percorsi salvati →
+            </Link>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           {KIND_FILTERS.map((f) => (
             <button

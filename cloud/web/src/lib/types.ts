@@ -65,6 +65,30 @@ export interface VehicleStats {
   worstTrip: TripStatsRef | null;
 }
 
+export interface AddressResult {
+  lat: number;
+  lon: number;
+  displayName: string;
+}
+
+export interface PresetRoute {
+  id: string;
+  vehicleId: string;
+  name: string;
+  startLat: number;
+  startLon: number;
+  endLat: number;
+  endLon: number;
+  radiusMeters: number;
+  createdAt: string;
+}
+
+export interface PresetRouteDetail {
+  route: PresetRoute;
+  trips: TripSummary[];
+  stats: VehicleStats;
+}
+
 export interface VehicleCalendarStats {
   year: number;
   days: {
