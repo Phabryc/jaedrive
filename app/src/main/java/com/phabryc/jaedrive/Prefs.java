@@ -21,6 +21,7 @@ public class Prefs {
     private static final String KEY_VEHICLE_BRAND = "vehicle_brand";
     private static final String KEY_VEHICLE_MODEL = "vehicle_model";
     private static final String KEY_VEHICLE_POWERTRAIN = "vehicle_powertrain";
+    private static final String KEY_SYNCED_VIN = "synced_vin";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -137,5 +138,18 @@ public class Prefs {
             .putString(KEY_VEHICLE_MODEL, model)
             .putString(KEY_VEHICLE_POWERTRAIN, powertrain)
             .apply();
+    }
+
+    // Ultimo VIN inviato con successo al cloud (dal pairing stesso, o da un aggiornamento
+    // successivo - vedi MainActivity.syncVinIfNeeded()) - null per le installazioni/pairing
+    // precedenti a questa feature. Serve solo a evitare PATCH ripetute quando il VIN
+    // risolto (Settings.Global "ivi.sn") e' gia' quello che il cloud ha; NON e' il VIN
+    // stesso, che resta risolto a ogni avvio da tryReadIviSn()/tryReadStandardVin()/VDB.
+    public static String getSyncedVin(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SYNCED_VIN, null);
+    }
+
+    public static void setSyncedVin(Context ctx, String vin) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SYNCED_VIN, vin).apply();
     }
 }

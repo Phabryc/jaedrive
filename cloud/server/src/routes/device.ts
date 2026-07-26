@@ -235,21 +235,25 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.code(204).send();
     });
 
-    // Brand/model/powertrain dall'onboarding obbligatorio Android (vedi VehicleCatalog.java) -
-    // sostituisce il vecchio tentativo di rilevazione automatica via VDB, mai affidabile.
-    // Il device puo' richiamarla di nuovo se l'utente rifa' l'onboarding (nickname resta
-    // gestito solo lato utente/web, non qui - vedi PATCH /api/user/vehicles/:id).
+    // Brand/model/powertrain dall'onboarding obbligatorio Android (vedi VehicleCatalog.java),
+    // e/o il VIN reale - letto via Settings.Global("ivi.sn") su suggerimento dello sviluppatore
+    // DSA, vedi MainActivity.tryReadIviSn()/syncVinIfNeeded(). Aggiornamento parziale: il device
+    // puo' richiamarla con solo uno dei campi (es. solo il VIN, quando corregge automaticamente
+    // un pairing fatto in passato con VIN manuale/identificativo di fallback, senza dover
+    // rispedire marca/modello/motorizzazione). Nickname resta gestito solo lato utente/web, non
+    // qui - vedi PATCH /api/user/vehicles/:id.
     protectedApp.patch(
       "/vehicle",
       {
         schema: {
           body: {
             type: "object",
-            required: ["brand", "model", "powertrain"],
+            minProperties: 1,
             properties: {
               brand: { type: "string", enum: ["JAECOO", "OMODA"] },
               model: { type: "string", minLength: 1, maxLength: 20 },
               powertrain: { type: "string", minLength: 1, maxLength: 20 },
+              vin: { type: "string", minLength: 5, maxLength: 32 },
             },
           },
         },
@@ -257,9 +261,31 @@ export async function deviceRoutes(app: FastifyInstance) {
       async (req, reply) => {
         const device = req.authDevice!;
         if (!device.vehicleId) return reply.code(409).send({ error: "Device is not paired to a vehicle" });
-        const { brand, model, powertrain } = req.body as { brand: string; model: string; powertrain: string };
-        const vehicle = await prisma.vehicle.update({ where: { id: device.vehicleId }, data: { brand, model, powertrain } });
-        return reply.send({ brand: vehicle.brand, model: vehicle.model, powertrain: vehicle.powertrain });
+        const { brand, model, powertrain, vin } = req.body as {
+          brand?: string;
+          model?: string;
+          powertrain?: string;
+          vin?: string;
+        };
+        const data: { brand?: string; model?: string; powertrain?: string; vin?: string } = {};
+        if (brand !== undefined) data.brand = brand;
+        if (model !== undefined) data.model = model;
+        if (powertrain !== undefined) data.powertrain = powertrain;
+        if (vin !== undefined) data.vin = vin.trim().toUpperCase();
+
+        try {
+          const vehicle = await prisma.vehicle.update({ where: { id: device.vehicleId }, data });
+          return reply.send({ brand: vehicle.brand, model: vehicle.model, powertrain: vehicle.powertrain, vin: vehicle.vin });
+        } catch (err: any) {
+          // Collisione VIN (unique) - un'altra auto ha gia' questo VIN, es. due dispositivi
+          // associati per errore allo stesso veicolo con VIN diversi in passato. Non e' un
+          // errore di rete: lo segnaliamo distintamente cosi' l'app puo' loggarlo invece di
+          // ritentare all'infinito come farebbe per un errore generico.
+          if (err?.code === "P2002") {
+            return reply.code(409).send({ error: "VIN already in use by another vehicle" });
+          }
+          throw err;
+        }
       },
     );
   });

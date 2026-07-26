@@ -17,6 +17,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.View;
@@ -357,6 +358,10 @@ public class MainActivity extends AppCompatActivity {
         showSection(0);
         setupImpostazioni();
         setupVehicleSection();
+        // Chiamata il piu' presto possibile (non dipende dal car service, solo da
+        // ContentResolver) cosi' vince la corsa con i segnali VDB/CarPropertyManager sotto:
+        // vedi tryReadIviSn() per il perche' e' considerata la fonte VIN autorevole.
+        tryReadIviSn();
         // Obbligatorio solo se marca/modello/motorizzazione non sono mai stati impostati -
         // vedi Prefs.isVehicleInfoSet()/VehicleCatalog. Non cancellabile in questo caso
         // (nessun bottone CHIUDI, nessun dismiss col tasto indietro).
@@ -594,7 +599,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // VIN usato per il pairing in corso (qualunque fonte: ivi.sn, VDB, manuale, o
+    // identificativo di fallback) - salvato come "gia' sincronizzato" alla riuscita del
+    // pairing (vedi finishPairingSuccess()) cosi' syncVinIfNeeded() non rifa' subito la
+    // stessa PATCH che il pairing stesso ha gia' effettivamente comunicato al server.
+    private String pendingPairingVin;
+
     private void startPairing(View root, String vin) {
+        pendingPairingVin = vin;
         setPairingSection(root, "status");
         TextView tvStatusMessage = root.findViewById(R.id.tv_pairing_status_message);
         tvStatusMessage.setText(getString(R.string.dialog_pairing_starting));
@@ -674,6 +686,7 @@ public class MainActivity extends AppCompatActivity {
     private void finishPairingSuccess(View root, String deviceToken) {
         stopPairingPolling();
         Prefs.setCloudPairing(this, deviceToken, null);
+        if (pendingPairingVin != null) Prefs.setSyncedVin(this, pendingPairingVin);
         refreshCloudSection();
         SyncScheduler.enqueueSync(this); // eventuali trip gia' in attesa partono subito
         // Se l'onboarding marca/modello era gia' stato completato PRIMA di questo pairing,
@@ -2419,6 +2432,51 @@ public class MainActivity extends AppCompatActivity {
     // di sparire silenziosamente. Una volta trovata una stringa plausibile da una fonte, non
     // la sovrascriviamo piu' con dati grezzi/peggiori dall'altra fonte.
     private boolean vinResolved = false;
+
+    // Chiave Settings.Global suggerita dallo sviluppatore DSA (piattaforma head-unit) per
+    // leggere il VIN reale senza passare dal bus VDB - a differenza dei segnali VDB/
+    // CarPropertyManager sopra (mai confermati affidabili, uno dei due restituisce sempre
+    // IS_NULL su questa auto), questa e' l'unica fonte considerata autorevole perche' viene
+    // direttamente da chi ha scritto la piattaforma. Per questo viene letta per prima (vedi
+    // chiamata in onCreate, prima ancora che il car service sia pronto) cosi' vince la
+    // gating "vinResolved" sopra e le altre due non la sovrascrivono mai.
+    private static final String SETTING_IVI_SN = "ivi.sn";
+
+    private void tryReadIviSn() {
+        try {
+            String vin = Settings.Global.getString(getContentResolver(), SETTING_IVI_SN);
+            appendLog("[Settings.Global] " + SETTING_IVI_SN + " = \"" + vin + "\"");
+            if (vin == null || vin.trim().isEmpty()) return;
+            String trimmed = vin.trim();
+            if (!vinResolved) {
+                tvVehicleVin.setText(trimmed);
+                vinResolved = true;
+            }
+            syncVinIfNeeded(trimmed);
+        } catch (Exception e) {
+            appendLog("[Settings.Global] Errore lettura " + SETTING_IVI_SN + ": " + e);
+        }
+    }
+
+    // Corregge sul cloud il VIN di un'auto gia' associata quando il VIN autorevole (ivi.sn)
+    // risulta diverso dall'ultimo inviato - copre sia chi ha associato l'auto inserendo un
+    // VIN a mano prima che questa lettura fosse disponibile, sia chi ha usato l'identificativo
+    // di fallback (Prefs.getOrCreateDeviceGuid()). No-op se l'auto non e' associata (il VIN
+    // verra' comunque usato al prossimo pairing, vedi resetPairingFlow()) o se e' gia'
+    // sincronizzato, per non fare una PATCH ad ogni avvio dell'app.
+    private void syncVinIfNeeded(String vin) {
+        if (!Prefs.isCloudPaired(this) || vin.equals(Prefs.getSyncedVin(this))) return;
+        String token = Prefs.getCloudDeviceToken(this);
+        new Thread(() -> {
+            try {
+                CloudApiClient.updateVehicleVin(token, vin);
+                Prefs.setSyncedVin(this, vin);
+                appendLog("[Cloud] VIN corretto/sincronizzato: " + vin);
+            } catch (Exception e) {
+                appendLog("[Cloud] Errore sincronizzazione VIN: " + e);
+            }
+        }, "JaeDrive-VinSync").start();
+    }
 
     private void renderVin(int[] raw, boolean fromAlt) {
         if (tvVehicleVin == null) return;

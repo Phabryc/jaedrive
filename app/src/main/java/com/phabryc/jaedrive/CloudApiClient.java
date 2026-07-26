@@ -123,6 +123,22 @@ public class CloudApiClient {
         readResponse(conn);
     }
 
+    // Aggiornamento del solo VIN (route condivisa con updateVehicleInfo(), vedi routes/device.ts
+    // PATCH /vehicle - accetta un body parziale) - usato da MainActivity.syncVinIfNeeded() per
+    // correggere sul cloud un'auto associata in passato con VIN manuale o con l'identificativo
+    // di fallback (Prefs.getOrCreateDeviceGuid()), non appena il VIN reale risulta disponibile
+    // via Settings.Global("ivi.sn").
+    public static void updateVehicleVin(String deviceToken, String vin) throws IOException, JSONException {
+        JSONObject body = new JSONObject();
+        body.put("vin", vin);
+        HttpURLConnection conn = open("/api/device/vehicle", "PATCH", deviceToken);
+        conn.setDoOutput(true);
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        readResponse(conn);
+    }
+
     private static void deleteRequest(String path, String bearerToken) throws IOException {
         HttpURLConnection conn = open(path, "DELETE", bearerToken);
         try {
