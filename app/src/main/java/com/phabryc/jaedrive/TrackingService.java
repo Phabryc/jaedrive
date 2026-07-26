@@ -34,6 +34,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -114,6 +115,17 @@ public class TrackingService extends Service {
     private int lastKnownDriveMode = -1;
     private float lastKnownEvMileage = -1f;
     private float lastKnownHevMileage = -1f;
+    // Diagnostica temporanea (2026-07-26) - "km in elettrico" nella dashboard cloud e'
+    // risultato sempre 0 nonostante "km in ibrido" sembri plausibile: stesso identico codice
+    // di decodifica (decodeLastTwoAsInt) per entrambi, quindi se fosse un bug di formula si
+    // manifesterebbe su tutti e due allo stesso modo. Prima di cambiare la formula alla
+    // cieca (come gia' fatto oggi per ID_DISPLAY_MILEAGE, ma li' confermata dal dispatcher
+    // decompilato di SVSetting.apk - qui non c'e' lo stesso riscontro), logghiamo l'array
+    // grezzo e ENTRAMBE le interpretazioni possibili (primi due elementi vs ultimi due) cosi'
+    // un solo giro di log dal campo basta a capire quale e' quella giusta, senza dover
+    // rifare un altro giro di ipotesi-e-verifica.
+    private int[] lastLoggedEvMileageRaw;
+    private int[] lastLoggedHevMileageRaw;
     private int lastKnownRegenLevel = -1;
     private float lastKnownInstConsumption = -1f;
     private float lastKnownSocPct = -1f;
@@ -285,8 +297,20 @@ public class TrackingService extends Service {
                     // contatori-odometro), non confermata indipendentemente sul campo per
                     // questo ID specifico - vedi VDInfoClient.
                     lastKnownEvMileage = VDInfoClient.decodeLastTwoAsInt(value);
+                    if (!Arrays.equals(value, lastLoggedEvMileageRaw)) {
+                        lastLoggedEvMileageRaw = value;
+                        appendServiceLog(String.format(Locale.ITALY,
+                            "[VDB] EV_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
+                            Arrays.toString(value), VDInfoClient.decodeFirstTwoAsInt(value), VDInfoClient.decodeLastTwoAsInt(value)));
+                    }
                 } else if (key == KEY_HEV_MILEAGE) {
                     lastKnownHevMileage = VDInfoClient.decodeLastTwoAsInt(value);
+                    if (!Arrays.equals(value, lastLoggedHevMileageRaw)) {
+                        lastLoggedHevMileageRaw = value;
+                        appendServiceLog(String.format(Locale.ITALY,
+                            "[VDB] HEV_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
+                            Arrays.toString(value), VDInfoClient.decodeFirstTwoAsInt(value), VDInfoClient.decodeLastTwoAsInt(value)));
+                    }
                 } else if (key == KEY_ENERGY_RECYCLE_LEVEL && value.length > 0) {
                     lastKnownRegenLevel = value[0];
                 } else if (key == KEY_INSTANTANEOUS_CONSUMPTION) {
