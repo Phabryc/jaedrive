@@ -126,7 +126,6 @@ export const en: Record<keyof typeof it, string> = {
   "trips.title": "Trips",
   "trips.savedRoutesLink": "Saved routes →",
   "trips.noTrips": "No trips found.",
-  "trips.rangeClear": "Clear date range filter",
   "trips.prevPage": "← Previous",
   "trips.nextPage": "Next →",
   "trips.pageOf": "Page {{page}} of {{total}}",
@@ -173,6 +172,8 @@ export const en: Record<keyof typeof it, string> = {
   "vehicleInfo.editName": "Edit name →",
 
   "stats.loading": "Loading stats...",
+  "stats.rangeActive": "Stats filtered to: {{range}}",
+  "stats.rangeClear": "Clear",
   "stats.totalKm": "Total km",
   "stats.totalLiters": "Total liters",
   "stats.trips": "Trips",

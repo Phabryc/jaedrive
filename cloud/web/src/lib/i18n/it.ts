@@ -139,7 +139,6 @@ export const it = {
   "trips.title": "Viaggi",
   "trips.savedRoutesLink": "Percorsi salvati →",
   "trips.noTrips": "Nessun viaggio trovato.",
-  "trips.rangeClear": "Cancella filtro periodo",
   "trips.prevPage": "← Precedenti",
   "trips.nextPage": "Successivi →",
   "trips.pageOf": "Pagina {{page}} di {{total}}",
@@ -193,6 +192,8 @@ export const it = {
 
   // Statistiche (VehicleStatsPanel/StatsBody, riusate anche da RouteDetail/TripDetail)
   "stats.loading": "Caricamento statistiche...",
+  "stats.rangeActive": "Statistiche filtrate per il periodo: {{range}}",
+  "stats.rangeClear": "Cancella",
   "stats.totalKm": "Km totali",
   "stats.totalLiters": "Litri totali",
   "stats.trips": "Viaggi",

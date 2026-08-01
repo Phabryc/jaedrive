@@ -37,7 +37,7 @@ export function VehicleStatsPanel({
   rangeTo: string | null;
   onRangeChange: (from: string | null, to: string | null) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [stats, setStats] = useState<VehicleStats | null>(null);
   const fromIso = rangeFrom ? `${rangeFrom}T00:00:00.000Z` : undefined;
   const toIso = rangeTo ? `${rangeTo}T23:59:59.999Z` : undefined;
@@ -47,24 +47,60 @@ export function VehicleStatsPanel({
     api.stats(vehicleId, { from: fromIso, to: toIso }).then(setStats);
   }, [vehicleId, fromIso, toIso]);
 
-  if (!stats) return <p className="mb-4 text-sm text-onsurface-variant">{t("stats.loading")}</p>;
-
   // Un'auto solo ICE non ha mai questi dati popolati (SyncWorker li esclude gia' dal
   // payload) - nascondiamo le sezioni invece di mostrare un donut/KPI vuoti o un
   // fuorviante "dati non ancora disponibili" per qualcosa che non arrivera' mai.
   const showElectric = hasElectricData(powertrain);
 
+  function formatDay(iso: string): string {
+    return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
+  }
+  const rangeLabel = !rangeFrom
+    ? null
+    : rangeFrom === rangeTo
+      ? formatDay(rangeFrom)
+      : rangeTo
+        ? `${formatDay(rangeFrom)} → ${formatDay(rangeTo)}`
+        : formatDay(rangeFrom);
+
   return (
-    <div className={`mb-6 ${STATS_GRID_CLASS}`}>
-      <StatsBody stats={stats} showElectric={showElectric} />
-      <CalendarHeatmap
-        className="col-span-12 xl:col-span-4"
-        vehicleId={vehicleId}
-        rangeFrom={rangeFrom}
-        rangeTo={rangeTo}
-        onRangeChange={onRangeChange}
-      />
-    </div>
+    <>
+      {/* Ben visibile in cima, non solo dentro il calendario piu' sotto (che puo' essere
+          collassato, o fuori schermo) - il periodo si applica a TUTto quello che segue,
+          KPI/grafici/donut compresi, non solo alla lista viaggi. */}
+      {rangeLabel && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn bg-warn/10 px-4 py-2 text-sm text-warn">
+          <span>{t("stats.rangeActive", { range: rangeLabel })}</span>
+          <button
+            onClick={() => onRangeChange(null, null)}
+            className="rounded border border-warn px-2 py-0.5 text-xs hover:bg-warn/20"
+          >
+            ✕ {t("stats.rangeClear")}
+          </button>
+        </div>
+      )}
+      <div className={`mb-6 ${STATS_GRID_CLASS}`}>
+        {/* BUG TROVATO 2026-08-01: prima c'era un "return" anticipato qui sopra quando
+            stats===null (durante il refetch dopo ogni cambio di periodo), che smontava
+            l'intero pannello - CalendarHeatmap compreso. Il suo stato locale (modalita'
+            "Periodo", giorno di inizio in attesa del secondo click) veniva perso ad ogni
+            singolo click, cosi' il secondo click non completava mai il periodo. Ora
+            CalendarHeatmap resta sempre montato: solo il posto di StatsBody mostra un
+            placeholder di caricamento mentre i nuovi dati arrivano. */}
+        {stats ? (
+          <StatsBody stats={stats} showElectric={showElectric} />
+        ) : (
+          <p className="col-span-12 text-sm text-onsurface-variant">{t("stats.loading")}</p>
+        )}
+        <CalendarHeatmap
+          className="col-span-12 xl:col-span-4"
+          vehicleId={vehicleId}
+          rangeFrom={rangeFrom}
+          rangeTo={rangeTo}
+          onRangeChange={onRangeChange}
+        />
+      </div>
+    </>
   );
 }
 

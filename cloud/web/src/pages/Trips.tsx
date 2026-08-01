@@ -15,7 +15,7 @@ const KIND_FILTERS: { value: string; labelKey: TranslationKey }[] = [
 ];
 
 export default function Trips() {
-  const { t, locale } = useLanguage();
+  const { t } = useLanguage();
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [data, setData] = useState<TripsPage | null>(null);
   const [page, setPage] = useState(1);
@@ -31,12 +31,6 @@ export default function Trips() {
   const fromIso = rangeFrom ? `${rangeFrom}T00:00:00.000Z` : undefined;
   const toIso = rangeTo ? `${rangeTo}T23:59:59.999Z` : undefined;
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-
-  function clearRange() {
-    setRangeFrom(null);
-    setRangeTo(null);
-    setPage(1);
-  }
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -64,18 +58,6 @@ export default function Trips() {
   }, [vehicleId, page, kind, isSingleDay, fromIso, toIso]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-
-  function formatDayLabel(iso: string): string {
-    return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "short" });
-  }
-
-  const rangeChip = !rangeFrom
-    ? null
-    : isSingleDay
-      ? formatDayLabel(rangeFrom)
-      : rangeTo
-        ? `${formatDayLabel(rangeFrom)} → ${formatDayLabel(rangeTo)}`
-        : formatDayLabel(rangeFrom);
 
   return (
     <AppShell>
@@ -121,16 +103,6 @@ export default function Trips() {
               {t(f.labelKey)}
             </button>
           ))}
-          {rangeChip && (
-            <button
-              onClick={clearRange}
-              className="flex items-center gap-1.5 rounded-md border border-warn px-3 py-1 text-xs text-warn"
-              title={t("trips.rangeClear")}
-            >
-              {rangeChip}
-              <span aria-hidden>✕</span>
-            </button>
-          )}
         </div>
       </div>
 
