@@ -1937,7 +1937,18 @@ public class MainActivity extends AppCompatActivity {
     // che permette di scrivere con java.io.File diretto sulla radice di qualsiasi volume.
     private void saveLogToUsb() {
         String filename = "JaeDrive_log_" + DateFormat.format("yyyyMMdd_HHmmss", System.currentTimeMillis()) + ".txt";
-        exportToUsb(null, filename, logBuffer.toString().getBytes());
+        // BUG trovato 2026-07-26: qui veniva esportato solo logBuffer (eventi dell'Activity),
+        // mai il file persistente di TrackingService (readServiceLog()) - a differenza di
+        // renderLogView() che li combina entrambi per il tab LOG a schermo. Risultato: i
+        // diagnostici [VDB] che girano solo in TrackingService (es. EV_MILEAGE/HEV_MILEAGE
+        // raw, loggati anche ad app in background) non finivano MAI nel file esportato,
+        // anche con un log a schermo pieno di dati. Stessa combinazione usata li'.
+        String combined = logBuffer.toString();
+        String serviceLog = readServiceLog();
+        if (!serviceLog.isEmpty()) {
+            combined += "\n=== LOG TrackingService (background) ===\n" + serviceLog;
+        }
+        exportToUsb(null, filename, combined.getBytes());
     }
 
     // Punto unico di export: usato dal log (radice USB, subDir null) e dalla tab PERCORSI
@@ -2376,7 +2387,15 @@ public class MainActivity extends AppCompatActivity {
     private void handlePropertyChange(CarPropertyValue<?> value) {
         int propId = value.getPropertyId();
         Object val = value.getValue();
-        appendLog("onChange 0x" + Integer.toHexString(propId) + " = " + val + " (" + val.getClass().getSimpleName() + ")");
+        // PERF_VEHICLE_SPEED e' CONTINUOUS (cambia piu' volte al secondo mentre si guida) -
+        // trovato sul campo 2026-07-26: da solo ha riempito 2109 delle 3240 righe di
+        // un'intera sessione di guida nel buffer di log (capped a 150.000 caratteri),
+        // spingendo fuori dal buffer tutto cio' che contava davvero (VIN, permessi,
+        // autonomia) loggato una tantum all'avvio. La conversione m/s->km/h e' gia'
+        // confermata sul campo (vedi sotto), non serve piu' loggarla ad ogni variazione.
+        if (propId != PERF_VEHICLE_SPEED) {
+            appendLog("onChange 0x" + Integer.toHexString(propId) + " = " + val + " (" + val.getClass().getSimpleName() + ")");
+        }
 
         if (propId == GEAR_SELECTION || propId == CURRENT_GEAR) {
             int gear = (val instanceof Integer) ? (Integer) val : -1;
@@ -2498,8 +2517,22 @@ public class MainActivity extends AppCompatActivity {
         if (rangeRaw != null) {
             int range = VDInfoClient.decodeFirstTwoAsInt(rangeRaw);
             tvFooterRange.setText(String.format(Locale.ITALY, "%d km", range));
+            // Diagnostica 2026-07-26: autonomia rimasta a 0 sul campo anche dopo il fix
+            // decodeFirstTwoAsInt() - logga l'array grezzo (solo al cambiamento) cosi' la
+            // prossima esportazione dice se il segnale e' genuinamente 0/IS_NULL su
+            // quest'auto in quello stato, oppure se il dispatcher usa ancora una
+            // convenzione diversa (vedi stesso trattamento per EV/HEV_MILEAGE in
+            // TrackingService).
+            if (!Arrays.equals(rangeRaw, lastLoggedRangeRaw)) {
+                lastLoggedRangeRaw = rangeRaw;
+                appendLog(String.format(Locale.ITALY,
+                    "[VDB] DISPLAY_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
+                    Arrays.toString(rangeRaw), VDInfoClient.decodeFirstTwoAsInt(rangeRaw), VDInfoClient.decodeLastTwoAsInt(rangeRaw)));
+            }
         }
     }
+
+    private int[] lastLoggedRangeRaw;
 
     // Mostra/nasconde SOC batteria, flusso energia e autonomia in base alla motorizzazione
     // scelta in onboarding (vedi VehicleCatalog.EnergyCapability) - un'auto solo ICE non ha
@@ -2684,9 +2717,19 @@ public class MainActivity extends AppCompatActivity {
         }, "JaeDrive-VinSync").start();
     }
 
+    private int[] lastLoggedVinRaw;
+    private int[] lastLoggedVinAltRaw;
+
     private void renderVin(int[] raw, boolean fromAlt) {
         if (tvVehicleVin == null) return;
-        appendLog(String.format("[VDB] VIN%s raw=%s", fromAlt ? " (alt/DOANOSE)" : "", Arrays.toString(raw)));
+        // Dedup sul cambiamento (stesso motivo di handlePropertyChange()/
+        // renderTirePressureWarning(): un valore polled ogni 2s per l'intera sessione
+        // di guida altrimenti riempie da solo il buffer di log da 150.000 caratteri.
+        int[] lastLogged = fromAlt ? lastLoggedVinAltRaw : lastLoggedVinRaw;
+        if (!Arrays.equals(raw, lastLogged)) {
+            if (fromAlt) lastLoggedVinAltRaw = raw; else lastLoggedVinRaw = raw;
+            appendLog(String.format("[VDB] VIN%s raw=%s", fromAlt ? " (alt/DOANOSE)" : "", Arrays.toString(raw)));
+        }
         if (vinResolved) return;
         String decoded = VDInfoClient.decodeAsciiString(raw);
         if (decoded != null && decoded.length() >= 10) {
@@ -2703,15 +2746,30 @@ public class MainActivity extends AppCompatActivity {
     // IVDBus.get() impacchetta quell'intero nell'array VALUE che riceviamo qui (quante
     // posizioni, quale contiene il bitfield) - nessuna UI dedicata finche' non emerge un
     // pattern chiaro dal log di un giro in auto reale, solo log grezzo per ora.
+    private int[] lastLoggedTirePressureWarningRaw;
+
     private void renderTirePressureWarning(int[] raw) {
-        appendLog("[VDB] TIRE_PRESSURE_WARNING raw=" + Arrays.toString(raw));
+        // Dedup sul cambiamento - trovato sul campo 2026-07-26: raw=[0] per l'intera
+        // sessione (nessun avviso in corso) ma loggato comunque a ogni poll da 2s, 1098
+        // righe su 3240 totali in un log di ~1h20 - il vero colpevole (insieme a
+        // PERF_VEHICLE_SPEED, vedi handlePropertyChange()) dello svuotamento del buffer
+        // di log che ha nascosto VIN/permessi/autonomia di quella sessione.
+        if (!Arrays.equals(raw, lastLoggedTirePressureWarningRaw)) {
+            lastLoggedTirePressureWarningRaw = raw;
+            appendLog("[VDB] TIRE_PRESSURE_WARNING raw=" + Arrays.toString(raw));
+        }
     }
 
     // ID_TIRE_PRESSURE: nessun caller trovato in nessuno dei 6 APK decompilati - stessa
     // situazione sperimentale di VIN_ALT/MODEL_CODE/BRAND prima di provarli. Solo log
     // grezzo, per capire dal campo se restituisce IS_NULL o un valore reale.
+    private int[] lastLoggedTirePressureRaw;
+
     private void renderTirePressureRaw(int[] raw) {
-        appendLog("[VDB] TIRE_PRESSURE raw=" + Arrays.toString(raw));
+        if (!Arrays.equals(raw, lastLoggedTirePressureRaw)) {
+            lastLoggedTirePressureRaw = raw;
+            appendLog("[VDB] TIRE_PRESSURE raw=" + Arrays.toString(raw));
+        }
     }
 
     private String driveModeLabel(int v) {
