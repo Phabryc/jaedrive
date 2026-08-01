@@ -3,6 +3,8 @@ package com.phabryc.jaedrive;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.UUID;
+
 // Trip computer manuale: DUE slot indipendenti (Trip A / Trip B), ciascuno accumula km e
 // litri consumati dall'ultimo reset esplicito dell'utente su quello slot specifico
 // (indipendente dall'apertura/chiusura di un viaggio via marcia e indipendente l'uno
@@ -35,6 +37,24 @@ public class ManualTripComputer {
     private static final String KEY_RESET_KM_PREFIX_LEGACY = "manual_reset_km_";
     private static final String KEY_RESET_FUEL_PREFIX_LEGACY = "manual_reset_fuel_";
     private static final double FUEL_RAW_SCALE_LEGACY = 0.1;
+
+    // clientUuid del periodo correntemente aperto per questo slot (dall'ultimo reset ad
+    // ora) - generato alla prima necessita' (vedi getOpenClientUuid(), chiamato sia dagli
+    // aggiornamenti live periodici di TrackingService.pushManualLiveProgress() sia da
+    // reset() qui sotto per finalizzare la STESSA riga cloud invece di crearne una nuova
+    // (upsert per clientUuid, vedi routes/device.ts POST /trips). Rimosso da reset() cosi'
+    // il prossimo periodo ne genera uno nuovo.
+    private static final String KEY_OPEN_UUID_PREFIX = "manual_open_uuid_";
+
+    public static synchronized String getOpenClientUuid(Context ctx, String slot) {
+        SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String key = KEY_OPEN_UUID_PREFIX + slot;
+        String existing = p.getString(key, null);
+        if (existing != null) return existing;
+        String fresh = UUID.randomUUID().toString();
+        p.edit().putString(key, fresh).apply();
+        return fresh;
+    }
 
     public static String defaultLabel(Context ctx, String slot) {
         return ctx.getString(SLOT_A.equals(slot) ? R.string.trip_a_default : R.string.trip_b_default);
@@ -73,6 +93,11 @@ public class ManualTripComputer {
                     TripRecord.TYPE_MANUAL, oldTime, now, 0, 0, kmDelta, 0, 0,
                     litersForRecord, avg, null, null, getLabel(ctx, slot));
                 record.manualSlot = slot;
+                // Stesso clientUuid degli aggiornamenti "in corso" gia' inviati per questo
+                // periodo (se ce n'erano): il server fa upsert per clientUuid, quindi questo
+                // finalizza/aggiorna la riga esistente (ora con endedAt valorizzato) invece
+                // di crearne una seconda - vedi getOpenClientUuid().
+                record.clientUuid = getOpenClientUuid(ctx, slot);
                 TripDatabase.getInstance(ctx).insertTrip(record);
                 SyncScheduler.enqueueSync(ctx);
             } catch (Exception ignored) {
@@ -84,11 +109,14 @@ public class ManualTripComputer {
         // L'etichetta personalizzata (se ce n'era una) torna al nome di default ("Trip
         // A"/"Trip B") - il periodo appena chiuso l'aveva gia' come riferimento
         // nell'archiviazione sopra, un nuovo periodo che inizia non deve ereditarla.
+        // KEY_OPEN_UUID_PREFIX rimossa incondizionatamente (anche se kmDelta era 0): il
+        // periodo che sta per iniziare deve generarne uno tutto suo alla prossima necessita'.
         p.edit()
             .putFloat(kmKey, 0f)
             .putFloat(litersKey, 0f)
             .putLong(KEY_RESET_TIME_PREFIX + slot, now)
             .remove(KEY_LABEL_PREFIX + slot)
+            .remove(KEY_OPEN_UUID_PREFIX + slot)
             .apply();
     }
 

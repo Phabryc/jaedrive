@@ -43,7 +43,7 @@ public class SyncWorker extends Worker {
 
         for (TripRecord r : pending) {
             try {
-                JSONObject payload = buildPayload(r);
+                JSONObject payload = buildPayload(ctx, r);
                 String cloudTripId = CloudApiClient.uploadTrip(token, payload);
                 TripDatabase.getInstance(ctx).markUploaded(r.id, cloudTripId);
             } catch (CloudApiClient.ApiException e) {
@@ -77,11 +77,15 @@ public class SyncWorker extends Worker {
         return Result.success();
     }
 
-    private JSONObject buildPayload(TripRecord r) throws JSONException {
+    // Static + Context esplicito (invece di un metodo d'istanza su getApplicationContext())
+    // perche' serve anche a TrackingService per la spedizione periodica dello stato "in
+    // corso" di un trip manuale non ancora resettato (vedi ManualTripComputer/
+    // TrackingService.pushManualLiveProgress()), non solo al giro di upload di questo Worker.
+    static JSONObject buildPayload(Context ctx, TripRecord r) throws JSONException {
         // Un'auto solo ICE non ha trazione elettrica: i segnali sottostanti restano IS_NULL
         // per sempre su di lei (vedi VehicleCatalog.EnergyCapability), ma per chiarezza non
         // ci affidiamo solo a quello - escludiamo esplicitamente questi campi dal payload.
-        VehicleCatalog.EnergyCapability cap = VehicleCatalog.capabilityFor(Prefs.getVehiclePowertrain(getApplicationContext()));
+        VehicleCatalog.EnergyCapability cap = VehicleCatalog.capabilityFor(Prefs.getVehiclePowertrain(ctx));
         boolean electric = cap != VehicleCatalog.EnergyCapability.ICE; // null (non ancora impostata) -> true, per non perdere dati potenzialmente validi
 
         JSONObject payload = new JSONObject();
@@ -136,7 +140,7 @@ public class SyncWorker extends Worker {
     // traccia GPX - stesso schema di EnergyFlowUtil.computeUploadBreakdown() ma per il drive
     // mode invece del bucket energyFlow. Null se non c'e' nessun campione valido (es. traccia
     // registrata prima che questo campo esistesse).
-    private double[] computeDriveModeBreakdown(List<TripPoint> points) {
+    private static double[] computeDriveModeBreakdown(List<TripPoint> points) {
         int eco = 0, normal = 0, sport = 0, known = 0;
         for (TripPoint p : points) {
             if (p.driveMode < 0) continue;
@@ -154,11 +158,11 @@ public class SyncWorker extends Worker {
     // solo AUTO vs MANUAL - vedi MainActivity.currentTrackFilter). La distinzione A/B resta
     // solo nell'etichetta testuale del trip (rinominabile), non nel "kind" usato per
     // categorizzare/filtrare lato cloud - vedi cloud/DESIGN.md §10.
-    private String kindFor(TripRecord r) {
+    private static String kindFor(TripRecord r) {
         return TripRecord.TYPE_AUTO.equals(r.type) ? "auto" : "manual";
     }
 
-    private String isoUtc(long millis) {
+    private static String isoUtc(long millis) {
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
         fmt.setTimeZone(TimeZone.getTimeZone("UTC"));
         return fmt.format(millis);

@@ -147,6 +147,61 @@ public class TrackingService extends Service {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable stopTripRunnable = this::stopTrip;
 
+    // Aggiornamento periodico sul cloud dello stato "in corso" dei due trip computer
+    // manuali (vedi pushManualLiveProgress()) - cosi' un viaggio lungo tracciato con Trip
+    // A/B e' visibile su jaedrive.com anche PRIMA del reset finale, non solo a chiusura
+    // avvenuta. 5 minuti: abbastanza fine per seguire l'andamento di un viaggio lungo,
+    // senza intasare di richieste un accumulatore che in pratica cresce quasi sempre
+    // (addKm/addLiters valorizzano ENTRAMBI gli slot ad ogni lettura VDB, indipendentemente
+    // da quale l'utente stia effettivamente "usando" in un dato momento).
+    private static final long MANUAL_LIVE_PUSH_INTERVAL_MS = 5 * 60 * 1000L;
+    // Ultimo km accumulato gia' inviato per slot - evita di ripetere un upload identico
+    // (auto ferma/spenta, nessun nuovo km da quando l'abbiamo gia' segnalato) ad ogni tick.
+    private final java.util.Map<String, Double> lastPushedManualKm = new java.util.HashMap<>();
+    private final Runnable manualLivePushRunnable = new Runnable() {
+        @Override
+        public void run() {
+            pushManualLiveProgress(ManualTripComputer.SLOT_A);
+            pushManualLiveProgress(ManualTripComputer.SLOT_B);
+            mainHandler.postDelayed(this, MANUAL_LIVE_PUSH_INTERVAL_MS);
+        }
+    };
+
+    // Spedisce lo stato corrente (non ancora resettato) di uno slot come un trip MANUAL
+    // con endedAt assente - il backend lo rende automaticamente "in corso" nello Storico
+    // web (vedi TripRow.tsx, gia' pronto per un endedAt nullo). Upsert per clientUuid (vedi
+    // ManualTripComputer.getOpenClientUuid()): ogni chiamata aggiorna la STESSA riga finche'
+    // lo slot non viene resettato, non ne crea una nuova ad ogni tick.
+    private void pushManualLiveProgress(String slot) {
+        String token = Prefs.getCloudDeviceToken(this);
+        if (token == null) return; // auto non associata al cloud, niente da fare
+        double kmDelta = ManualTripComputer.getKmDelta(this, slot);
+        if (kmDelta <= 0) return; // periodo appena iniziato, nulla ancora da mostrare
+        Double lastPushed = lastPushedManualKm.get(slot);
+        if (lastPushed != null && lastPushed == kmDelta) return; // nessun progresso dall'ultimo invio
+
+        double litersDelta = ManualTripComputer.getLitersDelta(this, slot);
+        Double litersForPayload = litersDelta > 0 ? litersDelta : null;
+        Double avg = ManualTripComputer.computeAverage(this, slot);
+        TripRecord live = new TripRecord(
+            TripRecord.TYPE_MANUAL, ManualTripComputer.getResetTime(this, slot), 0, 0, 0, kmDelta, 0, 0,
+            litersForPayload, avg, null, null, ManualTripComputer.getLabel(this, slot));
+        live.manualSlot = slot;
+        live.clientUuid = ManualTripComputer.getOpenClientUuid(this, slot);
+
+        new Thread(() -> {
+            try {
+                org.json.JSONObject payload = SyncWorker.buildPayload(TrackingService.this, live);
+                CloudApiClient.uploadTrip(token, payload);
+                lastPushedManualKm.put(slot, kmDelta);
+            } catch (Exception e) {
+                appendServiceLog("Errore invio stato \"in corso\" trip manuale " + slot + ": " + e);
+                // Nessun retry dedicato: il prossimo tick tra 5 minuti riprovera' con lo
+                // stato aggiornato, non e' un dato critico come l'upload finale a reset.
+            }
+        }).start();
+    }
+
     private final LocationListener locationListener = new LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
@@ -259,6 +314,7 @@ public class TrackingService extends Service {
         SyncScheduler.enqueueSync(this);
         connectCar();
         connectVdbInfo();
+        mainHandler.postDelayed(manualLivePushRunnable, MANUAL_LIVE_PUSH_INTERVAL_MS);
     }
 
     // Client VDB dedicato (indipendente da quello di MainActivity) per conoscere in ogni
@@ -411,6 +467,7 @@ public class TrackingService extends Service {
     public void onDestroy() {
         super.onDestroy();
         mainHandler.removeCallbacks(stopTripRunnable);
+        mainHandler.removeCallbacks(manualLivePushRunnable);
         if (tracking) {
             mLocationManager.removeUpdates(locationListener);
         }
