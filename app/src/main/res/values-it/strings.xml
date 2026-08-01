@@ -77,6 +77,9 @@
     <string name="section_dev_title">SVILUPPO</string>
     <string name="label_debug_mode_title">Modalità debug</string>
     <string name="label_debug_mode_subtitle">Se disattivata, non vengono creati/scritti i log (risparmia spazio e risorse)</string>
+    <string name="label_test_refuel_popup_title">Test popup rifornimento</string>
+    <string name="label_test_refuel_popup_subtitle">Fa comparire il popup rifornimento dopo 5s, per provarlo con l\'app in background</string>
+    <string name="btn_test_refuel_popup">TEST</string>
     <string name="section_system_info_title">INFO SISTEMA</string>
     <string name="label_version">Versione</string>
     <string name="label_vehicle">Veicolo</string>

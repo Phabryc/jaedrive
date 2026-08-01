@@ -284,7 +284,7 @@
                                     android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/primary" android:textSize="23sp" android:textStyle="bold"/>
                             </LinearLayout>
                             <TextView android:text="@string/hero_label_mode" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="13sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:id="@+id/sep_footer_soc" android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:id="@+id/row_footer_soc" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
@@ -295,7 +295,7 @@
                                     android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
                             </LinearLayout>
                             <TextView android:text="@string/hero_label_battery" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="13sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
@@ -306,7 +306,7 @@
                                     android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
                             </LinearLayout>
                             <TextView android:text="@string/hero_label_fuel" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="13sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:id="@+id/sep_footer_flow" android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:id="@+id/row_footer_flow" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
@@ -318,7 +318,7 @@
                                     android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="17sp" android:textStyle="bold"/>
                             </LinearLayout>
                             <TextView android:text="@string/hero_label_flow" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="13sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:id="@+id/sep_footer_regen" android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:id="@+id/row_footer_regen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
@@ -329,7 +329,7 @@
                                     android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
                             </LinearLayout>
                             <TextView android:text="@string/hero_label_regen" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="13sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -612,9 +612,6 @@
                             android:textColor="@color/on_secondary_container"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:drawableStart="@drawable/ic_restart"
-                            android:drawablePadding="8dp"
-                            android:drawableTint="@color/on_secondary_container"
                             android:gravity="center"
                             android:text="@string/btn_reset"/>
                     </LinearLayout>
@@ -744,9 +741,6 @@
                             android:textColor="@color/on_secondary_container"
                             android:textSize="20sp"
                             android:textStyle="bold"
-                            android:drawableStart="@drawable/ic_restart"
-                            android:drawablePadding="8dp"
-                            android:drawableTint="@color/on_secondary_container"
                             android:gravity="center"
                             android:text="@string/btn_reset"/>
                     </LinearLayout>
@@ -1148,6 +1142,44 @@
                         android:id="@+id/switch_debug_mode"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
+                </LinearLayout>
+
+                <!-- Trigger di test per il popup rifornimento (richiesta 2026-08-02): l'utente
+                     non ha ancora fatto un pieno reale per provarlo sul campo. Ritardo di 5s
+                     (vedi TrackingService.ACTION_TEST_REFUEL_POPUP) per dare il tempo di mandare
+                     l'app in background dopo la pressione, visto che va provato proprio in
+                     quello stato. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/card_bg"
+                    android:padding="24dp"
+                    android:layout_marginBottom="28dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_test_refuel_popup_title" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_test_refuel_popup_subtitle" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/btn_test_refuel_popup"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/btn_test_refuel_popup"
+                        android:background="@drawable/btn_secondary_bg"
+                        android:textColor="@color/on_secondary_container"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="12dp"
+                        android:clickable="true"
+                        android:focusable="true"/>
                 </LinearLayout>
 
                 <TextView

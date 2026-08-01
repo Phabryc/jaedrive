@@ -489,8 +489,19 @@ public class TrackingService extends Service {
         manualLegacyMigrationDone = true;
     }
 
+    // Trigger di test per il popup rifornimento (pulsante in Impostazioni > Sviluppo,
+    // richiesta 2026-08-02): l'utente non aveva ancora fatto un pieno reale per provare il
+    // popup, quindi serve un modo per simularlo. Ritardo di 5s cosi' si fa in tempo a
+    // premere il pulsante e mandare l'app in background (il popup overlay va provato
+    // proprio in quello stato, non con l'app in primo piano).
+    public static final String ACTION_TEST_REFUEL_POPUP = "com.phabryc.jaedrive.action.TEST_REFUEL_POPUP";
+    private static final long TEST_REFUEL_POPUP_DELAY_MS = 5000L;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_TEST_REFUEL_POPUP.equals(intent.getAction())) {
+            mainHandler.postDelayed(this::showFuelRefillPopup, TEST_REFUEL_POPUP_DELAY_MS);
+        }
         return START_STICKY;
     }
 

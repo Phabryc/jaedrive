@@ -74,6 +74,9 @@
     <string name="section_dev_title">DEVELOPER</string>
     <string name="label_debug_mode_title">Debug mode</string>
     <string name="label_debug_mode_subtitle">If disabled, no logs are created or written (saves space and resources)</string>
+    <string name="label_test_refuel_popup_title">Test refuel popup</string>
+    <string name="label_test_refuel_popup_subtitle">Triggers the refuel popup after 5s, so you can test it with the app in background</string>
+    <string name="btn_test_refuel_popup">TEST</string>
     <string name="section_system_info_title">SYSTEM INFO</string>
     <string name="label_version">Version</string>
     <string name="label_vehicle">Vehicle</string>

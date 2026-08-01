@@ -130,6 +130,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView toggleUnitKm, toggleUnitMi, toggleUnitLiters, toggleUnitGal;
     private TextView toggleLangIt, toggleLangEn;
     private SwitchCompat switchGps, switchDebugMode, switchRegenPopup, switchRefuelPopup;
+    private TextView btnTestRefuelPopup;
     private TextView tvAppVersion;
     private TextView tvVehicleVin;
     private TextView tvVinLabel;
@@ -308,6 +309,7 @@ public class MainActivity extends AppCompatActivity {
         toggleLangEn = findViewById(R.id.toggle_lang_en);
         switchGps = findViewById(R.id.switch_gps);
         switchDebugMode = findViewById(R.id.switch_debug_mode);
+        btnTestRefuelPopup = findViewById(R.id.btn_test_refuel_popup);
         switchRegenPopup = findViewById(R.id.switch_regen_popup);
         switchRefuelPopup = findViewById(R.id.switch_refuel_popup);
         tvAppVersion = findViewById(R.id.tv_app_version);
@@ -1630,6 +1632,13 @@ public class MainActivity extends AppCompatActivity {
         switchRefuelPopup.setOnCheckedChangeListener((btn, checked) -> {
             Prefs.setRefuelPopupEnabled(this, checked);
             appendLog("Popup rifornimento rilevato " + (checked ? "attivato" : "disattivato") + " dalle Impostazioni");
+        });
+
+        btnTestRefuelPopup.setOnClickListener(v -> {
+            Intent testIntent = new Intent(this, TrackingService.class);
+            testIntent.setAction(TrackingService.ACTION_TEST_REFUEL_POPUP);
+            ContextCompat.startForegroundService(this, testIntent);
+            appendLog("Test popup rifornimento avviato dalle Impostazioni (comparira' tra 5s)");
         });
 
         String versionName = "?";
