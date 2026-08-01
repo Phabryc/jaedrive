@@ -39,10 +39,12 @@ export function CalendarHeatmap({
   vehicleId,
   selectedDate,
   onSelectDate,
+  className,
 }: {
   vehicleId: string;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
+  className?: string;
 }) {
   const { t, locale } = useLanguage();
   const today = new Date();
@@ -119,7 +121,7 @@ export function CalendarHeatmap({
   );
 
   return (
-    <Collapsible id="calendarHeatmap" title={t("calendar.title")} headerExtra={monthNav}>
+    <Collapsible className={className} id="calendarHeatmap" title={t("calendar.title")} headerExtra={monthNav}>
       {days === null ? (
         <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
       ) : (

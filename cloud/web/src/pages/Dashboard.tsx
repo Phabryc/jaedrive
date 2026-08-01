@@ -33,7 +33,7 @@ export default function Dashboard() {
 
       {vehicles === null && <p className="text-onsurface-variant">{t("common.loading")}</p>}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {vehicles?.map((v) => {
           const image = vehicleImageFor(v.brand, v.model);
           return (

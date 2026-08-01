@@ -23,11 +23,13 @@ export function Collapsible({
   title,
   headerExtra,
   children,
+  className = "",
 }: {
   id: string;
   title: ReactNode;
   headerExtra?: ReactNode;
   children: ReactNode;
+  className?: string;
 }) {
   const [collapsed, setCollapsed] = useState(() => readStored(id));
 
@@ -41,7 +43,7 @@ export function Collapsible({
   }, [id, collapsed]);
 
   return (
-    <div className="rounded-lg border border-surface-border bg-surface p-4">
+    <div className={`rounded-lg border border-surface-border bg-surface p-4 ${className}`.trim()}>
       <div className={`flex items-center justify-between gap-3 ${collapsed ? "" : "mb-3"}`}>
         <button
           onClick={() => setCollapsed((c) => !c)}

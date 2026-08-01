@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import type { PresetRouteDetail, Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { TripRow } from "../components/TripRow";
-import { StatsBody } from "../components/VehicleStatsPanel";
+import { StatsBody, STATS_GRID_CLASS } from "../components/VehicleStatsPanel";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
@@ -73,7 +73,9 @@ export default function RouteDetail() {
         <p className="text-sm text-onsurface-variant">{t("routeDetail.emptyState")}</p>
       ) : (
         <div className="flex flex-col gap-4">
-          <StatsBody stats={stats} showElectric={hasElectricData(vehicle?.powertrain ?? null)} />
+          <div className={STATS_GRID_CLASS}>
+            <StatsBody stats={stats} showElectric={hasElectricData(vehicle?.powertrain ?? null)} />
+          </div>
           <div className="flex flex-col gap-2">
             {trips.map((trip) => (
               <TripRow key={trip.id} trip={trip} />

@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             screenshot mobile - "My"/"vehicles" e "Log"/"out" andavano a capo a META' parola).
             whitespace-nowrap su ogni voce fa si' che, se anche la nav da sola non ci sta su
             una riga, vada a capo un elemento intero alla volta, mai dentro una singola parola. */}
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/dashboard" className="shrink-0">
             <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
           </Link>
@@ -42,8 +42,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
-      <footer className="mx-auto max-w-5xl px-4 pb-6 text-xs text-onsurface-variant">
+      <main className="mx-auto max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+      <footer className="mx-auto max-w-[1800px] px-4 pb-6 text-xs text-onsurface-variant sm:px-6 lg:px-8">
         <Link to="/legal/eula" className="hover:text-onsurface hover:underline">
           {t("legal.terms")}
         </Link>

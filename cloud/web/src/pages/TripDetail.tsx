@@ -5,7 +5,7 @@ import type { TripDetail as TripDetailType, TripSummary, Vehicle, VehicleStats }
 import { AppShell } from "../components/AppShell";
 import { TripMap } from "../components/TripMap";
 import { TripRow } from "../components/TripRow";
-import { StatsBody } from "../components/VehicleStatsPanel";
+import { StatsBody, STATS_GRID_CLASS } from "../components/VehicleStatsPanel";
 import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { parseGpxPoints, cumulativeDistanceKm } from "../lib/gpx";
 import { BatteryFuelChart, SpeedChart, ElevationChart } from "../components/TripTimelineCharts";
@@ -239,7 +239,9 @@ export default function TripDetail() {
           )}
           {manualRangeStats && manualRangeTrips && manualRangeTrips.length > 0 && (
             <>
-              <StatsBody stats={manualRangeStats} showElectric={hasElectricData(vehicle?.powertrain ?? null)} />
+              <div className={STATS_GRID_CLASS}>
+                <StatsBody stats={manualRangeStats} showElectric={hasElectricData(vehicle?.powertrain ?? null)} />
+              </div>
               <div className="flex flex-col gap-2">
                 {manualRangeTrips.map((rangeTrip) => (
                   <TripRow key={rangeTrip.id} trip={rangeTrip} />

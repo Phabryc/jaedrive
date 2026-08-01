@@ -57,6 +57,10 @@ export default function Settings() {
 
   return (
     <AppShell>
+      {/* Pagina di impostazioni: form/liste corte, non una dashboard - restano leggibili
+          con una larghezza contenuta anche ora che AppShell si e' allargata per le pagine
+          che invece SONO dashboard (Trips.tsx). */}
+      <div className="mx-auto max-w-2xl">
       <h1 className="mb-6 text-xl font-semibold">{t("settings.title")}</h1>
 
       <section className="mb-8 flex items-center gap-4 rounded-lg border border-surface-border bg-surface p-4">
@@ -128,6 +132,7 @@ export default function Settings() {
           {t("settings.deleteAccount")}
         </button>
       </section>
+      </div>
     </AppShell>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import ReactECharts from "echarts-for-react";
 import { api } from "../lib/api";
@@ -7,10 +7,18 @@ import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { baseGridOptions, CHART_SURFACE, CHART_BORDER, CHART_TEXT_MUTED } from "../lib/chartTheme";
 import { CalendarHeatmap } from "./CalendarHeatmap";
 import { Collapsible } from "./Collapsible";
+import { IconRoute, IconFuel, IconFlagCheckered, IconGauge, IconBattery } from "./icons";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
 const DRIVE_MODE_COLOR = { ECO: "#2E7D32", NORMAL: "#00BFFF", SPORT: "#C62828" };
+
+// Griglia condivisa da tutti i punti in cui compaiono i widget statistiche - qui (pagina
+// veicolo, con calendario) e nei due sottoinsiemi senza calendario (percorso preimpostato,
+// range di un trip manuale - vedi RouteDetail.tsx/TripDetail.tsx). "dense" cosi' un widget
+// piccolo dopo uno grande (es. gli ultimi due KPI dopo il grafico trend) risale a riempire
+// lo spazio lasciato libero sulla riga, invece di aprirne sempre una nuova.
+export const STATS_GRID_CLASS = "grid grid-cols-12 items-start gap-4 grid-flow-dense";
 
 export function VehicleStatsPanel({
   vehicleId,
@@ -39,9 +47,14 @@ export function VehicleStatsPanel({
   const showElectric = hasElectricData(powertrain);
 
   return (
-    <div className="mb-6 flex flex-col gap-4">
+    <div className={`mb-6 ${STATS_GRID_CLASS}`}>
       <StatsBody stats={stats} showElectric={showElectric} />
-      <CalendarHeatmap vehicleId={vehicleId} selectedDate={selectedDate} onSelectDate={onSelectDate} />
+      <CalendarHeatmap
+        className="col-span-12 xl:col-span-4"
+        vehicleId={vehicleId}
+        selectedDate={selectedDate}
+        onSelectDate={onSelectDate}
+      />
     </div>
   );
 }
@@ -51,22 +64,32 @@ export function VehicleStatsPanel({
 // date di un trip manuale - vedi jaedrive_todo #14/#15), dove un calendario annuale non ha
 // senso (il periodo e' gia' arbitrario/ristretto). Il chiamante fa il fetch e passa lo
 // `stats` gia' pronto.
+// Ogni elemento e' ora un item DIRETTO della griglia del chiamante (STATS_GRID_CLASS),
+// niente piu' `<div className="grid ...">` annidati: e' quello che permetteva a un donut
+// collassato di restare comunque alto quanto il suo vicino nella stessa riga (un grid item
+// si "stretch"-a di default all'altezza della riga) - vedi Collapsible.tsx (che risolve il
+// caso base con `items-start` sul contenitore) e la nota sopra STATS_GRID_CLASS.
 export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showElectric: boolean }) {
   const { t } = useLanguage();
   const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
   const hasTrend = consumptionTrend.length >= 2;
+  const kpiSpan = "col-span-6 sm:col-span-3 xl:col-span-2";
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Kpi label={t("stats.totalKm")} value={totals.km.toFixed(0)} />
-        <Kpi label={t("stats.totalLiters")} value={totals.liters.toFixed(1)} />
-        <Kpi label={t("stats.trips")} value={String(totals.tripCount)} />
-        <Kpi label={t("stats.co2")} value={`${totals.co2Kg.toFixed(0)} kg`} />
-      </div>
+      <Kpi className={kpiSpan} icon={<IconRoute size={18} />} label={t("stats.totalKm")} value={totals.km.toFixed(0)} />
+      <Kpi className={kpiSpan} icon={<IconFuel size={18} />} label={t("stats.totalLiters")} value={totals.liters.toFixed(1)} />
+      <Kpi className={kpiSpan} icon={<IconFlagCheckered size={18} />} label={t("stats.trips")} value={String(totals.tripCount)} />
+      <Kpi className={kpiSpan} label={t("stats.co2")} value={`${totals.co2Kg.toFixed(0)} kg`} />
+      {showElectric && evHevKmSplit && (
+        <>
+          <Kpi className={kpiSpan} icon={<IconBattery size={18} />} label={t("stats.kmElectric")} value={evHevKmSplit.kmEv.toFixed(0)} />
+          <Kpi className={kpiSpan} icon={<IconGauge size={18} />} label={t("stats.kmHybrid")} value={evHevKmSplit.kmHev.toFixed(0)} />
+        </>
+      )}
 
       {hasTrend && (
-        <Collapsible id="consumptionTrend" title={t("stats.consumptionTrend")}>
+        <Collapsible className="col-span-12 xl:col-span-8" id="consumptionTrend" title={t("stats.consumptionTrend")}>
           <ReactECharts
             option={{
               ...baseGridOptions,
@@ -89,48 +112,54 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
         </Collapsible>
       )}
 
-      <div className={`grid gap-4 ${showElectric ? "sm:grid-cols-2" : ""}`}>
-        {showElectric && (
-          <Donut
-            id="energyBreakdown"
-            title={t("stats.energyBreakdown")}
-            noDataLabel={t("stats.noDataYet")}
-            values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
-            colorMap={BUCKET_COLOR}
-            labelMap={BUCKET_LABEL}
-          />
-        )}
+      {showElectric && (
         <Donut
-          id="driveModeBreakdown"
-          title={t("stats.driveModeBreakdown")}
+          className="col-span-12 sm:col-span-6"
+          id="energyBreakdown"
+          title={t("stats.energyBreakdown")}
           noDataLabel={t("stats.noDataYet")}
-          values={{ ECO: driveModeBreakdown.pctEco, NORMAL: driveModeBreakdown.pctNormal, SPORT: driveModeBreakdown.pctSport }}
-          colorMap={DRIVE_MODE_COLOR}
+          values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
+          colorMap={BUCKET_COLOR}
+          labelMap={BUCKET_LABEL}
         />
-      </div>
-
-      {showElectric && evHevKmSplit && (
-        <div className="grid grid-cols-2 gap-3">
-          <Kpi label={t("stats.kmElectric")} value={evHevKmSplit.kmEv.toFixed(0)} />
-          <Kpi label={t("stats.kmHybrid")} value={evHevKmSplit.kmHev.toFixed(0)} />
-        </div>
       )}
+      <Donut
+        className="col-span-12 sm:col-span-6"
+        id="driveModeBreakdown"
+        title={t("stats.driveModeBreakdown")}
+        noDataLabel={t("stats.noDataYet")}
+        values={{ ECO: driveModeBreakdown.pctEco, NORMAL: driveModeBreakdown.pctNormal, SPORT: driveModeBreakdown.pctSport }}
+        colorMap={DRIVE_MODE_COLOR}
+      />
 
-      {(bestTrip || worstTrip) && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {bestTrip && <TripRefCard label={t("stats.bestTrip")} trip={bestTrip} tone="good" />}
-          {worstTrip && <TripRefCard label={t("stats.worstTrip")} trip={worstTrip} tone="bad" />}
-        </div>
-      )}
+      {bestTrip && <TripRefCard className="col-span-12 sm:col-span-6" label={t("stats.bestTrip")} trip={bestTrip} tone="good" />}
+      {worstTrip && <TripRefCard className="col-span-12 sm:col-span-6" label={t("stats.worstTrip")} trip={worstTrip} tone="bad" />}
     </>
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
+function Kpi({
+  label,
+  value,
+  icon,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  icon?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="rounded-lg border border-surface-border bg-surface p-4 text-center">
-      <p className="text-lg font-semibold tabular-nums">{value}</p>
-      <p className="text-xs text-onsurface-variant">{label}</p>
+    <div className={`flex items-center gap-3 rounded-lg border border-surface-border bg-surface p-4 ${className}`.trim()}>
+      {icon && (
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent">
+          {icon}
+        </div>
+      )}
+      <div className="min-w-0">
+        <p className="truncate text-lg font-semibold tabular-nums">{value}</p>
+        <p className="truncate text-xs text-onsurface-variant">{label}</p>
+      </div>
     </div>
   );
 }
@@ -142,6 +171,7 @@ function Donut({
   values,
   colorMap,
   labelMap,
+  className = "",
 }: {
   id: string;
   title: string;
@@ -149,11 +179,12 @@ function Donut({
   values: Record<string, number | null>;
   colorMap: Record<string, string>;
   labelMap?: Record<string, string>;
+  className?: string;
 }) {
   const entries = Object.entries(values).filter(([, v]) => v != null && v > 0) as [string, number][];
   if (entries.length === 0) {
     return (
-      <div className="rounded-lg border border-surface-border bg-surface p-4">
+      <div className={`rounded-lg border border-surface-border bg-surface p-4 ${className}`.trim()}>
         <p className="mb-1 text-sm font-medium">{title}</p>
         <p className="text-sm text-onsurface-variant">{noDataLabel}</p>
       </div>
@@ -161,7 +192,7 @@ function Donut({
   }
 
   return (
-    <Collapsible id={id} title={title}>
+    <Collapsible className={className} id={id} title={title}>
       <ReactECharts
         option={{
           backgroundColor: "transparent",
@@ -200,10 +231,12 @@ function TripRefCard({
   label,
   trip,
   tone,
+  className = "",
 }: {
   label: string;
   trip: { id: string; label: string | null; startedAt: string; avgConsumption: number | null; km: number | null; liters: number | null };
   tone: "good" | "bad";
+  className?: string;
 }) {
   const { t, locale } = useLanguage();
   const border = tone === "good" ? "border-good hover:bg-good/10" : "border-bad hover:bg-bad/10";
@@ -217,7 +250,7 @@ function TripRefCard({
       ? t("stats.allElectric")
       : "—";
   return (
-    <Link to={`/trips/${trip.id}`} className={`rounded-lg border ${border} bg-surface p-4 transition`}>
+    <Link to={`/trips/${trip.id}`} className={`rounded-lg border ${border} bg-surface p-4 transition ${className}`.trim()}>
       <p className="text-xs text-onsurface-variant">{label}</p>
       <p className="mt-1 font-medium">{trip.label ?? new Date(trip.startedAt).toLocaleDateString(locale)}</p>
       <p className="mt-1 text-sm tabular-nums text-onsurface-variant">
