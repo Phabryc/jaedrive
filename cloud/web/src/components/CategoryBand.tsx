@@ -1,4 +1,5 @@
 import { computeRunSegments } from "../lib/segments";
+import type { DistanceUnit } from "../lib/units";
 
 // Striscia categorica lungo la distanza del viaggio (drive mode) - stesso principio gia'
 // stabilito per la traccia sulla mappa (parseGpxTrack/TripMap): segmenti a taglio netto
@@ -8,30 +9,34 @@ import { computeRunSegments } from "../lib/segments";
 
 export interface CategoryBandProps<T extends string> {
   title: string;
-  distancesKm: number[];
+  // Gia' convertite nell'unita' scelta dal chiamante (vedi TripDetail.tsx) - le proporzioni
+  // (span/total) restano corrette qualunque sia l'unita', e' solo il tooltip che ha bisogno
+  // di sapere quale unita' scrivere.
+  distances: number[];
+  unit: DistanceUnit;
   values: (T | null)[];
   colorMap: Record<T, string>;
   labelMap: Record<T, string>;
 }
 
-export function CategoryBand<T extends string>({ title, distancesKm, values, colorMap, labelMap }: CategoryBandProps<T>) {
-  const totalKm = distancesKm[distancesKm.length - 1] ?? 0;
-  const segments = computeRunSegments(distancesKm, values);
+export function CategoryBand<T extends string>({ title, distances, unit, values, colorMap, labelMap }: CategoryBandProps<T>) {
+  const total = distances[distances.length - 1] ?? 0;
+  const segments = computeRunSegments(distances, values);
   const present = Array.from(new Set(segments.map((s) => s.value)));
 
-  if (segments.length === 0 || totalKm <= 0) return null;
+  if (segments.length === 0 || total <= 0) return null;
 
   return (
     <div className="rounded-lg border border-surface-border bg-surface p-4">
       <p className="mb-3 text-sm font-medium">{title}</p>
       <div className="flex h-4 overflow-hidden rounded-full">
         {segments.map((s, i) => {
-          const span = Math.max(s.toKm - s.fromKm, totalKm * 0.002); // segmento minimo visibile
+          const span = Math.max(s.to - s.from, total * 0.002); // segmento minimo visibile
           return (
             <div
               key={i}
-              title={`${labelMap[s.value]} · ${s.fromKm.toFixed(1)}–${s.toKm.toFixed(1)} km`}
-              style={{ width: `${(span / totalKm) * 100}%`, backgroundColor: colorMap[s.value] }}
+              title={`${labelMap[s.value]} · ${s.from.toFixed(1)}–${s.to.toFixed(1)} ${unit}`}
+              style={{ width: `${(span / total) * 100}%`, backgroundColor: colorMap[s.value] }}
             />
           );
         })}

@@ -10,6 +10,8 @@ import { Collapsible } from "./Collapsible";
 import { IconRoute, IconFuel, IconFlagCheckered, IconGauge, IconBattery } from "./icons";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useLanguage } from "../lib/i18n/LanguageContext";
+import { useUnits } from "../lib/UnitsContext";
+import { formatDistance, toDisplayDistance, toDisplayConsumption, consumptionUnitLabel, formatConsumptionOrElectric } from "../lib/units";
 
 const DRIVE_MODE_COLOR = { ECO: "#2E7D32", NORMAL: "#00BFFF", SPORT: "#C62828" };
 
@@ -116,20 +118,21 @@ export function VehicleStatsPanel({
 // caso base con `items-start` sul contenitore) e la nota sopra STATS_GRID_CLASS.
 export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showElectric: boolean }) {
   const { t } = useLanguage();
+  const { distanceUnit, consumptionFormat } = useUnits();
   const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
   const hasTrend = consumptionTrend.length >= 2;
   const kpiSpan = "col-span-6 sm:col-span-3 xl:col-span-2";
 
   return (
     <>
-      <Kpi className={kpiSpan} icon={<IconRoute size={18} />} label={t("stats.totalKm")} value={totals.km.toFixed(0)} />
+      <Kpi className={kpiSpan} icon={<IconRoute size={18} />} label={t("stats.totalKm")} value={toDisplayDistance(totals.km, distanceUnit).toFixed(0)} />
       <Kpi className={kpiSpan} icon={<IconFuel size={18} />} label={t("stats.totalLiters")} value={totals.liters.toFixed(1)} />
       <Kpi className={kpiSpan} icon={<IconFlagCheckered size={18} />} label={t("stats.trips")} value={String(totals.tripCount)} />
       <Kpi className={kpiSpan} label={t("stats.co2")} value={`${totals.co2Kg.toFixed(0)} kg`} />
       {showElectric && evHevKmSplit && (
         <>
-          <Kpi className={kpiSpan} icon={<IconBattery size={18} />} label={t("stats.kmElectric")} value={evHevKmSplit.kmEv.toFixed(0)} />
-          <Kpi className={kpiSpan} icon={<IconGauge size={18} />} label={t("stats.kmHybrid")} value={evHevKmSplit.kmHev.toFixed(0)} />
+          <Kpi className={kpiSpan} icon={<IconBattery size={18} />} label={t("stats.kmElectric")} value={toDisplayDistance(evHevKmSplit.kmEv, distanceUnit).toFixed(0)} />
+          <Kpi className={kpiSpan} icon={<IconGauge size={18} />} label={t("stats.kmHybrid")} value={toDisplayDistance(evHevKmSplit.kmHev, distanceUnit).toFixed(0)} />
         </>
       )}
 
@@ -139,7 +142,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
             option={{
               ...baseGridOptions,
               xAxis: { type: "category" as const, data: consumptionTrend.map((p) => p.date), axisLine: { lineStyle: { color: CHART_BORDER } }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 10 } },
-              yAxis: { type: "value" as const, name: "km/l", axisLine: { show: false }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 11 }, splitLine: { lineStyle: { color: CHART_BORDER } } },
+              yAxis: { type: "value" as const, name: consumptionUnitLabel(distanceUnit, consumptionFormat), axisLine: { show: false }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 11 }, splitLine: { lineStyle: { color: CHART_BORDER } } },
               series: [
                 {
                   type: "line",
@@ -147,7 +150,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
                   lineStyle: { width: 2, color: "#00BFFF" },
                   itemStyle: { color: "#00BFFF" },
                   areaStyle: { color: "#00BFFF", opacity: 0.1 },
-                  data: consumptionTrend.map((p) => p.avgConsumption),
+                  data: consumptionTrend.map((p) => toDisplayConsumption(p.avgConsumption, distanceUnit, consumptionFormat)),
                 },
               ],
             }}
@@ -284,22 +287,22 @@ function TripRefCard({
   className?: string;
 }) {
   const { t, locale } = useLanguage();
+  const { distanceUnit, consumptionFormat } = useUnits();
   const border = tone === "good" ? "border-good hover:bg-good/10" : "border-bad hover:bg-bad/10";
   // avgConsumption null + liters===0 e' un viaggio con km reali ma zero carburante
   // consumato (tratto elettrico su un ibrido) - il caso migliore possibile, non un dato
-  // mancante: km/l non e' rappresentabile (sarebbe infinito), quindi mostriamo un'etichetta
-  // dedicata invece di "undefined km/l".
-  const consumptionLabel = trip.avgConsumption != null
-    ? `${trip.avgConsumption.toFixed(1)} km/l`
-    : trip.liters === 0
-      ? t("stats.allElectric")
-      : "—";
+  // mancante: in formato "ratio" (km/l o mpg) non e' rappresentabile (sarebbe infinito),
+  // quindi mostriamo un'etichetta dedicata invece di "undefined km/l" - vedi
+  // formatConsumptionOrElectric (in formato "l100" invece E' rappresentabile, 0.0).
+  const consumptionLabel = formatConsumptionOrElectric(
+    trip.avgConsumption, trip.liters, distanceUnit, consumptionFormat, t("stats.allElectric"),
+  );
   return (
     <Link to={`/trips/${trip.id}`} className={`rounded-lg border ${border} bg-surface p-4 transition ${className}`.trim()}>
       <p className="text-xs text-onsurface-variant">{label}</p>
       <p className="mt-1 font-medium">{trip.label ?? new Date(trip.startedAt).toLocaleDateString(locale)}</p>
       <p className="mt-1 text-sm tabular-nums text-onsurface-variant">
-        {consumptionLabel} · {trip.km?.toFixed(1)} km
+        {consumptionLabel} · {trip.km != null ? formatDistance(trip.km, distanceUnit) : "–"}
       </p>
     </Link>
   );

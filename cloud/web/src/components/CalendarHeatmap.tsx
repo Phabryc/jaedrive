@@ -3,6 +3,8 @@ import { api } from "../lib/api";
 import { IconRoute, IconGauge, IconFuel, IconClock } from "./icons";
 import { Collapsible } from "./Collapsible";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
+import { useUnits } from "../lib/UnitsContext";
+import { formatDistance, formatConsumption, toDisplayConsumption } from "../lib/units";
 
 const MONTH_KEYS: TranslationKey[] = [
   "calendar.month0", "calendar.month1", "calendar.month2", "calendar.month3",
@@ -58,6 +60,7 @@ export function CalendarHeatmap({
   className?: string;
 }) {
   const { t, locale } = useLanguage();
+  const { distanceUnit, consumptionFormat } = useUnits();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth()); // 0-11
@@ -239,8 +242,8 @@ export function CalendarHeatmap({
                 ? "1px solid rgba(251,140,0,0.6)"
                 : "1px solid rgba(255,255,255,0.06)";
             const title = stat
-              ? `${stat.km.toFixed(1)} km · ${stat.tripCount} ${t(stat.tripCount === 1 ? "calendar.tripSingular" : "calendar.tripPlural")}${
-                  stat.avgConsumption != null ? ` · ${stat.avgConsumption.toFixed(1)} km/l` : ""
+              ? `${formatDistance(stat.km, distanceUnit)} · ${stat.tripCount} ${t(stat.tripCount === 1 ? "calendar.tripSingular" : "calendar.tripPlural")}${
+                  stat.avgConsumption != null ? ` · ${formatConsumption(stat.avgConsumption, distanceUnit, consumptionFormat)}` : ""
                 }`
               : t("calendar.noTrips");
             return (
@@ -258,7 +261,7 @@ export function CalendarHeatmap({
                 <span className="text-[10px] leading-none text-onsurface-variant">{dayNum}</span>
                 {stat?.avgConsumption != null && (
                   <span className="text-[11px] font-semibold leading-none tabular-nums text-onsurface">
-                    {stat.avgConsumption.toFixed(1)}
+                    {toDisplayConsumption(stat.avgConsumption, distanceUnit, consumptionFormat).toFixed(1)}
                   </span>
                 )}
               </button>
@@ -274,11 +277,11 @@ export function CalendarHeatmap({
             <p className="text-center text-sm text-onsurface-variant">{t("calendar.noTripsThisDay")}</p>
           ) : (
             <div className="flex items-stretch rounded-lg border border-surface-border bg-bg/40 p-3">
-              <DayStatBlock icon={<IconRoute size={18} />} value={`${selectedStat.km.toFixed(1)} km`} label={t("calendar.statDistance")} />
+              <DayStatBlock icon={<IconRoute size={18} />} value={formatDistance(selectedStat.km, distanceUnit)} label={t("calendar.statDistance")} />
               <Divider />
               <DayStatBlock
                 icon={<IconGauge size={18} />}
-                value={selectedStat.avgConsumption != null ? `${selectedStat.avgConsumption.toFixed(1)} km/l` : "–"}
+                value={selectedStat.avgConsumption != null ? formatConsumption(selectedStat.avgConsumption, distanceUnit, consumptionFormat) : "–"}
                 label={t("calendar.statConsumption")}
               />
               <Divider />
@@ -299,11 +302,11 @@ export function CalendarHeatmap({
             <p className="text-center text-sm text-onsurface-variant">{t("calendar.noTripsThisDay")}</p>
           ) : (
             <div className="flex items-stretch rounded-lg border border-surface-border bg-bg/40 p-3">
-              <DayStatBlock icon={<IconRoute size={18} />} value={`${rangeAgg.km.toFixed(1)} km`} label={t("calendar.statDistance")} />
+              <DayStatBlock icon={<IconRoute size={18} />} value={formatDistance(rangeAgg.km, distanceUnit)} label={t("calendar.statDistance")} />
               <Divider />
               <DayStatBlock
                 icon={<IconGauge size={18} />}
-                value={rangeAvg != null ? `${rangeAvg.toFixed(1)} km/l` : "–"}
+                value={rangeAvg != null ? formatConsumption(rangeAvg, distanceUnit, consumptionFormat) : "–"}
                 label={t("calendar.statConsumption")}
               />
               <Divider />

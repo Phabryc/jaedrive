@@ -6,6 +6,7 @@ import { api, ApiError } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { DistanceUnitSwitcher, ConsumptionFormatSwitcher } from "../components/UnitsSwitcher";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useProfile } from "../lib/ProfileContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
@@ -131,6 +132,17 @@ export default function Settings() {
       <section className="mb-8 flex items-center justify-between rounded-lg border border-surface-border bg-surface p-4">
         <p className="text-sm font-medium">{t("settings.language")}</p>
         <LanguageSwitcher />
+      </section>
+
+      <section className="mb-8 flex flex-col gap-3 rounded-lg border border-surface-border bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">{t("settings.unitsDistance")}</p>
+          <DistanceUnitSwitcher />
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">{t("settings.unitsConsumption")}</p>
+          <ConsumptionFormatSwitcher />
+        </div>
       </section>
 
       <section className="mb-8">

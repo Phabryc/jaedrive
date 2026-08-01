@@ -2,6 +2,7 @@ import ReactECharts from "echarts-for-react";
 import type { GpxPoint } from "../lib/gpx";
 import { baseGridOptions, yAxisMuted, CHART_TEXT_MUTED } from "../lib/chartTheme";
 import { useLanguage } from "../lib/i18n/LanguageContext";
+import type { DistanceUnit } from "../lib/units";
 
 // Consumo istantaneo e livello di rigenerazione: segnali VDB reali ma con scala/unita' NON
 // confermate sul campo (vedi VDInfoClient.java, Android) - mostrati qui come valori grezzi,
@@ -9,7 +10,7 @@ import { useLanguage } from "../lib/i18n/LanguageContext";
 // per non lasciar intendere una precisione/unita' che non e' stata verificata. Coerente con
 // la regola del progetto di non nascondere dati diagnostici ma di non inventarne il
 // significato - stesso spirito della vecchia card "VDB CAR_INFO (sperimentale)" in app.
-export function ExperimentalTripCharts({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+export function ExperimentalTripCharts({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
   const { t } = useLanguage();
   const hasConsumption = points.some((p) => p.instConsumption != null);
   const hasRegen = points.some((p) => p.regenLevel != null);
@@ -18,6 +19,7 @@ export function ExperimentalTripCharts({ points, distancesKm }: { points: GpxPoi
   const mkOption = (data: (number | null)[]) => ({
     ...baseGridOptions,
     grid: { ...baseGridOptions.grid, top: 8 },
+    xAxis: { ...baseGridOptions.xAxis, name: unit },
     yAxis: { ...yAxisMuted, name: "" },
     series: [
       {
@@ -25,7 +27,7 @@ export function ExperimentalTripCharts({ points, distancesKm }: { points: GpxPoi
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_TEXT_MUTED },
         itemStyle: { color: CHART_TEXT_MUTED },
-        data: distancesKm.map((km, i) => [km, data[i]]),
+        data: distances.map((d, i) => [d, data[i]]),
       },
     ],
   });

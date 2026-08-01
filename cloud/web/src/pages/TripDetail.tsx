@@ -15,6 +15,8 @@ import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
 import { IconLocationPin, IconFlagCheckered } from "../components/icons";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
+import { useUnits } from "../lib/UnitsContext";
+import { formatDistance, formatConsumption, toDisplayDistance } from "../lib/units";
 
 const KIND_LABEL_KEY: Record<TripDetailType["kind"], TranslationKey> = {
   auto: "trip.kindAuto",
@@ -23,6 +25,7 @@ const KIND_LABEL_KEY: Record<TripDetailType["kind"], TranslationKey> = {
 
 export default function TripDetail() {
   const { t, locale } = useLanguage();
+  const { distanceUnit, consumptionFormat } = useUnits();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [trip, setTrip] = useState<TripDetailType | null>(null);
@@ -72,6 +75,10 @@ export default function TripDetail() {
   // il trip non e' ancora caricato o non ha una traccia GPX (es. viaggio manuale).
   const points = useMemo(() => (trip?.gpxRaw ? parseGpxPoints(trip.gpxRaw) : []), [trip?.gpxRaw]);
   const distancesKm = useMemo(() => cumulativeDistanceKm(points), [points]);
+  // Convertita una sola volta qui (unico punto che conosce l'unita' scelta) e passata gia'
+  // pronta a tutti i grafici sotto: le loro proporzioni/segmenti restano corretti qualunque
+  // sia l'unita' (scala lineare), serve solo per gli assi/tooltip - vedi CategoryBand.tsx.
+  const distances = useMemo(() => distancesKm.map((km) => toDisplayDistance(km, distanceUnit)), [distancesKm, distanceUnit]);
 
   async function handleDelete() {
     if (!trip || !confirm(t("tripDetail.deleteConfirm"))) return;
@@ -194,9 +201,12 @@ export default function TripDetail() {
       {trip.gpxRaw && <TripMap gpxRaw={trip.gpxRaw} />}
 
       <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-3">
-        <Stat label={t("trip.kmTraveled")} value={trip.km != null ? trip.km.toFixed(1) : "–"} />
+        <Stat label={t("trip.kmTraveled")} value={trip.km != null ? formatDistance(trip.km, distanceUnit) : "–"} />
         <Stat label={t("trip.liters")} value={trip.liters != null ? trip.liters.toFixed(2) : "–"} />
-        <Stat label={t("trip.avgConsumption")} value={trip.avgConsumption != null ? `${trip.avgConsumption.toFixed(1)} km/l` : "–"} />
+        <Stat
+          label={t("trip.avgConsumption")}
+          value={trip.avgConsumption != null ? formatConsumption(trip.avgConsumption, distanceUnit, consumptionFormat) : "–"}
+        />
       </div>
 
       {hasBreakdown && (
@@ -218,15 +228,16 @@ export default function TripDetail() {
         <div className="mt-4 flex flex-col gap-4">
           <CategoryBand
             title={t("tripDetail.driveModeTitle")}
-            distancesKm={distancesKm}
+            distances={distances}
+            unit={distanceUnit}
             values={points.map((p) => (p.driveMode != null ? (String(p.driveMode) as "0" | "1" | "2") : null))}
             colorMap={DRIVE_MODE_COLOR}
             labelMap={DRIVE_MODE_LABEL}
           />
-          <BatteryFuelChart points={points} distancesKm={distancesKm} />
-          <SpeedChart points={points} distancesKm={distancesKm} />
-          <ElevationChart points={points} distancesKm={distancesKm} />
-          <ExperimentalTripCharts points={points} distancesKm={distancesKm} />
+          <BatteryFuelChart points={points} distances={distances} unit={distanceUnit} />
+          <SpeedChart points={points} distances={distances} unit={distanceUnit} />
+          <ElevationChart points={points} distances={distances} unit={distanceUnit} />
+          <ExperimentalTripCharts points={points} distances={distances} unit={distanceUnit} />
         </div>
       )}
 

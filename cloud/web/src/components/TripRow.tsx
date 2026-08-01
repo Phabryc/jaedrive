@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import type { TripSummary } from "../lib/types";
 import { IconLocationPin, IconFlagCheckered } from "./icons";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
+import { useUnits } from "../lib/UnitsContext";
+import { toDisplayDistance, toDisplayConsumption, consumptionUnitLabel } from "../lib/units";
 
 const KIND_LABEL_KEY: Record<TripSummary["kind"], TranslationKey> = {
   auto: "trip.kindAuto",
@@ -10,6 +12,7 @@ const KIND_LABEL_KEY: Record<TripSummary["kind"], TranslationKey> = {
 
 export function TripRow({ trip }: { trip: TripSummary }) {
   const { t, locale } = useLanguage();
+  const { distanceUnit, consumptionFormat } = useUnits();
 
   function formatRange(startedAt: string, endedAt: string | null): string {
     const start = new Date(startedAt);
@@ -50,16 +53,16 @@ export function TripRow({ trip }: { trip: TripSummary }) {
       </div>
       <div className="flex shrink-0 gap-4 text-right text-sm tabular-nums">
         <div>
-          <p className="text-onsurface-variant">{t("trip.km")}</p>
-          <p>{trip.km != null ? trip.km.toFixed(1) : "–"}</p>
+          <p className="text-onsurface-variant">{distanceUnit}</p>
+          <p>{trip.km != null ? toDisplayDistance(trip.km, distanceUnit).toFixed(1) : "–"}</p>
         </div>
         <div>
           <p className="text-onsurface-variant">{t("trip.liters")}</p>
           <p>{trip.liters != null ? trip.liters.toFixed(2) : "–"}</p>
         </div>
         <div>
-          <p className="text-onsurface-variant">{t("trip.kmPerL")}</p>
-          <p>{trip.avgConsumption != null ? trip.avgConsumption.toFixed(1) : "–"}</p>
+          <p className="text-onsurface-variant">{consumptionUnitLabel(distanceUnit, consumptionFormat)}</p>
+          <p>{trip.avgConsumption != null ? toDisplayConsumption(trip.avgConsumption, distanceUnit, consumptionFormat).toFixed(1) : "–"}</p>
         </div>
       </div>
     </Link>

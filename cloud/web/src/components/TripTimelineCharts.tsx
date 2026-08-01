@@ -5,6 +5,7 @@ import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
 import { computeRunSegments } from "../lib/segments";
 import { baseGridOptions, yAxisMuted, CHART_ACCENT, CHART_ACCENT_SOFT, CHART_WARN } from "../lib/chartTheme";
 import { useLanguage } from "../lib/i18n/LanguageContext";
+import { toDisplaySpeedKmh, speedUnitLabel, type DistanceUnit } from "../lib/units";
 
 const CARD = "rounded-lg border border-surface-border bg-surface p-4";
 const HEIGHT = 220;
@@ -25,7 +26,7 @@ interface TooltipParam {
 // separata: l'obiettivo (richiesto dall'utente) e' vedere a colpo d'occhio se un
 // attacco/distacco dell'EV coincide con un certo livello di batteria, cosa che due widget
 // separati non mostrerebbero senza dover incrociare manualmente le posizioni sull'asse X.
-export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+export function BatteryFuelChart({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
   const { t } = useLanguage();
   const hasBattery = points.some((p) => p.batteryPct != null);
   const hasFuel = points.some((p) => p.fuelPct != null);
@@ -34,14 +35,14 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
   const batteryName = t("charts.battery");
   const fuelName = t("charts.fuel");
 
-  const bucketSegments = computeRunSegments(distancesKm, points.map((p) => p.bucket));
+  const bucketSegments = computeRunSegments(distances, points.map((p) => p.bucket));
   const presentBuckets = Array.from(new Set(bucketSegments.map((s) => s.value)));
   const markArea = {
     silent: true,
     itemStyle: { opacity: 0.14 },
     data: bucketSegments.map((s) => [
-      { xAxis: s.fromKm, itemStyle: { color: BUCKET_COLOR[s.value] } },
-      { xAxis: s.toKm },
+      { xAxis: s.from, itemStyle: { color: BUCKET_COLOR[s.value] } },
+      { xAxis: s.to },
     ]),
   };
 
@@ -49,6 +50,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
     ...baseGridOptions,
     legend: { data: [batteryName, fuelName].filter((n) => (n === batteryName ? hasBattery : hasFuel)), top: 0, textStyle: { color: "#BCC8D1", fontSize: 11 } },
     grid: { ...baseGridOptions.grid, top: 28 },
+    xAxis: { ...baseGridOptions.xAxis, name: unit },
     yAxis: { ...yAxisMuted, min: 0, max: 100, name: "%" },
     tooltip: {
       ...baseGridOptions.tooltip,
@@ -62,7 +64,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
             `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${BUCKET_COLOR[bucket]};margin-right:4px;"></span>${t("charts.modeTooltipPrefix")}${BUCKET_LABEL[bucket]}`,
           );
         }
-        return `${distancesKm[idx]?.toFixed(1) ?? "0"} km<br/>${lines.join("<br/>")}`;
+        return `${distances[idx]?.toFixed(1) ?? "0"} ${unit}<br/>${lines.join("<br/>")}`;
       },
     },
     series: [
@@ -72,7 +74,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_ACCENT_SOFT },
         itemStyle: { color: CHART_ACCENT_SOFT },
-        data: points.map((p, i) => [distancesKm[i], p.batteryPct]),
+        data: points.map((p, i) => [distances[i], p.batteryPct]),
         markArea,
       },
       hasFuel && {
@@ -81,7 +83,7 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
         showSymbol: false,
         lineStyle: { width: 2, color: CHART_WARN },
         itemStyle: { color: CHART_WARN },
-        data: points.map((p, i) => [distancesKm[i], p.fuelPct]),
+        data: points.map((p, i) => [distances[i], p.fuelPct]),
         // markArea va su una sola serie (renderebbe due volte altrimenti) - sulla batteria
         // se presente, altrimenti sul carburante.
         ...(hasBattery ? {} : { markArea }),
@@ -108,13 +110,14 @@ export function BatteryFuelChart({ points, distancesKm }: { points: GpxPoint[]; 
   );
 }
 
-export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+export function SpeedChart({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
   const { t } = useLanguage();
   if (!points.some((p) => p.speedKmh != null)) return null;
 
   const option = {
     ...baseGridOptions,
-    yAxis: { ...yAxisMuted, name: "km/h", min: 0 },
+    xAxis: { ...baseGridOptions.xAxis, name: unit },
+    yAxis: { ...yAxisMuted, name: speedUnitLabel(unit), min: 0 },
     series: [
       {
         name: t("charts.speed"),
@@ -123,7 +126,7 @@ export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distan
         lineStyle: { width: 2, color: CHART_ACCENT },
         areaStyle: { color: CHART_ACCENT, opacity: 0.12 },
         itemStyle: { color: CHART_ACCENT },
-        data: points.map((p, i) => [distancesKm[i], p.speedKmh]),
+        data: points.map((p, i) => [distances[i], p.speedKmh != null ? toDisplaySpeedKmh(p.speedKmh, unit) : null]),
       },
     ],
   };
@@ -139,23 +142,24 @@ export function SpeedChart({ points, distancesKm }: { points: GpxPoint[]; distan
 // Sfondo colorato per modalita' di guida (ECO/NORMAL/SPORT), stessa tecnica delle markArea
 // di BatteryFuelChart - l'utente vuole vedere se un tratto in salita/discesa coincide con
 // una certa modalita' di guida.
-export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; distancesKm: number[] }) {
+export function ElevationChart({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
   const { t } = useLanguage();
   if (!points.some((p) => p.ele != null)) return null;
 
-  const modeSegments = computeRunSegments(distancesKm, points.map((p) => (p.driveMode != null ? String(p.driveMode) : null)));
+  const modeSegments = computeRunSegments(distances, points.map((p) => (p.driveMode != null ? String(p.driveMode) : null)));
   const presentModes = Array.from(new Set(modeSegments.map((s) => s.value)));
   const markArea = {
     silent: true,
     itemStyle: { opacity: 0.14 },
     data: modeSegments.map((s) => [
-      { xAxis: s.fromKm, itemStyle: { color: DRIVE_MODE_COLOR[s.value as "0" | "1" | "2"] } },
-      { xAxis: s.toKm },
+      { xAxis: s.from, itemStyle: { color: DRIVE_MODE_COLOR[s.value as "0" | "1" | "2"] } },
+      { xAxis: s.to },
     ]),
   };
 
   const option = {
     ...baseGridOptions,
+    xAxis: { ...baseGridOptions.xAxis, name: unit },
     yAxis: { ...yAxisMuted, name: "m" },
     tooltip: {
       ...baseGridOptions.tooltip,
@@ -170,7 +174,7 @@ export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; di
             `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${DRIVE_MODE_COLOR[key]};margin-right:4px;"></span>${t("charts.modeTooltipPrefix")}${DRIVE_MODE_LABEL[key]}`,
           );
         }
-        return `${distancesKm[idx]?.toFixed(1) ?? "0"} km<br/>${lines.join("<br/>")}`;
+        return `${distances[idx]?.toFixed(1) ?? "0"} ${unit}<br/>${lines.join("<br/>")}`;
       },
     },
     series: [
@@ -181,7 +185,7 @@ export function ElevationChart({ points, distancesKm }: { points: GpxPoint[]; di
         lineStyle: { width: 2, color: CHART_ACCENT_SOFT },
         areaStyle: { color: CHART_ACCENT_SOFT, opacity: 0.12 },
         itemStyle: { color: CHART_ACCENT_SOFT },
-        data: points.map((p, i) => [distancesKm[i], p.ele]),
+        data: points.map((p, i) => [distances[i], p.ele]),
         markArea,
       },
     ],
