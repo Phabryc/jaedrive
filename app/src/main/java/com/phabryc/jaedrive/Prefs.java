@@ -12,7 +12,7 @@ public class Prefs {
 
     private static final String PREFS = "jaedrive_prefs";
     private static final String KEY_UNIT_DISTANCE_MI = "unit_distance_mi";
-    private static final String KEY_UNIT_CONSUMPTION_GAL = "unit_consumption_gal";
+    private static final String KEY_UNIT_CONSUMPTION_L100KM = "unit_consumption_l100km";
     private static final String KEY_GPS_TRACK_ENABLED = "gps_track_enabled";
     private static final String KEY_DEBUG_MODE_ENABLED = "debug_mode_enabled";
     private static final String KEY_CLOUD_DEVICE_TOKEN = "cloud_device_token";
@@ -39,12 +39,17 @@ public class Prefs {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_UNIT_DISTANCE_MI, miles).apply();
     }
 
-    public static boolean isConsumptionGallons(Context ctx) {
-        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_CONSUMPTION_GAL, false);
+    // false (default) = "percorrenza/litro" (km/l o mi/l), true = "litri/100 unita' distanza"
+    // (L/100km o L/100mi) - solo formato di visualizzazione del consumo, l'unita' di distanza
+    // dentro il rapporto segue comunque isDistanceMiles() sopra (vedi UnitFormatter). Niente
+    // piu' galloni, ritirati su richiesta esplicita 2026-08-02: il carburante resta sempre
+    // in litri.
+    public static boolean isConsumptionL100km(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_CONSUMPTION_L100KM, false);
     }
 
-    public static void setConsumptionGallons(Context ctx, boolean gallons) {
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_UNIT_CONSUMPTION_GAL, gallons).apply();
+    public static void setConsumptionL100km(Context ctx, boolean l100km) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_UNIT_CONSUMPTION_L100KM, l100km).apply();
     }
 
     // Letto direttamente da TrackingService prima di avviare la registrazione GPS di ogni

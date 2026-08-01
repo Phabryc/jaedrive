@@ -241,6 +241,7 @@
                                 android:textSize="72sp"
                                 android:textStyle="bold"/>
                             <TextView
+                                android:id="@+id/tv_speed_unit"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="@string/unit_speed_suffix"
@@ -1015,11 +1016,11 @@
                             android:orientation="horizontal"
                             android:background="@drawable/segment_container_bg"
                             android:padding="5dp">
-                            <TextView android:id="@+id/toggle_unit_liters" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:text="@string/label_liters" android:textSize="22sp" android:textStyle="bold" android:gravity="center"
+                            <TextView android:id="@+id/toggle_unit_kml" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="@string/unit_kml" android:textSize="22sp" android:textStyle="bold" android:gravity="center"
                                 android:paddingHorizontal="24dp" android:paddingVertical="14dp" android:clickable="true" android:focusable="true"/>
-                            <TextView android:id="@+id/toggle_unit_gal" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:text="@string/unit_gal" android:textSize="22sp" android:textStyle="bold" android:gravity="center"
+                            <TextView android:id="@+id/toggle_unit_l100km" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:text="@string/unit_l100km" android:textSize="22sp" android:textStyle="bold" android:gravity="center"
                                 android:paddingHorizontal="24dp" android:paddingVertical="14dp" android:clickable="true" android:focusable="true"/>
                         </LinearLayout>
                     </LinearLayout>

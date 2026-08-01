@@ -12,9 +12,13 @@
     <string name="lang_code_en">EN</string>
     <string name="unit_km">km</string>
     <string name="unit_mi">mi</string>
-    <string name="unit_gal">Gal</string>
+    <string name="unit_kml">km/l</string>
+    <string name="unit_l100km">L/100km</string>
+    <string name="unit_mpg">mpg (UK)</string>
+    <string name="unit_gal100mi">gal/100mi (UK)</string>
     <string name="label_km_short">Km</string>
     <string name="unit_speed_suffix"> km/h</string>
+    <string name="unit_speed_suffix_mi"> mph</string>
     <string name="label_live">LIVE</string>
     <string name="section_privacy_gps_title">PRIVACY &amp; GPS</string>
     <string name="btn_reset">RESET</string>

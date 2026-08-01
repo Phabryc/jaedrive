@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
     private View contentDashboard, contentStorico, contentImpostazioni, contentLog;
 
     // Dashboard
-    private TextView tvGear, tvSpeed;
+    private TextView tvGear, tvSpeed, tvSpeedUnit;
     private TextView tvTripStatusBadge, tvTripAvg, tvTripKm, tvTripLiters;
     private TextView tvFooterMode, tvFooterSoc, tvFooterFuel, tvFooterFlow, tvFooterRange, tvFooterRegen;
     private ImageView iconFooterMode;
@@ -127,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnExportDetail;
 
     // Impostazioni
-    private TextView toggleUnitKm, toggleUnitMi, toggleUnitLiters, toggleUnitGal;
+    private TextView toggleUnitKm, toggleUnitMi, toggleUnitKml, toggleUnitL100km;
     private TextView toggleLangIt, toggleLangEn;
     private SwitchCompat switchGps, switchDebugMode, switchRegenPopup, switchRefuelPopup;
     private TextView btnTestRefuelPopup;
@@ -220,6 +220,7 @@ public class MainActivity extends AppCompatActivity {
 
         tvGear = findViewById(R.id.tv_gear);
         tvSpeed = findViewById(R.id.tv_speed);
+        tvSpeedUnit = findViewById(R.id.tv_speed_unit);
         tvTripStatusBadge = findViewById(R.id.tv_trip_status_badge);
         tvTripAvg = findViewById(R.id.tv_trip_avg);
         tvTripKm = findViewById(R.id.tv_trip_km);
@@ -303,8 +304,8 @@ public class MainActivity extends AppCompatActivity {
 
         toggleUnitKm = findViewById(R.id.toggle_unit_km);
         toggleUnitMi = findViewById(R.id.toggle_unit_mi);
-        toggleUnitLiters = findViewById(R.id.toggle_unit_liters);
-        toggleUnitGal = findViewById(R.id.toggle_unit_gal);
+        toggleUnitKml = findViewById(R.id.toggle_unit_kml);
+        toggleUnitL100km = findViewById(R.id.toggle_unit_l100km);
         toggleLangIt = findViewById(R.id.toggle_lang_it);
         toggleLangEn = findViewById(R.id.toggle_lang_en);
         switchGps = findViewById(R.id.switch_gps);
@@ -794,7 +795,7 @@ public class MainActivity extends AppCompatActivity {
         tvTripStatusBadge.setTextColor(ContextCompat.getColor(this, live ? R.color.primary : R.color.on_surface_variant));
         tvTripKm.setText(UnitFormatter.formatDistance(this, kmDelta));
         tvTripLiters.setText(liters != null ? UnitFormatter.formatLiters(this, liters) : "— L");
-        tvTripAvg.setText(avg != null ? UnitFormatter.formatConsumption(this, avg) : "— km/l");
+        tvTripAvg.setText(avg != null ? UnitFormatter.formatConsumption(this, avg) : "—");
         updateConsumptionTrendColor(avg, live);
 
         // TRIP COMPUTER MANUALI (A/B): sempre live, ciascuno accumula indipendentemente
@@ -1296,7 +1297,7 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout buildTripRowStatsRow(TripRecord r) {
         String kmStr = UnitFormatter.formatDistance(this, r.kmDelta);
         String litersStr = r.litersDelta != null ? UnitFormatter.formatLiters(this, r.litersDelta) : "— L";
-        String avgStr = r.avgConsumption != null ? UnitFormatter.formatConsumption(this, r.avgConsumption) : "— km/l";
+        String avgStr = r.avgConsumption != null ? UnitFormatter.formatConsumption(this, r.avgConsumption) : "—";
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1602,8 +1603,8 @@ public class MainActivity extends AppCompatActivity {
         refreshUnitToggles();
         toggleUnitKm.setOnClickListener(v -> { Prefs.setDistanceMiles(this, false); onUnitsChanged(); });
         toggleUnitMi.setOnClickListener(v -> { Prefs.setDistanceMiles(this, true); onUnitsChanged(); });
-        toggleUnitLiters.setOnClickListener(v -> { Prefs.setConsumptionGallons(this, false); onUnitsChanged(); });
-        toggleUnitGal.setOnClickListener(v -> { Prefs.setConsumptionGallons(this, true); onUnitsChanged(); });
+        toggleUnitKml.setOnClickListener(v -> { Prefs.setConsumptionL100km(this, false); onUnitsChanged(); });
+        toggleUnitL100km.setOnClickListener(v -> { Prefs.setConsumptionL100km(this, true); onUnitsChanged(); });
 
         switchGps.setChecked(Prefs.isGpsTrackEnabled(this));
         switchGps.setOnCheckedChangeListener((btn, checked) -> {
@@ -1988,10 +1989,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void refreshUnitToggles() {
-        styleToggle(toggleUnitKm, !Prefs.isDistanceMiles(this));
-        styleToggle(toggleUnitMi, Prefs.isDistanceMiles(this));
-        styleToggle(toggleUnitLiters, !Prefs.isConsumptionGallons(this));
-        styleToggle(toggleUnitGal, Prefs.isConsumptionGallons(this));
+        boolean miles = Prefs.isDistanceMiles(this);
+        styleToggle(toggleUnitKm, !miles);
+        styleToggle(toggleUnitMi, miles);
+        tvSpeedUnit.setText(miles ? R.string.unit_speed_suffix_mi : R.string.unit_speed_suffix);
+        // L'unita' di carburante nel toggle consumo segue la distanza (mercato UK, richiesta
+        // esplicita 2026-08-02): km/l -> mpg, L/100km -> gal/100mi (entrambi galloni
+        // IMPERIALI) quando si passa a miglia - vedi UnitFormatter.formatConsumption().
+        toggleUnitKml.setText(miles ? R.string.unit_mpg : R.string.unit_kml);
+        toggleUnitL100km.setText(miles ? R.string.unit_gal100mi : R.string.unit_l100km);
+        styleToggle(toggleUnitKml, !Prefs.isConsumptionL100km(this));
+        styleToggle(toggleUnitL100km, Prefs.isConsumptionL100km(this));
     }
 
     // Le unita' influenzano solo la formattazione: ricalcoliamo le viste che mostrano
@@ -2484,8 +2492,10 @@ public class MainActivity extends AppCompatActivity {
             tvGear.getBackground().setTint(gearToColor(gear));
         } else if (propId == PERF_VEHICLE_SPEED) {
             // PERF_VEHICLE_SPEED e' in m/s per spec Android (confermato sul campo:
-            // 8.33 m/s registrato a ~30 km/h reali) - va convertito in km/h per la UI.
-            tvSpeed.setText(String.format("%.0f", toFloat(val) * 3.6f));
+            // 8.33 m/s registrato a ~30 km/h reali) - va convertito in km/h per la UI, poi
+            // eventualmente in mph (UnitFormatter, richiesta esplicita 2026-08-02).
+            float kmh = toFloat(val) * 3.6f;
+            tvSpeed.setText(String.format("%.0f", UnitFormatter.toDisplaySpeedKmh(this, kmh)));
         }
     }
 
@@ -2609,7 +2619,7 @@ public class MainActivity extends AppCompatActivity {
         int[] rangeRaw = enduranceRaw != null ? enduranceRaw : (totalRangeRaw != null ? totalRangeRaw : displayMileageRaw);
         if (rangeRaw != null) {
             int range = VDInfoClient.decodeFirstTwoAsInt(rangeRaw);
-            tvFooterRange.setText(String.format(Locale.ITALY, "%d km", range));
+            tvFooterRange.setText(UnitFormatter.formatDistance(this, range));
         }
         if (enduranceRaw != null && !Arrays.equals(enduranceRaw, lastLoggedEnduranceRaw)) {
             lastLoggedEnduranceRaw = enduranceRaw;
