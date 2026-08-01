@@ -23,11 +23,19 @@ export const STATS_GRID_CLASS = "grid grid-cols-12 items-start gap-4 grid-flow-d
 export function VehicleStatsPanel({
   vehicleId,
   powertrain,
+  from,
+  to,
   selectedDate,
   onSelectDate,
 }: {
   vehicleId: string;
   powertrain: string | null;
+  // Periodo attivo (ISO, entrambi opzionali) - sollevato da Trips.tsx cosi' lo stesso
+  // filtro applicato alla lista viaggi si riflette anche qui, invece di mostrare sempre le
+  // statistiche di tutta la vita del veicolo indipendentemente da cosa l'utente sta
+  // guardando nella lista sotto.
+  from?: string;
+  to?: string;
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
 }) {
@@ -36,8 +44,8 @@ export function VehicleStatsPanel({
 
   useEffect(() => {
     setStats(null);
-    api.stats(vehicleId).then(setStats);
-  }, [vehicleId]);
+    api.stats(vehicleId, { from, to }).then(setStats);
+  }, [vehicleId, from, to]);
 
   if (!stats) return <p className="mb-4 text-sm text-onsurface-variant">{t("stats.loading")}</p>;
 

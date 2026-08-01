@@ -20,13 +20,26 @@ export default function Trips() {
   const [data, setData] = useState<TripsPage | null>(null);
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("");
-  // Giorno selezionato dal calendario in VehicleStatsPanel (formato "YYYY-MM-DD") - filtra
-  // la lista qui sotto tramite from/to, gia' supportati da /vehicles/:id/trips.
-  const [dayFilter, setDayFilter] = useState<string | null>(null);
+  // Periodo attivo (formato "YYYY-MM-DD", entrambi inclusi) - alimentato sia da un click
+  // su un giorno del calendario in VehicleStatsPanel (che imposta rangeFrom=rangeTo, un
+  // periodo di un solo giorno) sia dai due selettori data espliciti qui sotto. Un'unica
+  // fonte di verita' per filtrare TANTO la lista viaggi QUANTO le statistiche aggregate
+  // (VehicleStatsPanel), gia' entrambe supportate da from/to lato server.
+  const [rangeFrom, setRangeFrom] = useState<string | null>(null);
+  const [rangeTo, setRangeTo] = useState<string | null>(null);
+  const isSingleDay = rangeFrom != null && rangeFrom === rangeTo;
+  const fromIso = rangeFrom ? `${rangeFrom}T00:00:00.000Z` : undefined;
+  const toIso = rangeTo ? `${rangeTo}T23:59:59.999Z` : undefined;
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
+
+  function clearRange() {
+    setRangeFrom(null);
+    setRangeTo(null);
+    setPage(1);
+  }
 
   useEffect(() => {
     if (!vehicleId) return;
@@ -41,16 +54,17 @@ export default function Trips() {
     api
       .trips(vehicleId, {
         page,
-        // Un giorno selezionato forza sempre "solo percorsi GPS": i trip manuali sono
-        // accumulatori che possono restare aperti per giorni/settimane, non hanno un vero
-        // "quel giorno" - il calendario stesso li esclude gia' dall'aggregazione (vedi
-        // /stats/calendar), la lista deve restare coerente con quello che mostra.
-        kind: dayFilter ? "auto" : kind || undefined,
-        from: dayFilter ? `${dayFilter}T00:00:00.000Z` : undefined,
-        to: dayFilter ? `${dayFilter}T23:59:59.999Z` : undefined,
+        // Un singolo giorno (click sul calendario) forza sempre "solo percorsi GPS": i
+        // trip manuali sono accumulatori che possono restare aperti per giorni/settimane,
+        // non hanno un vero "quel giorno" - il calendario stesso li esclude gia'
+        // dall'aggregazione (vedi /stats/calendar). Un periodo piu' ampio scelto a mano
+        // invece rispetta il filtro tipo scelto dall'utente, entrambi i kind restano validi.
+        kind: isSingleDay ? "auto" : kind || undefined,
+        from: fromIso,
+        to: toIso,
       })
       .then(setData);
-  }, [vehicleId, page, kind, dayFilter, refreshKey]);
+  }, [vehicleId, page, kind, isSingleDay, fromIso, toIso, refreshKey]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
@@ -91,9 +105,12 @@ export default function Trips() {
         <VehicleStatsPanel
           vehicleId={vehicleId}
           powertrain={vehicle?.powertrain ?? null}
-          selectedDate={dayFilter}
+          from={fromIso}
+          to={toIso}
+          selectedDate={isSingleDay ? rangeFrom : null}
           onSelectDate={(d) => {
-            setDayFilter(d);
+            setRangeFrom(d);
+            setRangeTo(d);
             setPage(1);
           }}
         />
@@ -114,7 +131,6 @@ export default function Trips() {
               key={f.value}
               onClick={() => {
                 setKind(f.value);
-                setDayFilter(null); // un giorno selezionato forza "auto" - cambiare tipo lo svuota
                 setPage(1);
               }}
               className={`rounded-md border px-3 py-1 text-xs ${
@@ -126,16 +142,54 @@ export default function Trips() {
               {t(f.labelKey)}
             </button>
           ))}
-          {dayFilter && (
+          {isSingleDay && rangeFrom && (
             <button
-              onClick={() => setDayFilter(null)}
+              onClick={clearRange}
               className="flex items-center gap-1.5 rounded-md border border-accent px-3 py-1 text-xs text-accent"
             >
-              {formatDayLabel(dayFilter)}
+              {formatDayLabel(rangeFrom)}
               <span aria-hidden>✕</span>
             </button>
           )}
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
+        <span className="text-onsurface-variant">{t("trips.rangeLabel")}</span>
+        <input
+          type="date"
+          aria-label={t("trips.rangeFrom")}
+          value={rangeFrom ?? ""}
+          max={rangeTo ?? undefined}
+          onChange={(e) => {
+            setRangeFrom(e.target.value || null);
+            setPage(1);
+          }}
+          className="rounded-md border border-surface-border bg-bg px-2 py-1 text-onsurface outline-none focus:border-accent"
+        />
+        <span className="text-onsurface-variant" aria-hidden>
+          →
+        </span>
+        <input
+          type="date"
+          aria-label={t("trips.rangeTo")}
+          value={rangeTo ?? ""}
+          min={rangeFrom ?? undefined}
+          onChange={(e) => {
+            setRangeTo(e.target.value || null);
+            setPage(1);
+          }}
+          className="rounded-md border border-surface-border bg-bg px-2 py-1 text-onsurface outline-none focus:border-accent"
+        />
+        {(rangeFrom || rangeTo) && (
+          <button
+            onClick={clearRange}
+            className="rounded-md border border-surface-border px-2 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface"
+            title={t("trips.rangeClear")}
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
