@@ -6,6 +6,7 @@ import type { VehicleStats } from "../lib/types";
 import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
 import { baseGridOptions, CHART_SURFACE, CHART_BORDER, CHART_TEXT_MUTED } from "../lib/chartTheme";
 import { CalendarHeatmap } from "./CalendarHeatmap";
+import { Collapsible } from "./Collapsible";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
@@ -65,8 +66,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
       </div>
 
       {hasTrend && (
-        <div className="rounded-lg border border-surface-border bg-surface p-4">
-          <p className="mb-1 text-sm font-medium">{t("stats.consumptionTrend")}</p>
+        <Collapsible id="consumptionTrend" title={t("stats.consumptionTrend")}>
           <ReactECharts
             option={{
               ...baseGridOptions,
@@ -86,12 +86,13 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
             style={{ height: 220 }}
             notMerge
           />
-        </div>
+        </Collapsible>
       )}
 
       <div className={`grid gap-4 ${showElectric ? "sm:grid-cols-2" : ""}`}>
         {showElectric && (
           <Donut
+            id="energyBreakdown"
             title={t("stats.energyBreakdown")}
             noDataLabel={t("stats.noDataYet")}
             values={{ EV: energyFlowBreakdown.pctEv, SERIES: energyFlowBreakdown.pctSeries, PARALLEL: energyFlowBreakdown.pctParallel, CHR: energyFlowBreakdown.pctOther }}
@@ -100,6 +101,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
           />
         )}
         <Donut
+          id="driveModeBreakdown"
           title={t("stats.driveModeBreakdown")}
           noDataLabel={t("stats.noDataYet")}
           values={{ ECO: driveModeBreakdown.pctEco, NORMAL: driveModeBreakdown.pctNormal, SPORT: driveModeBreakdown.pctSport }}
@@ -134,12 +136,14 @@ function Kpi({ label, value }: { label: string; value: string }) {
 }
 
 function Donut({
+  id,
   title,
   noDataLabel,
   values,
   colorMap,
   labelMap,
 }: {
+  id: string;
   title: string;
   noDataLabel: string;
   values: Record<string, number | null>;
@@ -157,8 +161,7 @@ function Donut({
   }
 
   return (
-    <div className="rounded-lg border border-surface-border bg-surface p-4">
-      <p className="mb-1 text-sm font-medium">{title}</p>
+    <Collapsible id={id} title={title}>
       <ReactECharts
         option={{
           backgroundColor: "transparent",
@@ -189,7 +192,7 @@ function Donut({
         style={{ height: 240 }}
         notMerge
       />
-    </div>
+    </Collapsible>
   );
 }
 
@@ -199,17 +202,26 @@ function TripRefCard({
   tone,
 }: {
   label: string;
-  trip: { id: string; label: string | null; startedAt: string; avgConsumption: number | null; km: number | null };
+  trip: { id: string; label: string | null; startedAt: string; avgConsumption: number | null; km: number | null; liters: number | null };
   tone: "good" | "bad";
 }) {
-  const { locale } = useLanguage();
+  const { t, locale } = useLanguage();
   const border = tone === "good" ? "border-good hover:bg-good/10" : "border-bad hover:bg-bad/10";
+  // avgConsumption null + liters===0 e' un viaggio con km reali ma zero carburante
+  // consumato (tratto elettrico su un ibrido) - il caso migliore possibile, non un dato
+  // mancante: km/l non e' rappresentabile (sarebbe infinito), quindi mostriamo un'etichetta
+  // dedicata invece di "undefined km/l".
+  const consumptionLabel = trip.avgConsumption != null
+    ? `${trip.avgConsumption.toFixed(1)} km/l`
+    : trip.liters === 0
+      ? t("stats.allElectric")
+      : "—";
   return (
     <Link to={`/trips/${trip.id}`} className={`rounded-lg border ${border} bg-surface p-4 transition`}>
       <p className="text-xs text-onsurface-variant">{label}</p>
       <p className="mt-1 font-medium">{trip.label ?? new Date(trip.startedAt).toLocaleDateString(locale)}</p>
       <p className="mt-1 text-sm tabular-nums text-onsurface-variant">
-        {trip.avgConsumption?.toFixed(1)} km/l · {trip.km?.toFixed(1)} km
+        {consumptionLabel} · {trip.km?.toFixed(1)} km
       </p>
     </Link>
   );

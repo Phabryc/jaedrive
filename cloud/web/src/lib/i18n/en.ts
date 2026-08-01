@@ -181,6 +181,7 @@ export const en: Record<keyof typeof it, string> = {
   "stats.kmHybrid": "Km in hybrid",
   "stats.bestTrip": "Best trip",
   "stats.worstTrip": "Worst trip",
+  "stats.allElectric": "All-electric",
 
   "calendar.title": "Days driven",
   "calendar.month0": "January",

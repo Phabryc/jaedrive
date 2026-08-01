@@ -52,6 +52,7 @@ export interface TripStatsRef {
   startedAt: string;
   avgConsumption: number | null;
   km: number | null;
+  liters: number | null;
 }
 
 export interface VehicleStats {

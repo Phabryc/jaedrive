@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../lib/api";
 import { IconRoute, IconGauge, IconFuel, IconClock } from "./icons";
+import { Collapsible } from "./Collapsible";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 
 const MONTH_KEYS: TranslationKey[] = [
@@ -105,21 +106,20 @@ export function CalendarHeatmap({
 
   const selectedStat = selectedDate ? byDate.get(selectedDate) : undefined;
 
-  return (
-    <div className="rounded-lg border border-surface-border bg-surface p-4">
-      <div className="mx-auto mb-4 flex w-full items-center justify-between" style={{ maxWidth: MAX_WIDTH }}>
-        <p className="text-sm font-medium">{t("calendar.title")}</p>
-        <div className="flex items-center gap-2 text-xs text-onsurface-variant">
-          <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
-            ←
-          </button>
-          <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
-          <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
-            →
-          </button>
-        </div>
-      </div>
+  const monthNav = (
+    <div className="flex items-center gap-2 text-xs text-onsurface-variant">
+      <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
+        ←
+      </button>
+      <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
+      <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
+        →
+      </button>
+    </div>
+  );
 
+  return (
+    <Collapsible id="calendarHeatmap" title={t("calendar.title")} headerExtra={monthNav}>
       {days === null ? (
         <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
       ) : (
@@ -193,7 +193,7 @@ export function CalendarHeatmap({
           )}
         </div>
       )}
-    </div>
+    </Collapsible>
   );
 }
 

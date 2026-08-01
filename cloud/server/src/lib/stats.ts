@@ -30,6 +30,7 @@ export interface TripStatsRef {
   startedAt: Date;
   avgConsumption: number | null;
   km: number | null;
+  liters: number | null;
 }
 
 export interface VehicleStatsResult {
@@ -66,12 +67,26 @@ export function computeVehicleStats(trips: StatsTripInput[]): VehicleStatsResult
   // powertrain ibrido: e' semplicemente i litri effettivamente bruciati * fattore fisso.
   const co2Kg = totalLiters * 2.31;
 
-  const consumable = trips.filter((t) => t.avgConsumption != null && t.km != null && t.km >= 1);
+  // Un viaggio con km reali ma 0 litri consumati (es. tratto interamente in elettrico su
+  // un ibrido) e' il caso migliore possibile, non un dato mancante - trattarlo come
+  // avgConsumption=null (e quindi escluderlo da migliore/peggiore) buttava via proprio i
+  // viaggi che l'utente vuole veder premiati. km/l e' pero' indefinito quando i litri sono
+  // zero: per il confronto lo trattiamo come Infinity (vince sempre come "migliore", non e'
+  // mai selezionato come "peggiore" a meno che sia l'unico viaggio disponibile).
+  function effectiveAvg(t: StatsTripInput): number | null {
+    if (t.avgConsumption != null) return t.avgConsumption;
+    if (t.liters === 0) return Infinity;
+    return null;
+  }
+
+  const consumable = trips
+    .filter((t) => t.km != null && t.km >= 1 && effectiveAvg(t) != null)
+    .map((t) => ({ t, eff: effectiveAvg(t)! }));
   const bestTrip = consumable.length
-    ? consumable.reduce((a, b) => (b.avgConsumption! > a.avgConsumption! ? b : a))
+    ? consumable.reduce((a, b) => (b.eff > a.eff ? b : a)).t
     : null;
   const worstTrip = consumable.length
-    ? consumable.reduce((a, b) => (b.avgConsumption! < a.avgConsumption! ? b : a))
+    ? consumable.reduce((a, b) => (b.eff < a.eff ? b : a)).t
     : null;
 
   const kindBreakdown: Record<string, { count: number; km: number }> = {};
@@ -82,20 +97,25 @@ export function computeVehicleStats(trips: StatsTripInput[]): VehicleStatsResult
     kindBreakdown[t.kind] = k;
   }
 
-  // Trend consumo: media (non pesata) tra i viaggi dello stesso giorno - una linea al
-  // giorno e' gia' abbastanza densa per l'uso personale di questo veicolo, niente
-  // aggregazione settimanale/mensile per ora (si puo' aggiungere se il range diventa lungo).
-  const trendByDay = new Map<string, { sum: number; count: number }>();
+  // Trend consumo: km totali / litri totali del giorno (non media aritmetica dei km/l dei
+  // singoli viaggi) - un viaggio lungo pesa piu' di uno breve, ed un viaggio a 0 litri
+  // (tratto elettrico) contribuisce comunque i suoi km al numeratore invece di essere
+  // scartato come "non calcolabile". Una linea al giorno e' gia' abbastanza densa per
+  // l'uso personale di questo veicolo, niente aggregazione settimanale/mensile per ora.
+  const trendByDay = new Map<string, { km: number; liters: number }>();
   for (const t of trips) {
-    if (t.avgConsumption == null) continue;
+    if (t.km == null || t.liters == null) continue;
     const day = t.startedAt.toISOString().slice(0, 10);
-    const entry = trendByDay.get(day) ?? { sum: 0, count: 0 };
-    entry.sum += t.avgConsumption;
-    entry.count += 1;
+    const entry = trendByDay.get(day) ?? { km: 0, liters: 0 };
+    entry.km += t.km;
+    entry.liters += t.liters;
     trendByDay.set(day, entry);
   }
   const consumptionTrend = Array.from(trendByDay.entries())
-    .map(([date, { sum, count }]) => ({ date, avgConsumption: sum / count }))
+    // Una giornata interamente elettrica (0 litri totali) non ha un km/l rappresentabile:
+    // esclusa dal grafico invece di comparire come 0 o Infinity.
+    .filter(([, { liters }]) => liters > 0)
+    .map(([date, { km, liters }]) => ({ date, avgConsumption: km / liters }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
   const kmEvTotal = trips.reduce((s, t) => s + (t.kmEv ?? 0), 0);
@@ -120,10 +140,10 @@ export function computeVehicleStats(trips: StatsTripInput[]): VehicleStatsResult
     kindBreakdown,
     consumptionTrend,
     bestTrip: bestTrip
-      ? { id: bestTrip.id, label: bestTrip.label, startedAt: bestTrip.startedAt, avgConsumption: bestTrip.avgConsumption, km: bestTrip.km }
+      ? { id: bestTrip.id, label: bestTrip.label, startedAt: bestTrip.startedAt, avgConsumption: bestTrip.avgConsumption, km: bestTrip.km, liters: bestTrip.liters }
       : null,
     worstTrip: worstTrip
-      ? { id: worstTrip.id, label: worstTrip.label, startedAt: worstTrip.startedAt, avgConsumption: worstTrip.avgConsumption, km: worstTrip.km }
+      ? { id: worstTrip.id, label: worstTrip.label, startedAt: worstTrip.startedAt, avgConsumption: worstTrip.avgConsumption, km: worstTrip.km, liters: worstTrip.liters }
       : null,
   };
 }

@@ -395,24 +395,20 @@ export async function userRoutes(app: FastifyInstance) {
     // ha segnalato proprio il conteggio ore alla guida come il caso piu' evidente).
     const trips = await prisma.trip.findMany({
       where: { vehicleId: id, kind: "auto", startedAt: { gte: from, lt: to } },
-      select: { startedAt: true, endedAt: true, km: true, liters: true, avgConsumption: true },
+      select: { startedAt: true, endedAt: true, km: true, liters: true },
     });
 
     const byDay = new Map<
       string,
-      { km: number; liters: number; durationMin: number; tripCount: number; consumptionSum: number; consumptionCount: number }
+      { km: number; liters: number; durationMin: number; tripCount: number }
     >();
     for (const t of trips) {
       const day = t.startedAt.toISOString().slice(0, 10);
-      const entry = byDay.get(day) ?? { km: 0, liters: 0, durationMin: 0, tripCount: 0, consumptionSum: 0, consumptionCount: 0 };
+      const entry = byDay.get(day) ?? { km: 0, liters: 0, durationMin: 0, tripCount: 0 };
       entry.km += t.km ?? 0;
       entry.liters += t.liters ?? 0;
       if (t.endedAt) entry.durationMin += (t.endedAt.getTime() - t.startedAt.getTime()) / 60000;
       entry.tripCount += 1;
-      if (t.avgConsumption != null) {
-        entry.consumptionSum += t.avgConsumption;
-        entry.consumptionCount += 1;
-      }
       byDay.set(day, entry);
     }
 
@@ -425,9 +421,11 @@ export async function userRoutes(app: FastifyInstance) {
           liters: v.liters,
           durationMin: Math.round(v.durationMin),
           tripCount: v.tripCount,
-          // Media (non pesata) tra i viaggi dello stesso giorno - stessa scelta gia' fatta
-          // per consumptionTrend qui sopra, coerenza tra i due.
-          avgConsumption: v.consumptionCount > 0 ? v.consumptionSum / v.consumptionCount : null,
+          // km totali / litri totali del giorno (non media tra viaggi, vedi stats.ts
+          // consumptionTrend): un viaggio elettrico a 0 litri pesa sul numeratore invece
+          // di essere scartato come dato mancante. Indefinito (null) solo se il giorno e'
+          // stato interamente elettrico (0 litri totali).
+          avgConsumption: v.liters > 0 ? v.km / v.liters : null,
         }))
         .sort((a, b) => a.date.localeCompare(b.date)),
     });

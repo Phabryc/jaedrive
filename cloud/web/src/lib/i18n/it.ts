@@ -201,6 +201,7 @@ export const it = {
   "stats.kmHybrid": "Km in ibrido",
   "stats.bestTrip": "Miglior viaggio",
   "stats.worstTrip": "Peggior viaggio",
+  "stats.allElectric": "Tutto elettrico",
 
   // CalendarHeatmap
   "calendar.title": "Giorni guidati",
