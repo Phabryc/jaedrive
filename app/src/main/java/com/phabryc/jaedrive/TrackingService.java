@@ -103,29 +103,19 @@ public class TrackingService extends Service {
     // Segnali aggiunti per arricchire i dati per-punto/per-viaggio caricati sul cloud
     // (mai mostrati nella UI dell'app in auto, solo registrati/caricati - vedi buildGpx()
     // e cloud/DESIGN.md): drive mode (gia' decodificato con certezza, stesso enum usato in
-    // MainActivity), km EV/HEV cumulativi (stessa famiglia/formula di ID_TOTAL_MILEAGE, non
-    // confermati indipendentemente sul campo per questi due ID specifici), consumo
-    // istantaneo e livello di rigenerazione (entrambi valori grezzi, scala non confermata -
-    // vedi VDInfoClient).
+    // MainActivity), consumo istantaneo e livello di rigenerazione (entrambi valori grezzi,
+    // scala non confermata - vedi VDInfoClient).
+    //
+    // ID_EV_MILEAGE/ID_HEV_MILEAGE RIMOSSI dal poll (2026-08-01): confermato sul campo che
+    // ID_HEV_MILEAGE restituisce sempre lo stesso valore dell'odometro totale (non una
+    // distanza specifica per la modalita' ibrida) - lo stesso sospetto gia' annotato quando
+    // furono aggiunti, ora verificato. km EV/HEV per il payload cloud vengono calcolati
+    // altrove (EnergyFlowUtil.computeKmByBucket(), in SyncWorker) dalla traccia GPS/
+    // ENERGY_FLOW del viaggio, non da questi due segnali VDB.
     private static final int KEY_DRIVE_MODE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DRIVE_MODE);
-    private static final int KEY_EV_MILEAGE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_EV_MILEAGE);
-    private static final int KEY_HEV_MILEAGE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_HEV_MILEAGE);
     private static final int KEY_ENERGY_RECYCLE_LEVEL = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_RECYCLE_LEVEL);
     private static final int KEY_INSTANTANEOUS_CONSUMPTION = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_INSTANTANEOUS_CONSUMPTION);
     private int lastKnownDriveMode = -1;
-    private float lastKnownEvMileage = -1f;
-    private float lastKnownHevMileage = -1f;
-    // Diagnostica temporanea (2026-07-26) - "km in elettrico" nella dashboard cloud e'
-    // risultato sempre 0 nonostante "km in ibrido" sembri plausibile: stesso identico codice
-    // di decodifica (decodeLastTwoAsInt) per entrambi, quindi se fosse un bug di formula si
-    // manifesterebbe su tutti e due allo stesso modo. Prima di cambiare la formula alla
-    // cieca (come gia' fatto oggi per ID_DISPLAY_MILEAGE, ma li' confermata dal dispatcher
-    // decompilato di SVSetting.apk - qui non c'e' lo stesso riscontro), logghiamo l'array
-    // grezzo e ENTRAMBE le interpretazioni possibili (primi due elementi vs ultimi due) cosi'
-    // un solo giro di log dal campo basta a capire quale e' quella giusta, senza dover
-    // rifare un altro giro di ipotesi-e-verifica.
-    private int[] lastLoggedEvMileageRaw;
-    private int[] lastLoggedHevMileageRaw;
     private int lastKnownRegenLevel = -1;
     private float lastKnownInstConsumption = -1f;
     private float lastKnownSocPct = -1f;
@@ -348,25 +338,6 @@ public class TrackingService extends Service {
                     // Valore diretto (0=ECO/1=NORMAL/2=SPORT), stesso enum confermato sul
                     // campo e gia' usato da MainActivity per la UI live.
                     lastKnownDriveMode = value[0];
-                } else if (key == KEY_EV_MILEAGE) {
-                    // Stessa formula di ID_TOTAL_MILEAGE (stesso modulo/stessa famiglia di
-                    // contatori-odometro), non confermata indipendentemente sul campo per
-                    // questo ID specifico - vedi VDInfoClient.
-                    lastKnownEvMileage = VDInfoClient.decodeLastTwoAsInt(value);
-                    if (!Arrays.equals(value, lastLoggedEvMileageRaw)) {
-                        lastLoggedEvMileageRaw = value;
-                        appendServiceLog(String.format(Locale.ITALY,
-                            "[VDB] EV_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
-                            Arrays.toString(value), VDInfoClient.decodeFirstTwoAsInt(value), VDInfoClient.decodeLastTwoAsInt(value)));
-                    }
-                } else if (key == KEY_HEV_MILEAGE) {
-                    lastKnownHevMileage = VDInfoClient.decodeLastTwoAsInt(value);
-                    if (!Arrays.equals(value, lastLoggedHevMileageRaw)) {
-                        lastLoggedHevMileageRaw = value;
-                        appendServiceLog(String.format(Locale.ITALY,
-                            "[VDB] HEV_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
-                            Arrays.toString(value), VDInfoClient.decodeFirstTwoAsInt(value), VDInfoClient.decodeLastTwoAsInt(value)));
-                    }
                 } else if (key == KEY_ENERGY_RECYCLE_LEVEL && value.length > 0) {
                     lastKnownRegenLevel = value[0];
                 } else if (key == KEY_INSTANTANEOUS_CONSUMPTION) {
@@ -609,11 +580,6 @@ public class TrackingService extends Service {
     // in autonomia dal veicolo - vedi commenti su handleTripKm()/handleFuel()).
     private int tripStartKmLegacy = -1;
     private int tripStartFuelRawLegacy = -1;
-    // Km EV/HEV cumulativi all'apertura del viaggio, per calcolare per differenza lo split
-    // reale EV/HEV del singolo viaggio (kmEv/kmHev su TripRecord) - complementare alla stima
-    // basata sulla % di tempo passato in ciascun bucket ENERGY_FLOW, vedi SyncWorker.
-    private float tripStartEvMileage = -1f;
-    private float tripStartHevMileage = -1f;
 
     private void startTrip() {
         tracking = true;
@@ -622,8 +588,6 @@ public class TrackingService extends Service {
         currentTripFileName = "Percorso_" + DateFormat.format("yyyyMMdd_HHmmss", System.currentTimeMillis()) + ".gpx";
         tripStartKmLegacy = lastKnownKm;
         tripStartFuelRawLegacy = lastKnownFuelRaw;
-        tripStartEvMileage = lastKnownEvMileage;
-        tripStartHevMileage = lastKnownHevMileage;
 
         TripConsumption.startTrip(this);
         appendServiceLog("Trip avviato: " + currentTripFileName + " (km/litri da accumulatore, azzerati alla partenza)");
@@ -645,18 +609,6 @@ public class TrackingService extends Service {
         long startTime = TripConsumption.getStartTime(this);
         double kmDelta = TripConsumption.getKmDelta(this);
         int startFuelRaw = tripStartFuelRawLegacy;
-        // Delta EV/HEV solo se avevamo sia una baseline valida alla partenza sia una lettura
-        // valida all'arrivo - null altrimenti (es. avvio a freddo, o segnale mai arrivato),
-        // stessa logica prudente gia' usata per gli altri campi legacy. Un delta negativo
-        // (non dovrebbe accadere per contatori odometro-style, mai visti azzerarsi a
-        // differenza di ID_TRIP/SUM_FUEL) viene scartato invece di caricare un dato spurio.
-        Double kmEv = null, kmHev = null;
-        if (tripStartEvMileage >= 0 && lastKnownEvMileage >= tripStartEvMileage) {
-            kmEv = (double) (lastKnownEvMileage - tripStartEvMileage);
-        }
-        if (tripStartHevMileage >= 0 && lastKnownHevMileage >= tripStartHevMileage) {
-            kmHev = (double) (lastKnownHevMileage - tripStartHevMileage);
-        }
         TripConsumption.endTrip(this);
         appendServiceLog("Consumo medio viaggio: " + (tripAverageForGpx != null
             ? String.format(Locale.US, "%.2f km/l", tripAverageForGpx) : "non calcolabile")
@@ -671,7 +623,7 @@ public class TrackingService extends Service {
             String logPath = persistTripLog();
             double[] firstPoint = points.isEmpty() ? null : points.get(0);
             double[] lastPoint = points.isEmpty() ? null : points.get(points.size() - 1);
-            saveTripRecordAsync(startTime, kmDelta, startFuelRaw, litersDelta, logPath, firstPoint, lastPoint, kmEv, kmHev);
+            saveTripRecordAsync(startTime, kmDelta, startFuelRaw, litersDelta, logPath, firstPoint, lastPoint);
         }
         appendServiceLog("Trip terminato: " + currentTripFileName + " (" + points.size() + " punti)");
         updateNotification("In attesa di accensione...");
@@ -711,8 +663,7 @@ public class TrackingService extends Service {
     // l'ULTIMO (destinazione, TripRecord.label, gia' esistente) - due chiamate Nominatim
     // separate, accettabile dato che avviene una sola volta a fine viaggio, non in un ciclo.
     private void saveTripRecordAsync(long startTime, double kmDelta, int startFuelRaw, Double litersDelta,
-                                      String logPath, double[] firstPoint, double[] lastPoint,
-                                      Double kmEv, Double kmHev) {
+                                      String logPath, double[] firstPoint, double[] lastPoint) {
         int endKm = lastKnownKm;
         int startKm = tripStartKmLegacy;
         int endFuelRaw = lastKnownFuelRaw;
@@ -743,8 +694,10 @@ public class TrackingService extends Service {
             TripRecord record = new TripRecord(TripRecord.TYPE_AUTO, fStart, fEnd,
                 fStartKm, fEndKm, fKmDelta, fStartFuel, fEndFuel, litersDelta, fAvg, gpxPath, logPath, label);
             record.startLabel = startLabel;
-            record.kmEv = kmEv;
-            record.kmHev = kmHev;
+            // record.kmEv/kmHev restano null: calcolati a monte del payload cloud dalla
+            // traccia GPX (vedi SyncWorker.buildPayload()/EnergyFlowUtil.computeKmByBucket()),
+            // non piu' qui - i campi sul TripRecord/TripDatabase restano solo per
+            // compatibilita' di schema, mai letti (stesso trattamento di startKm/endKm).
             try {
                 TripDatabase.getInstance(this).insertTrip(record);
                 appendServiceLog("Trip salvato in TripDatabase" + (label != null ? " (destinazione: " + label + ")" : "")

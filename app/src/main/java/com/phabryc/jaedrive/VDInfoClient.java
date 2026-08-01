@@ -41,8 +41,11 @@ public class VDInfoClient {
     public static final int ID_DRIVE_MODE      = 0x4;
     public static final int ID_ENERGY_FLOW     = 0x8;
     public static final int ID_TOTAL_MILEAGE   = 0x2e;
-    public static final int ID_EV_MILEAGE      = 0x36;
-    public static final int ID_HEV_MILEAGE     = 0x32;
+    // ID_EV_MILEAGE (0x36)/ID_HEV_MILEAGE (0x32) RIMOSSI dal poll (2026-08-01): confermato
+    // sul campo che ID_HEV_MILEAGE restituisce sempre lo stesso valore dell'odometro totale,
+    // non una distanza specifica per la modalita' ibrida - non un segnale utilizzabile per
+    // calcolare i km EV/HEV di un viaggio (vedi EnergyFlowUtil.computeKmByBucket() per il
+    // sostituto, basato sulla traccia GPS/ENERGY_FLOW invece che su questi due ID VDB).
     public static final int ID_DISPLAY_SOC     = 0x2c;
     // CONFERMATO REALE: stesso dispatcher di ID_ENERGY_RECYCLE_LEVEL (SVSetting.apk,
     // updateUIStatus), ramo cmdId=0x2a - combina i PRIMI due elementi dell'array come intero
@@ -132,8 +135,7 @@ public class VDInfoClient {
         {MODULE_NEW_ENERGY, ID_DRIVE_MODE},
         {MODULE_NEW_ENERGY, ID_ENERGY_FLOW},
         {MODULE_NEW_ENERGY, ID_TOTAL_MILEAGE},
-        {MODULE_NEW_ENERGY, ID_EV_MILEAGE},
-        {MODULE_NEW_ENERGY, ID_HEV_MILEAGE},
+        // ID_EV_MILEAGE/ID_HEV_MILEAGE rimossi dal poll - vedi commento sulle costanti sopra.
         {MODULE_NEW_ENERGY, ID_DISPLAY_SOC},
         {MODULE_NEW_ENERGY, ID_DISPLAY_MILEAGE},
         {MODULE_NEW_ENERGY, ID_ENERGY_RECYCLE_LEVEL},

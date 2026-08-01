@@ -98,13 +98,15 @@ public class SyncWorker extends Worker {
         payload.put("km", r.kmDelta);
         if (r.litersDelta != null) payload.put("liters", r.litersDelta);
         if (r.avgConsumption != null) payload.put("avgConsumption", r.avgConsumption);
-        if (electric && r.kmEv != null) payload.put("kmEv", r.kmEv);
-        if (electric && r.kmHev != null) payload.put("kmHev", r.kmHev);
+        // r.kmEv/r.kmHev NON sono piu' la fonte (vedi sotto, calcolati dalla traccia GPX) -
+        // i campi restano sul TripRecord/TripDatabase solo per compatibilita' di schema
+        // (stesso trattamento gia' riservato a startKm/endKm), sempre null per i trip
+        // creati da qui in poi.
 
         // Solo i trip AUTO hanno una traccia GPX - da li' sia il file grezzo da allegare
-        // (gpxRaw) sia il breakdown EV/serie/parallelo/altro, ricalcolato dagli stessi punti
-        // gia' usati per il pallino colorato nel dettaglio viaggio locale (vedi
-        // EnergyFlowUtil.computeUploadBreakdown()).
+        // (gpxRaw) sia il breakdown EV/serie/parallelo/altro e i km EV/HEV, ricalcolati
+        // dagli stessi punti gia' usati per il pallino colorato nel dettaglio viaggio
+        // locale (vedi EnergyFlowUtil.computeUploadBreakdown()/computeKmByBucket()).
         if (r.gpxPath != null) {
             File gpxFile = new File(r.gpxPath);
             if (gpxFile.exists()) {
@@ -121,6 +123,15 @@ public class SyncWorker extends Worker {
                         payload.put("pctSeries", breakdown[1]);
                         payload.put("pctParallel", breakdown[2]);
                         payload.put("pctOther", breakdown[3]);
+                    }
+                    // Sostituisce il vecchio calcolo per differenza su ID_EV_MILEAGE/
+                    // ID_HEV_MILEAGE (rimosso da TrackingService - confermato sul campo
+                    // 2026-08-01 che ID_HEV_MILEAGE restituisce sempre l'odometro totale,
+                    // non una distanza specifica per la modalita' ibrida).
+                    double[] kmByBucket = EnergyFlowUtil.computeKmByBucket(gpxPoints);
+                    if (kmByBucket != null) {
+                        payload.put("kmEv", kmByBucket[0]);
+                        payload.put("kmHev", kmByBucket[1]);
                     }
                 }
                 // Il drive mode (ECO/NORMAL/SPORT) si applica a qualunque motorizzazione,

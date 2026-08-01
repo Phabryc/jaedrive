@@ -106,4 +106,42 @@ public class EnergyFlowUtil {
         if (known == 0) return null;
         return new double[]{100.0 * ev / known, 100.0 * series / known, 100.0 * parallel / known, 100.0 * other / known};
     }
+
+    // Km reali in EV/HEV per il viaggio (payload cloud) - sostituisce il vecchio calcolo
+    // per differenza sui contatori-odometro ID_EV_MILEAGE/ID_HEV_MILEAGE (VDInfoClient),
+    // confermato sul campo 2026-08-01 come un segnale non affidabile per questo scopo
+    // (ID_HEV_MILEAGE restituisce sempre lo stesso valore dell'odometro totale, non una
+    // distanza specifica per la modalita' ibrida - lo stesso sospetto gia' annotato quando
+    // fu aggiunto). Al suo posto: distanza GPS reale (Location.distanceBetween) di ogni
+    // segmento della traccia, attribuita al bucket ENERGY_FLOW campionato all'inizio del
+    // segmento - stessa fonte e stessa convenzione gia' usata per colorare la traccia sulla
+    // mappa e per computeUploadBreakdown() qui sopra, quindi niente segnale VDB aggiuntivo
+    // da fidarsi. Piu' preciso di "km totali del viaggio * percentuale campioni" perche'
+    // pesa sui km GPS realmente coperti in quel tratto, non sul numero di campioni (un
+    // tratto lento in coda pesa uguale a uno veloce in autostrada in un conteggio a
+    // campioni, qui invece pesa per la distanza che ha effettivamente coperto).
+    // Ritorna null se non c'e' nessun campione ENERGY_FLOW valido, o se e' presente meno di
+    // due punti (nessun segmento da misurare).
+    public static double[] computeKmByBucket(List<TripPoint> points) {
+        if (points.size() < 2) return null;
+        double kmEv = 0, kmHev = 0;
+        boolean anyKnown = false;
+        float[] result = new float[1];
+        for (int i = 1; i < points.size(); i++) {
+            TripPoint prev = points.get(i - 1);
+            TripPoint cur = points.get(i);
+            if (prev.energyFlow < 0) continue;
+            anyKnown = true;
+            android.location.Location.distanceBetween(prev.lat, prev.lon, cur.lat, cur.lon, result);
+            double segmentKm = result[0] / 1000.0;
+            switch (bucketFor(prev.energyFlow)) {
+                case EV: kmEv += segmentKm; break;
+                case SERIES:
+                case PARALLEL: kmHev += segmentKm; break;
+                default: break; // CHR/IDLE: ne' trazione elettrica ne' termica in corso
+            }
+        }
+        if (!anyKnown) return null;
+        return new double[]{kmEv, kmHev};
+    }
 }
