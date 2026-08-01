@@ -32,18 +32,29 @@ interface DayStat {
 }
 
 // Calendario mensile compatto: il consumo medio del giorno e' scritto direttamente nella
-// casella (non serve piu' passarci sopra), cliccando un giorno si filtra la lista viaggi
-// nella pagina (vedi Trips.tsx - selectedDate/onSelectDate sono sollevati li' perche' e'
-// quella pagina a possedere la query della lista).
+// casella (non serve piu' passarci sopra), cliccando un giorno si filtra la lista viaggi e
+// le statistiche nella pagina (vedi Trips.tsx - rangeFrom/rangeTo/onRangeChange sollevati
+// li' perche' e' quella pagina a possedere la query della lista).
+//
+// Due modalita' di click sulla griglia:
+// - normale: click su un giorno lo seleziona da solo (rangeFrom=rangeTo=quel giorno),
+//   ri-click lo deseleziona - comportamento originale, invariato.
+// - "Periodo" (bottone dedicato, richiesto dall'utente 2026-08-01 al posto di due campi
+//   data separati sotto la lista viaggi): primo click = inizio, secondo click = fine
+//   (ordine libero, riordinati se il secondo click e' prima del primo). Colore dedicato
+//   (arancio, token "warn" gia' in tailwind.config) per non confondersi con l'intensita'
+//   km della casella (blu) ne' con l'evidenziazione del giorno singolo.
 export function CalendarHeatmap({
   vehicleId,
-  selectedDate,
-  onSelectDate,
+  rangeFrom,
+  rangeTo,
+  onRangeChange,
   className,
 }: {
   vehicleId: string;
-  selectedDate: string | null;
-  onSelectDate: (date: string | null) => void;
+  rangeFrom: string | null;
+  rangeTo: string | null;
+  onRangeChange: (from: string | null, to: string | null) => void;
   className?: string;
 }) {
   const { t, locale } = useLanguage();
@@ -51,6 +62,44 @@ export function CalendarHeatmap({
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth()); // 0-11
   const [days, setDays] = useState<DayStat[] | null>(null);
+  const [periodMode, setPeriodMode] = useState(false);
+  // Giorno di inizio gia' cliccato in modalita' Periodo, in attesa del secondo click (fine) -
+  // stato locale, non sollevato: e' solo un dettaglio dell'interazione con la griglia, non
+  // un filtro attivo finche' non c'e' anche la fine (vedi handleDayClick()).
+  const [pendingStart, setPendingStart] = useState<string | null>(null);
+  const isSingleDay = rangeFrom != null && rangeFrom === rangeTo;
+  const isRealRange = rangeFrom != null && rangeTo != null && rangeFrom !== rangeTo;
+
+  function togglePeriodMode() {
+    setPeriodMode((m) => !m);
+    setPendingStart(null);
+  }
+
+  function clearRange() {
+    onRangeChange(null, null);
+    setPendingStart(null);
+  }
+
+  function handleDayClick(date: string) {
+    if (!periodMode) {
+      const isExact = rangeFrom === date && rangeTo === date;
+      onRangeChange(isExact ? null : date, isExact ? null : date);
+      return;
+    }
+    if (pendingStart == null) {
+      setPendingStart(date);
+      onRangeChange(date, date); // feedback immediato mentre si attende il secondo click
+    } else if (pendingStart === date) {
+      // Ri-click sullo stesso giorno di inizio: annulla invece di creare un periodo di un
+      // solo giorno "per sbaglio" - per quello c'e' gia' la modalita' normale.
+      setPendingStart(null);
+      onRangeChange(null, null);
+    } else {
+      const [start, end] = pendingStart < date ? [pendingStart, date] : [date, pendingStart];
+      onRangeChange(start, end);
+      setPendingStart(null);
+    }
+  }
 
   useEffect(() => {
     setDays(null);
@@ -106,22 +155,61 @@ export function CalendarHeatmap({
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const selectedStat = selectedDate ? byDate.get(selectedDate) : undefined;
+  const selectedStat = isSingleDay && rangeFrom ? byDate.get(rangeFrom) : undefined;
+  // Aggregato del periodo (solo sui giorni dell'anno correntemente mostrato che hanno gia'
+  // un dato - se il periodo scavalca un anno diverso da quello caricato qui, quella parte
+  // non e' inclusa in QUESTO riepilogo: la lista viaggi sotto, che interroga il server, resta
+  // comunque corretta su tutto l'intervallo).
+  const rangeDays = useMemo(() => {
+    if (!isRealRange || !rangeFrom || !rangeTo) return [];
+    return Array.from(byDate.values()).filter((d) => d.date >= rangeFrom && d.date <= rangeTo);
+  }, [byDate, isRealRange, rangeFrom, rangeTo]);
+  const rangeAgg = rangeDays.length > 0
+    ? {
+        km: rangeDays.reduce((s, d) => s + d.km, 0),
+        liters: rangeDays.reduce((s, d) => s + d.liters, 0),
+        durationMin: rangeDays.reduce((s, d) => s + d.durationMin, 0),
+        tripCount: rangeDays.reduce((s, d) => s + d.tripCount, 0),
+      }
+    : null;
+  const rangeAvg = rangeAgg && rangeAgg.liters > 0 ? rangeAgg.km / rangeAgg.liters : null;
 
-  const monthNav = (
-    <div className="flex items-center gap-2 text-xs text-onsurface-variant">
-      <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
-        ←
+  const headerControls = (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-onsurface-variant">
+      <button
+        onClick={togglePeriodMode}
+        className={`rounded border px-2 py-1 ${
+          periodMode ? "border-warn text-warn" : "border-surface-border hover:border-accent hover:text-onsurface"
+        }`}
+      >
+        {t("calendar.periodMode")}
       </button>
-      <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
-      <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
-        →
-      </button>
+      {(rangeFrom || rangeTo) && (
+        <button
+          onClick={clearRange}
+          title={t("calendar.clearRange")}
+          className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface"
+        >
+          ✕
+        </button>
+      )}
+      <div className="flex items-center gap-2">
+        <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
+          ←
+        </button>
+        <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
+        <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
+          →
+        </button>
+      </div>
     </div>
   );
 
   return (
-    <Collapsible className={className} id="calendarHeatmap" title={t("calendar.title")} headerExtra={monthNav}>
+    <Collapsible className={className} id="calendarHeatmap" title={t("calendar.title")} headerExtra={headerControls}>
+      <p className="mb-3 text-xs text-onsurface-variant">
+        {periodMode ? (pendingStart == null ? t("calendar.periodHintStart") : t("calendar.periodHintEnd")) : t("calendar.periodHintOff")}
+      </p>
       {days === null ? (
         <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
       ) : (
@@ -143,7 +231,13 @@ export function CalendarHeatmap({
             const dayNum = Number(date.slice(8, 10));
             const km = stat?.km ?? 0;
             const bg = km > 0 ? `rgba(0,191,255,${0.14 + 0.66 * (km / maxKm)})` : "rgba(255,255,255,0.04)";
-            const isSelected = date === selectedDate;
+            const isEndpoint = date === rangeFrom || date === rangeTo || date === pendingStart;
+            const isBetween = isRealRange && !!rangeFrom && !!rangeTo && date > rangeFrom && date < rangeTo;
+            const outline = isEndpoint
+              ? "2px solid #FB8C00"
+              : isBetween
+                ? "1px solid rgba(251,140,0,0.6)"
+                : "1px solid rgba(255,255,255,0.06)";
             const title = stat
               ? `${stat.km.toFixed(1)} km · ${stat.tripCount} ${t(stat.tripCount === 1 ? "calendar.tripSingular" : "calendar.tripPlural")}${
                   stat.avgConsumption != null ? ` · ${stat.avgConsumption.toFixed(1)} km/l` : ""
@@ -153,11 +247,11 @@ export function CalendarHeatmap({
               <button
                 key={date}
                 title={title}
-                onClick={() => onSelectDate(isSelected ? null : date)}
+                onClick={() => handleDayClick(date)}
                 className="flex aspect-square flex-col items-center justify-center gap-0.5 rounded-md transition"
                 style={{
-                  backgroundColor: bg,
-                  outline: isSelected ? "2px solid #00BFFF" : "1px solid rgba(255,255,255,0.06)",
+                  backgroundColor: isBetween ? "rgba(251,140,0,0.12)" : bg,
+                  outline,
                   outlineOffset: -1,
                 }}
               >
@@ -173,9 +267,9 @@ export function CalendarHeatmap({
         </div>
       )}
 
-      {selectedDate && (
+      {isSingleDay && rangeFrom && (
         <div className="mx-auto mt-5 w-full" style={{ maxWidth: DETAIL_MAX_WIDTH }}>
-          <p className="mb-2 text-center text-xs text-onsurface-variant">{formatDayFull(selectedDate)}</p>
+          <p className="mb-2 text-center text-xs text-onsurface-variant">{formatDayFull(rangeFrom)}</p>
           {!selectedStat || selectedStat.tripCount === 0 ? (
             <p className="text-center text-sm text-onsurface-variant">{t("calendar.noTripsThisDay")}</p>
           ) : (
@@ -191,6 +285,31 @@ export function CalendarHeatmap({
               <DayStatBlock icon={<IconFuel size={18} />} value={`${selectedStat.liters.toFixed(2)} L`} label={t("calendar.statFuel")} />
               <Divider />
               <DayStatBlock icon={<IconClock size={18} />} value={formatDuration(selectedStat.durationMin)} label={t("calendar.statDuration")} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {isRealRange && rangeFrom && rangeTo && (
+        <div className="mx-auto mt-5 w-full" style={{ maxWidth: DETAIL_MAX_WIDTH }}>
+          <p className="mb-2 text-center text-xs text-onsurface-variant">
+            {t("calendar.rangeSelected", { from: formatDayFull(rangeFrom), to: formatDayFull(rangeTo) })}
+          </p>
+          {!rangeAgg || rangeAgg.tripCount === 0 ? (
+            <p className="text-center text-sm text-onsurface-variant">{t("calendar.noTripsThisDay")}</p>
+          ) : (
+            <div className="flex items-stretch rounded-lg border border-surface-border bg-bg/40 p-3">
+              <DayStatBlock icon={<IconRoute size={18} />} value={`${rangeAgg.km.toFixed(1)} km`} label={t("calendar.statDistance")} />
+              <Divider />
+              <DayStatBlock
+                icon={<IconGauge size={18} />}
+                value={rangeAvg != null ? `${rangeAvg.toFixed(1)} km/l` : "–"}
+                label={t("calendar.statConsumption")}
+              />
+              <Divider />
+              <DayStatBlock icon={<IconFuel size={18} />} value={`${rangeAgg.liters.toFixed(2)} L`} label={t("calendar.statFuel")} />
+              <Divider />
+              <DayStatBlock icon={<IconClock size={18} />} value={formatDuration(rangeAgg.durationMin)} label={t("calendar.statDuration")} />
             </div>
           )}
         </div>

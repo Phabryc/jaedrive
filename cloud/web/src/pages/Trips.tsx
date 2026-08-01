@@ -20,20 +20,17 @@ export default function Trips() {
   const [data, setData] = useState<TripsPage | null>(null);
   const [page, setPage] = useState(1);
   const [kind, setKind] = useState("");
-  // Periodo attivo (formato "YYYY-MM-DD", entrambi inclusi) - alimentato sia da un click
-  // su un giorno del calendario in VehicleStatsPanel (che imposta rangeFrom=rangeTo, un
-  // periodo di un solo giorno) sia dai due selettori data espliciti qui sotto. Un'unica
-  // fonte di verita' per filtrare TANTO la lista viaggi QUANTO le statistiche aggregate
-  // (VehicleStatsPanel), gia' entrambe supportate da from/to lato server.
+  // Periodo attivo (formato "YYYY-MM-DD", entrambi inclusi) - scelto interamente dal
+  // calendario dentro VehicleStatsPanel (click singolo, o modalita' "Periodo" per un
+  // intervallo - vedi CalendarHeatmap), non da controlli separati qui. Un'unica fonte di
+  // verita' per filtrare TANTO la lista viaggi QUANTO le statistiche aggregate, gia'
+  // entrambe supportate da from/to lato server.
   const [rangeFrom, setRangeFrom] = useState<string | null>(null);
   const [rangeTo, setRangeTo] = useState<string | null>(null);
   const isSingleDay = rangeFrom != null && rangeFrom === rangeTo;
   const fromIso = rangeFrom ? `${rangeFrom}T00:00:00.000Z` : undefined;
   const toIso = rangeTo ? `${rangeTo}T23:59:59.999Z` : undefined;
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [backfillBusy, setBackfillBusy] = useState(false);
-  const [backfillStatus, setBackfillStatus] = useState<string | null>(null);
 
   function clearRange() {
     setRangeFrom(null);
@@ -64,38 +61,21 @@ export default function Trips() {
         to: toIso,
       })
       .then(setData);
-  }, [vehicleId, page, kind, isSingleDay, fromIso, toIso, refreshKey]);
+  }, [vehicleId, page, kind, isSingleDay, fromIso, toIso]);
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
-
-  // Recupero indirizzi mancanti (vedi routes/user.ts) - i trip caricati prima del fallback
-  // di geocoding lato server restano "Percorso GPS" per sempre senza questo, anche se la
-  // traccia GPX ce l'hanno gia'. Un batch alla volta: se ne restano, l'utente puo' ricliccare.
-  async function handleBackfillAddresses() {
-    if (!vehicleId) return;
-    setBackfillBusy(true);
-    setBackfillStatus(null);
-    try {
-      const res = await api.backfillAddresses(vehicleId);
-      if (res.scanned === 0) {
-        setBackfillStatus(t("trips.backfillAllPresent"));
-      } else {
-        setBackfillStatus(
-          t("trips.backfillResult", { updated: res.updated, scanned: res.scanned }) +
-            (res.remaining > 0 ? t("trips.backfillContinue") : ""),
-        );
-      }
-      setRefreshKey((k) => k + 1);
-    } catch {
-      setBackfillStatus(t("trips.backfillError"));
-    } finally {
-      setBackfillBusy(false);
-    }
-  }
 
   function formatDayLabel(iso: string): string {
     return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: "numeric", month: "short" });
   }
+
+  const rangeChip = !rangeFrom
+    ? null
+    : isSingleDay
+      ? formatDayLabel(rangeFrom)
+      : rangeTo
+        ? `${formatDayLabel(rangeFrom)} → ${formatDayLabel(rangeTo)}`
+        : formatDayLabel(rangeFrom);
 
   return (
     <AppShell>
@@ -105,12 +85,11 @@ export default function Trips() {
         <VehicleStatsPanel
           vehicleId={vehicleId}
           powertrain={vehicle?.powertrain ?? null}
-          from={fromIso}
-          to={toIso}
-          selectedDate={isSingleDay ? rangeFrom : null}
-          onSelectDate={(d) => {
-            setRangeFrom(d);
-            setRangeTo(d);
+          rangeFrom={rangeFrom}
+          rangeTo={rangeTo}
+          onRangeChange={(from, to) => {
+            setRangeFrom(from);
+            setRangeTo(to);
             setPage(1);
           }}
         />
@@ -142,65 +121,17 @@ export default function Trips() {
               {t(f.labelKey)}
             </button>
           ))}
-          {isSingleDay && rangeFrom && (
+          {rangeChip && (
             <button
               onClick={clearRange}
-              className="flex items-center gap-1.5 rounded-md border border-accent px-3 py-1 text-xs text-accent"
+              className="flex items-center gap-1.5 rounded-md border border-warn px-3 py-1 text-xs text-warn"
+              title={t("trips.rangeClear")}
             >
-              {formatDayLabel(rangeFrom)}
+              {rangeChip}
               <span aria-hidden>✕</span>
             </button>
           )}
         </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-        <span className="text-onsurface-variant">{t("trips.rangeLabel")}</span>
-        <input
-          type="date"
-          aria-label={t("trips.rangeFrom")}
-          value={rangeFrom ?? ""}
-          max={rangeTo ?? undefined}
-          onChange={(e) => {
-            setRangeFrom(e.target.value || null);
-            setPage(1);
-          }}
-          className="rounded-md border border-surface-border bg-bg px-2 py-1 text-onsurface outline-none focus:border-accent"
-        />
-        <span className="text-onsurface-variant" aria-hidden>
-          →
-        </span>
-        <input
-          type="date"
-          aria-label={t("trips.rangeTo")}
-          value={rangeTo ?? ""}
-          min={rangeFrom ?? undefined}
-          onChange={(e) => {
-            setRangeTo(e.target.value || null);
-            setPage(1);
-          }}
-          className="rounded-md border border-surface-border bg-bg px-2 py-1 text-onsurface outline-none focus:border-accent"
-        />
-        {(rangeFrom || rangeTo) && (
-          <button
-            onClick={clearRange}
-            className="rounded-md border border-surface-border px-2 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface"
-            title={t("trips.rangeClear")}
-          >
-            ✕
-          </button>
-        )}
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs">
-        <button
-          onClick={handleBackfillAddresses}
-          disabled={backfillBusy}
-          className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
-        >
-          {backfillBusy ? t("trips.backfillBusy") : t("trips.backfillButton")}
-        </button>
-        {backfillStatus && <span className="text-onsurface-variant">{backfillStatus}</span>}
       </div>
 
       {data === null && <p className="text-onsurface-variant">{t("common.loading")}</p>}

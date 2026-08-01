@@ -23,29 +23,29 @@ export const STATS_GRID_CLASS = "grid grid-cols-12 items-start gap-4 grid-flow-d
 export function VehicleStatsPanel({
   vehicleId,
   powertrain,
-  from,
-  to,
-  selectedDate,
-  onSelectDate,
+  rangeFrom,
+  rangeTo,
+  onRangeChange,
 }: {
   vehicleId: string;
   powertrain: string | null;
-  // Periodo attivo (ISO, entrambi opzionali) - sollevato da Trips.tsx cosi' lo stesso
-  // filtro applicato alla lista viaggi si riflette anche qui, invece di mostrare sempre le
-  // statistiche di tutta la vita del veicolo indipendentemente da cosa l'utente sta
-  // guardando nella lista sotto.
-  from?: string;
-  to?: string;
-  selectedDate: string | null;
-  onSelectDate: (date: string | null) => void;
+  // Periodo attivo (date "YYYY-MM-DD", entrambe opzionali) - sollevato da Trips.tsx cosi'
+  // lo stesso filtro applicato alla lista viaggi si riflette anche qui, invece di mostrare
+  // sempre le statistiche di tutta la vita del veicolo. Scelto interamente dal calendario
+  // qui sotto (vedi CalendarHeatmap - click singolo o modalita' "Periodo").
+  rangeFrom: string | null;
+  rangeTo: string | null;
+  onRangeChange: (from: string | null, to: string | null) => void;
 }) {
   const { t } = useLanguage();
   const [stats, setStats] = useState<VehicleStats | null>(null);
+  const fromIso = rangeFrom ? `${rangeFrom}T00:00:00.000Z` : undefined;
+  const toIso = rangeTo ? `${rangeTo}T23:59:59.999Z` : undefined;
 
   useEffect(() => {
     setStats(null);
-    api.stats(vehicleId, { from, to }).then(setStats);
-  }, [vehicleId, from, to]);
+    api.stats(vehicleId, { from: fromIso, to: toIso }).then(setStats);
+  }, [vehicleId, fromIso, toIso]);
 
   if (!stats) return <p className="mb-4 text-sm text-onsurface-variant">{t("stats.loading")}</p>;
 
@@ -60,8 +60,9 @@ export function VehicleStatsPanel({
       <CalendarHeatmap
         className="col-span-12 xl:col-span-4"
         vehicleId={vehicleId}
-        selectedDate={selectedDate}
-        onSelectDate={onSelectDate}
+        rangeFrom={rangeFrom}
+        rangeTo={rangeTo}
+        onRangeChange={onRangeChange}
       />
     </div>
   );

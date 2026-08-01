@@ -6,6 +6,7 @@ import { api, ApiError } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { hasElectricData } from "../lib/vehicleCatalog";
 import { useProfile } from "../lib/ProfileContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
@@ -17,6 +18,14 @@ export default function Settings() {
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  // Manutenzione per veicolo (spostata qui da Trips.tsx su richiesta 2026-08-01: sono
+  // operazioni di ricalcolo/riparazione dati, non filtri della vista viaggi) - stato tenuto
+  // per id veicolo come "editing" qui sopra, cosi' piu' auto non si pestano i piedi a
+  // vicenda se l'utente ne ha piu' di una.
+  const [backfillBusy, setBackfillBusy] = useState<Record<string, boolean>>({});
+  const [backfillStatus, setBackfillStatus] = useState<Record<string, string | null>>({});
+  const [energyBackfillBusy, setEnergyBackfillBusy] = useState<Record<string, boolean>>({});
+  const [energyBackfillStatus, setEnergyBackfillStatus] = useState<Record<string, string | null>>({});
 
   function reload() {
     api.vehicles().then(setVehicles);
@@ -29,6 +38,46 @@ export default function Settings() {
     await api.renameVehicle(id, nickname);
     setEditing((e) => ({ ...e, [id]: "" }));
     reload();
+  }
+
+  // Recupero indirizzi mancanti (vedi routes/user.ts) - i trip caricati prima del fallback
+  // di geocoding lato server restano "Percorso GPS" per sempre senza questo, anche se la
+  // traccia GPX ce l'hanno gia'. Un batch alla volta: se ne restano, l'utente puo' ricliccare.
+  async function handleBackfillAddresses(vehicleId: string) {
+    setBackfillBusy((s) => ({ ...s, [vehicleId]: true }));
+    setBackfillStatus((s) => ({ ...s, [vehicleId]: null }));
+    try {
+      const res = await api.backfillAddresses(vehicleId);
+      const status = res.scanned === 0
+        ? t("settings.backfillAllPresent")
+        : t("settings.backfillResult", { updated: res.updated, scanned: res.scanned }) +
+          (res.remaining > 0 ? t("settings.backfillContinue") : "");
+      setBackfillStatus((s) => ({ ...s, [vehicleId]: status }));
+    } catch {
+      setBackfillStatus((s) => ({ ...s, [vehicleId]: t("settings.backfillError") }));
+    } finally {
+      setBackfillBusy((s) => ({ ...s, [vehicleId]: false }));
+    }
+  }
+
+  // Ricalcola km EV/HEV per i trip AUTO gia' caricati (vedi routes/user.ts) - serve solo una
+  // volta per lo storico esistente da prima del fix (2026-08-01, i segnali VDB precedenti
+  // sono confermati inaffidabili), i nuovi upload sono gia' corretti senza bisogno di questo.
+  // Un solo giro basta (nessun servizio esterno rate-limitato di mezzo), niente "remaining".
+  async function handleBackfillEnergyKm(vehicleId: string) {
+    setEnergyBackfillBusy((s) => ({ ...s, [vehicleId]: true }));
+    setEnergyBackfillStatus((s) => ({ ...s, [vehicleId]: null }));
+    try {
+      const res = await api.backfillEnergyKm(vehicleId);
+      setEnergyBackfillStatus((s) => ({
+        ...s,
+        [vehicleId]: t("settings.energyBackfillResult", { updated: res.updated, scanned: res.scanned }),
+      }));
+    } catch {
+      setEnergyBackfillStatus((s) => ({ ...s, [vehicleId]: t("settings.backfillError") }));
+    } finally {
+      setEnergyBackfillBusy((s) => ({ ...s, [vehicleId]: false }));
+    }
   }
 
   async function deleteVehicle(id: string, nickname: string) {
@@ -114,6 +163,31 @@ export default function Settings() {
                 >
                   {t("settings.rename")}
                 </button>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2 border-t border-surface-border pt-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <button
+                    onClick={() => handleBackfillAddresses(v.id)}
+                    disabled={backfillBusy[v.id]}
+                    className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
+                  >
+                    {backfillBusy[v.id] ? t("settings.backfillBusy") : t("settings.backfillButton")}
+                  </button>
+                  {backfillStatus[v.id] && <span className="text-onsurface-variant">{backfillStatus[v.id]}</span>}
+                </div>
+                {hasElectricData(v.powertrain) && (
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
+                    <button
+                      onClick={() => handleBackfillEnergyKm(v.id)}
+                      disabled={energyBackfillBusy[v.id]}
+                      className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
+                    >
+                      {energyBackfillBusy[v.id] ? t("settings.energyBackfillBusy") : t("settings.energyBackfillButton")}
+                    </button>
+                    {energyBackfillStatus[v.id] && <span className="text-onsurface-variant">{energyBackfillStatus[v.id]}</span>}
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -136,6 +136,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+
+  // Un solo giro (vedi routes/user.ts) - a differenza di backfillAddresses non c'e' un
+  // servizio esterno rate-limitato di mezzo, solo calcolo sulla traccia GPX gia' in DB.
+  backfillEnergyKm: (vehicleId: string) =>
+    request<{ scanned: number; updated: number }>(`/vehicles/${vehicleId}/backfill-energy-km`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
 };
 
 export { ApiError };
