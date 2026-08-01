@@ -15,7 +15,9 @@ public class TripPoint {
     public final int driveMode;         // 0/1/2 = ECO/NORMAL/SPORT
     public final float speedKmh;        // velocita' GPS
     public final float instConsumption; // valore grezzo, scala non confermata
-    public final int regenLevel;        // valore grezzo, scala non confermata
+    // Valore grezzo (0/1/2) - scala confermata sul campo 2026-08-02, vedi
+    // VDInfoClient.regenLevelLabel() per la conversione in ALTO/MEDIO/BASSO.
+    public final int regenLevel;
 
     public TripPoint(double lat, double lon, int energyFlow) {
         this(lat, lon, energyFlow, -1f, -1f);

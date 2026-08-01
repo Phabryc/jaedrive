@@ -62,6 +62,13 @@ public class VDInfoClient {
     // padding a zero invece del valore vero. Fix: usare decodeFirstTwoAsInt() per questo id
     // specifico (vedi MainActivity.updateFooterStatus()), che e' anche coerente con come SOC/
     // fuel% vengono gia' decodificati inline nello stesso metodo (primi due elementi).
+    // CONFERMATO SUL CAMPO (2026-08-02): raw=[0,0] stabile per un'intera giornata di guida
+    // (mattina/sera/notte, dozzine di trip reali da 0.6 a 20+ km) - MAI cambiato, e sempre
+    // un valore VALIDO (non IS_NULL). Non e' un problema di decodifica (0 combinato da [0,0]
+    // e' aritmeticamente corretto): il segnale stesso e' fermo/stub su questa vettura, stessa
+    // categoria di FUEL_LEVEL/INFO_MAKE (dati placeholder gia' documentati altrove nel
+    // progetto). L'"Autonomia" mostrata in DATI e' quindi affidabile solo come conferma che
+    // il segnale non funziona, non come dato reale - da valutare se nascondere la riga.
     public static final int ID_DISPLAY_MILEAGE = 0x2a;
     public static final int ID_VEHICLE_MODE_ID = 0x78;
     // Confermato REALE (non solo "registrato ma senza caller"): il dispatcher UI di
@@ -69,8 +76,10 @@ public class VDInfoClient {
     // updateUIStatus) ha un ramo esplicito per modulo=MODULE_NEW_ENERGY/cmdId=0x25 che
     // chiama onEnergyRecycleLevelChanged(int) con un valore letto da getItemValue()
     // (percorso "valore singolo", non un combine a 16 bit come i campi carburante) -
-    // livello di rigenerazione in frenata. Scala/range esatti non confermati (nessun
-    // caller mostra come formatta il numero in UI), salvato come intero grezzo.
+    // livello di rigenerazione in frenata. Scala CONFERMATA SUL CAMPO 2026-08-02 (test
+    // reale in auto, cambiando il livello e leggendo il valore): 0=ALTO, 1=MEDIO, 2=BASSO -
+    // scala invertita rispetto all'intuizione "numero piu' alto = livello piu' alto", vedi
+    // regenLevelLabel().
     public static final int ID_ENERGY_RECYCLE_LEVEL = 0x25;
 
     // com.desaysv.ivi.extra.project.carinfo.ReadOnlyID (carburante/consumi)
@@ -81,6 +90,16 @@ public class VDInfoClient {
     public static final int ID_AVERAGE_OIL_CONSUMPTION_RECENTLY_50KM = 0x24;
     public static final int ID_FUEL_PERCENT        = 0x44;
     public static final int ID_INSTANTANEOUS_CONSUMPTION = 0x46;
+    // CONFERMATO CON CHIAMANTE REALE (2026-08-02): com/desaysv/present/a/a/f$1.smali, blocco
+    // modulo=0x50004 (MODULE_READONLY_INFO, non MODULE_NEW_ENERGY!), tratta 0x48 e 0x78 come
+    // INTERCAMBIABILI per lo stesso valore (stesso ramo if per entrambi) - decodifica primi
+    // due elementi big-endian, nessuna scala, esattamente come decodeFirstTwoAsInt(). Questa
+    // e' la vera fonte dell'autonomia mostrata nel pannello "Nuova energia": ID_DISPLAY_MILEAGE
+    // (NewEnergyID, 0x2a) confermato sul campo essere tutt'altro/inattivo su questa vettura
+    // (raw=[0,0] stabile per un'intera giornata di guida) - segnale sbagliato fin dall'inizio,
+    // non un problema di formula.
+    public static final int ID_ENDURANCE_KM        = 0x48;
+    public static final int ID_TOTAL_RANGE         = 0x78;
     // CONFERMATO con un vero chiamante: com.desay.launcher.common.b.b (helper condiviso in
     // SVSetting.apk) chiama getItemValue(0x50004, 0x5f), scompone il risultato bit a bit in
     // un array di 4 booleani (uno per ruota) e lo passa a onTirePressureWarning(ZZZZ) per
@@ -133,12 +152,15 @@ public class VDInfoClient {
     // Ogni riga: {modulo, cmdId}
     private static final int[][] POLL_TARGETS = {
         {MODULE_NEW_ENERGY, ID_DRIVE_MODE},
-        {MODULE_NEW_ENERGY, ID_ENERGY_FLOW},
+        // ID_ENERGY_FLOW/ID_ENERGY_RECYCLE_LEVEL rimossi da qui: hanno un giro di poll
+        // dedicato piu' veloce (vedi fastPollRunnable) - il giro normale a 2s+ risultava
+        // troppo in ritardo per valori che cambiano in tempo reale mentre si guida (flusso
+        // energia) o che il guidatore stesso cambia (rigenerazione, es. tasto volante) e si
+        // aspetta di vedere aggiornati quasi subito - richiesta utente 2026-08-02.
         {MODULE_NEW_ENERGY, ID_TOTAL_MILEAGE},
         // ID_EV_MILEAGE/ID_HEV_MILEAGE rimossi dal poll - vedi commento sulle costanti sopra.
         {MODULE_NEW_ENERGY, ID_DISPLAY_SOC},
         {MODULE_NEW_ENERGY, ID_DISPLAY_MILEAGE},
-        {MODULE_NEW_ENERGY, ID_ENERGY_RECYCLE_LEVEL},
         // ID_VEHICLE_MODE_ID rimosso: confermato sul campo che restituisce sempre
         // IS_NULL su questa auto (non supportato), inutile intasare il log.
         {MODULE_READONLY_INFO, ID_LOW_FUEL_WARNING},
@@ -148,8 +170,15 @@ public class VDInfoClient {
         {MODULE_READONLY_INFO, ID_AVERAGE_OIL_CONSUMPTION_RECENTLY_50KM},
         {MODULE_READONLY_INFO, ID_FUEL_PERCENT},
         {MODULE_READONLY_INFO, ID_INSTANTANEOUS_CONSUMPTION},
+        {MODULE_READONLY_INFO, ID_ENDURANCE_KM},
+        {MODULE_READONLY_INFO, ID_TOTAL_RANGE},
         {MODULE_READONLY_INFO, ID_TIRE_PRESSURE_WARNING},
-        {MODULE_READONLY_INFO, ID_TIRE_PRESSURE},
+        // ID_TIRE_PRESSURE (0x8c, il valore numerico PSI/kPa) rimosso dal poll (2026-08-02):
+        // confermato sul campo IS_NULL su OGNI singolo poll per un'intera giornata di guida
+        // (mattina/sera/notte, dozzine di cicli) - non supportato su quest'auto, stessa
+        // situazione gia' vista per ID_VEHICLE_MODE_ID. ID_TIRE_PRESSURE_WARNING invece
+        // risponde sempre (mai IS_NULL, anche se e' rimasto su raw=[0]=nessun avviso per
+        // tutta la giornata) - segnale vivo, resta nel poll.
         {MODULE_READONLY_INFO, ID_VIN},
         {MODULE_DOANOSE, ID_VIN_ALT},
         // ID_MODEL_CODE/ID_BRAND rimossi dal poll (2026-07-25): erano un tentativo
@@ -222,6 +251,20 @@ public class VDInfoClient {
         return sb.length() > 0 ? sb.toString() : null;
     }
 
+    // Etichetta testuale per ID_ENERGY_RECYCLE_LEVEL - scala confermata sul campo
+    // 2026-08-02 (vedi commento sulla costante): 0=ALTO, 1=MEDIO, 2=BASSO. Un valore fuori
+    // da questi tre (non ancora visto) torna il numero grezzo invece di inventare
+    // un'etichetta, coerente col resto del progetto (mai un'ipotesi non confermata mostrata
+    // come fosse un dato certo).
+    public static String regenLevelLabel(Context ctx, int raw) {
+        switch (raw) {
+            case 0: return ctx.getString(R.string.regen_level_high);
+            case 1: return ctx.getString(R.string.regen_level_medium);
+            case 2: return ctx.getString(R.string.regen_level_low);
+            default: return String.valueOf(raw);
+        }
+    }
+
     public interface Listener {
         void onLog(String msg);
         void onValue(int key, int[] value);
@@ -286,11 +329,13 @@ public class VDInfoClient {
         if (polling) return;
         polling = true;
         handler.post(pollRunnable);
+        handler.postDelayed(fastPollRunnable, FAST_POLL_INTERVAL_MS);
     }
 
     private void stopPolling() {
         polling = false;
         handler.removeCallbacks(pollRunnable);
+        handler.removeCallbacks(fastPollRunnable);
     }
 
     private final Runnable pollRunnable = new Runnable() {
@@ -301,6 +346,29 @@ public class VDInfoClient {
                 queryOne(target[0], target[1]);
             }
             handler.postDelayed(this, POLL_INTERVAL_MS);
+        }
+    };
+
+    // Giro di poll dedicato, piu' frequente, per i pochi segnali che cambiano in tempo
+    // reale mentre si guida o che il guidatore stesso cambia (rigenerazione dal volante,
+    // flusso energia che segue ogni variazione di trazione) - vedi commento sulla loro
+    // rimozione da POLL_TARGETS sopra. 500ms invece di 2s+, senza velocizzare anche il giro
+    // completo (che intasarebbe di traffico VDB/log tutti gli altri segnali molto meno
+    // time-sensitive, es. VIN/pressione gomme/autonomia).
+    private static final long FAST_POLL_INTERVAL_MS = 500;
+    private static final int[][] FAST_POLL_TARGETS = {
+        {MODULE_NEW_ENERGY, ID_ENERGY_RECYCLE_LEVEL},
+        {MODULE_NEW_ENERGY, ID_ENERGY_FLOW},
+    };
+
+    private final Runnable fastPollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!polling || vdBus == null) return;
+            for (int[] target : FAST_POLL_TARGETS) {
+                queryOne(target[0], target[1]);
+            }
+            handler.postDelayed(this, FAST_POLL_INTERVAL_MS);
         }
     };
 

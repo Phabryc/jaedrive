@@ -75,13 +75,13 @@ public class MainActivity extends AppCompatActivity {
     // Dashboard
     private TextView tvGear, tvSpeed;
     private TextView tvTripStatusBadge, tvTripAvg, tvTripKm, tvTripLiters;
-    private TextView tvFooterMode, tvFooterSoc, tvFooterFuel, tvFooterFlow, tvFooterRange;
+    private TextView tvFooterMode, tvFooterSoc, tvFooterFuel, tvFooterFlow, tvFooterRange, tvFooterRegen;
     private ImageView iconFooterMode;
     private View dotFooterFlow;
     // Visibilita' gestita da refreshEnergyCapabilityUi() in base alla motorizzazione
     // configurata (vedi VehicleCatalog.EnergyCapability) - niente SOC/flusso energia su
     // un'auto solo ICE, autonomia mostrata solo su ibride/elettriche.
-    private View rowFooterSoc, sepFooterSoc, rowFooterFlow, sepFooterFlow, rowFooterRange;
+    private View rowFooterSoc, sepFooterSoc, rowFooterFlow, sepFooterFlow, rowFooterRange, rowFooterRegen, sepFooterRegen;
     private TextView tvManualLabelA, tvManualLabelB;
     private TextView tvManualKmA, tvManualAvgA, tvManualLitersA;
     private TextView tvManualKmB, tvManualAvgB, tvManualLitersB;
@@ -129,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
     // Impostazioni
     private TextView toggleUnitKm, toggleUnitMi, toggleUnitLiters, toggleUnitGal;
     private TextView toggleLangIt, toggleLangEn;
-    private SwitchCompat switchGps, switchDebugMode;
+    private SwitchCompat switchGps, switchDebugMode, switchRegenPopup, switchRefuelPopup;
     private TextView tvAppVersion;
     private TextView tvVehicleVin;
     private TextView tvVinLabel;
@@ -232,11 +232,14 @@ public class MainActivity extends AppCompatActivity {
         dotFooterFlow = findViewById(R.id.dot_footer_flow);
         if (dotFooterFlow.getBackground() != null) dotFooterFlow.setBackground(dotFooterFlow.getBackground().mutate());
         tvFooterRange = findViewById(R.id.tv_footer_range);
+        tvFooterRegen = findViewById(R.id.tv_footer_regen);
         rowFooterSoc = findViewById(R.id.row_footer_soc);
         sepFooterSoc = findViewById(R.id.sep_footer_soc);
         rowFooterFlow = findViewById(R.id.row_footer_flow);
         sepFooterFlow = findViewById(R.id.sep_footer_flow);
         rowFooterRange = findViewById(R.id.row_footer_range);
+        rowFooterRegen = findViewById(R.id.row_footer_regen);
+        sepFooterRegen = findViewById(R.id.sep_footer_regen);
         liveDot = findViewById(R.id.live_dot);
 
         tvManualLabelA = findViewById(R.id.tv_manual_label_a);
@@ -305,6 +308,8 @@ public class MainActivity extends AppCompatActivity {
         toggleLangEn = findViewById(R.id.toggle_lang_en);
         switchGps = findViewById(R.id.switch_gps);
         switchDebugMode = findViewById(R.id.switch_debug_mode);
+        switchRegenPopup = findViewById(R.id.switch_regen_popup);
+        switchRefuelPopup = findViewById(R.id.switch_refuel_popup);
         tvAppVersion = findViewById(R.id.tv_app_version);
         tvVehicleVin = findViewById(R.id.tv_vehicle_vin);
         tvVinLabel = findViewById(R.id.tv_vin_label);
@@ -382,7 +387,6 @@ public class MainActivity extends AppCompatActivity {
 
         requestNeededPermissions();
         sendTestSystemNotification();
-        requestIgnoreBatteryOptimizations();
         ContextCompat.startForegroundService(this, new Intent(this, TrackingService.class));
 
         connectCar();
@@ -436,8 +440,11 @@ public class MainActivity extends AppCompatActivity {
     private static final int KEY_DRIVE_MODE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DRIVE_MODE);
     private static final int KEY_DISPLAY_SOC = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DISPLAY_SOC);
     private static final int KEY_DISPLAY_MILEAGE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DISPLAY_MILEAGE);
+    private static final int KEY_ENDURANCE_KM = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_ENDURANCE_KM);
+    private static final int KEY_TOTAL_RANGE = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TOTAL_RANGE);
     private static final int KEY_FUEL_PERCENT = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_FUEL_PERCENT);
     private static final int KEY_ENERGY_FLOW = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_FLOW);
+    private static final int KEY_ENERGY_RECYCLE_LEVEL = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_RECYCLE_LEVEL);
     private static final int KEY_VIN = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_VIN);
     private static final int KEY_VIN_ALT = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_VIN_ALT);
     private static final int KEY_TIRE_PRESSURE_WARNING = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE_WARNING);
@@ -866,6 +873,10 @@ public class MainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, toRequest.toArray(new String[0]), REQUEST_CODE_PERMISSIONS);
         } else {
             appendLog("Nessun permesso runtime da richiedere");
+            // Nessuna richiesta pendente: sicuro chiedere anche l'esenzione batteria ora
+            // (vedi commento su onRequestPermissionsResult() per il motivo per cui NON va
+            // mai fatto insieme a una richiesta di permesso ancora in corso).
+            requestIgnoreBatteryOptimizations();
         }
     }
 
@@ -877,7 +888,41 @@ public class MainActivity extends AppCompatActivity {
             boolean granted = grantResults[i] == PackageManager.PERMISSION_GRANTED;
             appendLog("Esito permesso " + permissions[i] + ": " + (granted ? "CONCESSO" : "NEGATO"));
             if (permissions[i].equals(Manifest.permission.POST_NOTIFICATIONS) && granted) sendTestSystemNotification();
+            // BUG TROVATO SUL CAMPO (2026-08-02), causa VERA trovata: utente ha segnalato
+            // che il GPS ha smesso di funzionare "da solo" nel pomeriggio, subito dopo aver
+            // aggiornato l'app (nessun rifiuto suo, e non tramite DSA - due ipotesi mie
+            // scartate una dopo l'altra dall'utente). Causa reale trovata rileggendo
+            // onCreate(): SUBITO dopo requestNeededPermissions() (che avvia il dialogo di
+            // sistema per questo permesso, asincrono) veniva chiamato anche
+            // requestIgnoreBatteryOptimizations(), che fa un SUO startActivity() per la
+            // schermata di esenzione batteria - le due entrano in conflitto, la seconda ruba
+            // il focus alla prima prima che l'utente possa anche solo vederla, e il dialogo
+            // permesso viene chiuso/risolto come NEGATO istantaneamente (nel log passa meno
+            // di un secondo tra richiesta ed esito - impossibile un tocco umano in mezzo).
+            // Funzionava da settimane perche' l'esenzione batteria era gia' concessa da
+            // tempo (quella chiamata non faceva nulla) - la reinstallazione di oggi ha
+            // resettato anche quello stato lato OS, facendo scontrare le due richieste per
+            // la prima volta. FIX: requestIgnoreBatteryOptimizations() ora parte solo DOPO
+            // che il flusso permessi e' completamente risolto (vedi fondo di questo metodo),
+            // mai piu' in parallelo con un dialogo di permesso ancora pendente.
+            //
+            // Questo dialogo resta comunque come rete di sicurezza per un diniego genuino
+            // (non dovuto alla race qui sopra): su questa ROM custom non c'e' un'app
+            // Impostazioni raggiungibile, quindi porta a DSA invece che a Settings.
+            if (permissions[i].equals(Manifest.permission.ACCESS_FINE_LOCATION) && !granted
+                    && !ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[i])) {
+                showLocationPermissionMissingDialog();
+            }
         }
+        requestIgnoreBatteryOptimizations();
+    }
+
+    // Solo informativo (un pulsante, "HO CAPITO"): su questa ROM non c'e' nessuna azione
+    // sul dispositivo che possa risolverlo (ne' Impostazioni ne' un dialogo di sistema
+    // funzionante - vedi commento su onRequestPermissionsResult()), l'unica via confermata
+    // e' ADB da un PC, non qualcosa che un tasto in-app possa fare al posto dell'utente.
+    private void showLocationPermissionMissingDialog() {
+        showInfoDialog(getString(R.string.dialog_location_denied_title), getString(R.string.dialog_location_denied_message));
     }
 
     // ESPERIMENTO TEMPORANEO (2026-07-26), NON legato alla disassociazione da remoto sopra -
@@ -1489,9 +1534,15 @@ public class MainActivity extends AppCompatActivity {
     // Tutto dentro JaeDrive_trips/<data e ora inizio viaggio>/, una sottocartella per
     // ogni trip (creata al volo se non esiste), invece che file sparsi alla radice USB.
     private void exportTripRecord(TripRecord r) {
+        // BUG TROVATO SUL CAMPO (2026-08-02): il fallback "niente gpxPath" assumeva sempre
+        // un trip MANUALE (i soli, in origine, a non avere mai una traccia GPS) - ma un
+        // trip AUTOMATICO senza permesso ACCESS_FINE_LOCATION concesso finisce anche lui
+        // con gpxPath nullo (nessun punto registrato), e veniva esportato come
+        // "TripManuale_..." pur essendo "Tipo:Automatico (GPS)" dentro il file - confusione
+        // inutile. Il nome ora segue r.type, non la sola presenza della traccia.
         String baseName = (r.gpxPath != null)
             ? new File(r.gpxPath).getName().replace(".gpx", "")
-            : "TripManuale_" + DateFormat.format("yyyyMMdd_HHmmss", r.endTime);
+            : (TripRecord.TYPE_AUTO.equals(r.type) ? "TripAuto_" : "TripManuale_") + DateFormat.format("yyyyMMdd_HHmmss", r.endTime);
         String tripSubDir = "JaeDrive_trips/" + DateFormat.format("ddMMyyyy_HH-mm", r.startTime);
 
         StringBuilder info = new StringBuilder();
@@ -1567,6 +1618,18 @@ public class MainActivity extends AppCompatActivity {
                 appendLog("Modalità debug attivata dalle Impostazioni");
             }
             if (contentLog.getVisibility() == View.VISIBLE) renderLogView();
+        });
+
+        switchRegenPopup.setChecked(Prefs.isRegenPopupEnabled(this));
+        switchRegenPopup.setOnCheckedChangeListener((btn, checked) -> {
+            Prefs.setRegenPopupEnabled(this, checked);
+            appendLog("Popup livello rigenerazione " + (checked ? "attivato" : "disattivato") + " dalle Impostazioni");
+        });
+
+        switchRefuelPopup.setChecked(Prefs.isRefuelPopupEnabled(this));
+        switchRefuelPopup.setOnCheckedChangeListener((btn, checked) -> {
+            Prefs.setRefuelPopupEnabled(this, checked);
+            appendLog("Popup rifornimento rilevato " + (checked ? "attivato" : "disattivato") + " dalle Impostazioni");
         });
 
         String versionName = "?";
@@ -2084,9 +2147,17 @@ public class MainActivity extends AppCompatActivity {
             saved ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
     }
 
+    // Letto da TrackingService per sopprimere il popup overlay del cambio livello
+    // rigenerazione quando la riga equivalente in DATI e' gia' visibile sullo schermo
+    // (vedi OverlayPopup) - un semplice static va bene, stesso processo, niente bisogno
+    // di sopravvivere alla morte del processo (se l'Activity non esiste proprio, il valore
+    // di default false e' comunque quello corretto: "non in primo piano").
+    public static volatile boolean isForeground = false;
+
     @Override
     protected void onResume() {
         super.onResume();
+        isForeground = true;
         if (mapView != null) mapView.onResume();
         // Se l'utente ha appena concesso "Accesso a tutti i file" dalle Impostazioni e torna
         // indietro, completa automaticamente tutti gli export rimasti in sospeso.
@@ -2101,6 +2172,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        isForeground = false;
         if (mapView != null) mapView.onPause();
     }
 
@@ -2513,26 +2585,55 @@ public class MainActivity extends AppCompatActivity {
             tvFooterFlow.setText(energyFlowLabel(flowRaw[0]));
             tvFooterFlow.setTextColor(color);
         }
-        int[] rangeRaw = vdbValues.get(KEY_DISPLAY_MILEAGE);
+        // CAMBIO FONTE 2026-08-02: ID_DISPLAY_MILEAGE (NewEnergyID/0x2a) confermato sul campo
+        // fermo a raw=[0,0] per un'intera giornata di guida - segnale sbagliato fin
+        // dall'inizio (non un problema di formula). Il dispatcher reale di SVSetting.apk
+        // (com/desaysv/present/a/a/f$1.smali, blocco modulo READONLY_INFO) legge invece
+        // ID_ENDURANCE_KM/ID_TOTAL_RANGE (0x48/0x78, ReadOnlyID) - trattati come
+        // INTERCAMBIABILI dallo stesso ramo, stessa decodifica primi-due-byte. Proviamo
+        // entrambi (in quest'ordine), con DISPLAY_MILEAGE come ultima risorsa nel caso
+        // un'altra motorizzazione/modello lo popoli davvero. Tutti e tre loggati grezzi al
+        // cambiamento per la conferma sul campo.
+        int[] enduranceRaw = vdbValues.get(KEY_ENDURANCE_KM);
+        int[] totalRangeRaw = vdbValues.get(KEY_TOTAL_RANGE);
+        int[] displayMileageRaw = vdbValues.get(KEY_DISPLAY_MILEAGE);
+        int[] rangeRaw = enduranceRaw != null ? enduranceRaw : (totalRangeRaw != null ? totalRangeRaw : displayMileageRaw);
         if (rangeRaw != null) {
             int range = VDInfoClient.decodeFirstTwoAsInt(rangeRaw);
             tvFooterRange.setText(String.format(Locale.ITALY, "%d km", range));
-            // Diagnostica 2026-07-26: autonomia rimasta a 0 sul campo anche dopo il fix
-            // decodeFirstTwoAsInt() - logga l'array grezzo (solo al cambiamento) cosi' la
-            // prossima esportazione dice se il segnale e' genuinamente 0/IS_NULL su
-            // quest'auto in quello stato, oppure se il dispatcher usa ancora una
-            // convenzione diversa (vedi stesso trattamento per EV/HEV_MILEAGE in
-            // TrackingService).
-            if (!Arrays.equals(rangeRaw, lastLoggedRangeRaw)) {
-                lastLoggedRangeRaw = rangeRaw;
-                appendLog(String.format(Locale.ITALY,
-                    "[VDB] DISPLAY_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
-                    Arrays.toString(rangeRaw), VDInfoClient.decodeFirstTwoAsInt(rangeRaw), VDInfoClient.decodeLastTwoAsInt(rangeRaw)));
+        }
+        if (enduranceRaw != null && !Arrays.equals(enduranceRaw, lastLoggedEnduranceRaw)) {
+            lastLoggedEnduranceRaw = enduranceRaw;
+            appendLog(String.format(Locale.ITALY, "[VDB] ENDURANCE_KM raw=%s primiDue=%d",
+                Arrays.toString(enduranceRaw), VDInfoClient.decodeFirstTwoAsInt(enduranceRaw)));
+        }
+        if (totalRangeRaw != null && !Arrays.equals(totalRangeRaw, lastLoggedTotalRangeRaw)) {
+            lastLoggedTotalRangeRaw = totalRangeRaw;
+            appendLog(String.format(Locale.ITALY, "[VDB] TOTAL_RANGE raw=%s primiDue=%d",
+                Arrays.toString(totalRangeRaw), VDInfoClient.decodeFirstTwoAsInt(totalRangeRaw)));
+        }
+        if (displayMileageRaw != null && !Arrays.equals(displayMileageRaw, lastLoggedRangeRaw)) {
+            lastLoggedRangeRaw = displayMileageRaw;
+            appendLog(String.format(Locale.ITALY,
+                "[VDB] DISPLAY_MILEAGE raw=%s primiDue=%d ultimiDue=%d",
+                Arrays.toString(displayMileageRaw), VDInfoClient.decodeFirstTwoAsInt(displayMileageRaw), VDInfoClient.decodeLastTwoAsInt(displayMileageRaw)));
+        }
+        int[] regenRaw = vdbValues.get(KEY_ENERGY_RECYCLE_LEVEL);
+        if (regenRaw != null && regenRaw.length > 0) {
+            // Scala confermata sul campo 2026-08-02 - vedi VDInfoClient.regenLevelLabel().
+            tvFooterRegen.setText(VDInfoClient.regenLevelLabel(this, regenRaw[0]));
+            if (!Arrays.equals(regenRaw, lastLoggedRegenRaw)) {
+                lastLoggedRegenRaw = regenRaw;
+                appendLog("[VDB] ENERGY_RECYCLE_LEVEL raw=" + Arrays.toString(regenRaw));
             }
         }
     }
 
+    private int[] lastLoggedRegenRaw;
+
     private int[] lastLoggedRangeRaw;
+    private int[] lastLoggedEnduranceRaw;
+    private int[] lastLoggedTotalRangeRaw;
 
     // Mostra/nasconde SOC batteria, flusso energia e autonomia in base alla motorizzazione
     // scelta in onboarding (vedi VehicleCatalog.EnergyCapability) - un'auto solo ICE non ha
@@ -2551,6 +2652,8 @@ public class MainActivity extends AppCompatActivity {
         rowFooterFlow.setVisibility(visSoc);
         sepFooterFlow.setVisibility(visSoc);
         rowFooterRange.setVisibility(visSoc);
+        rowFooterRegen.setVisibility(visSoc);
+        sepFooterRegen.setVisibility(visSoc);
     }
 
     // Etichetta breve per il badge "flusso energia" nella hero card, stessi 5 bucket

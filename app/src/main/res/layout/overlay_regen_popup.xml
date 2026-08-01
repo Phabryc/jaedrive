@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Popup dedicato al cambio livello rigenerazione (vedi OverlayPopup.showRegenLevel()) -
+     layout diverso dal popup generico (overlay_popup.xml): logo in alto a sinistra accanto
+     al titolo, valore su una riga a parte sotto, piu' grande - richiesto esplicitamente
+     dall'utente dopo aver visto la prima versione (centrata, testo unico) sul campo. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/glass_card_glow_bg"
+    android:padding="28dp"
+    android:minWidth="320dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="14dp"
+            android:src="@drawable/jd_logo"
+            android:contentDescription="@null"/>
+        <TextView
+            android:id="@+id/tv_regen_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/overlay_regen_title"
+            android:textColor="@color/on_surface_variant"
+            android:textSize="20sp"
+            android:textStyle="bold"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_regen_value"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="@color/on_surface"
+        android:textSize="44sp"
+        android:textStyle="bold"/>
+</LinearLayout>

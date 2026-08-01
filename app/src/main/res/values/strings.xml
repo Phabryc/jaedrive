@@ -66,6 +66,11 @@
     <string name="section_units_title">UNITS</string>
     <string name="label_gps_track_title">Save GPS track</string>
     <string name="label_gps_track_subtitle">If disabled, trips are still tracked for fuel consumption only</string>
+    <string name="section_popups_title">POPUPS</string>
+    <string name="label_regen_popup_title">Regen level popup</string>
+    <string name="label_regen_popup_subtitle">Show a popup when you change the regen level (if the app is in background)</string>
+    <string name="label_refuel_popup_title">Refuel detected popup</string>
+    <string name="label_refuel_popup_subtitle">Ask whether to reset a manual trip when a refuel is detected at startup</string>
     <string name="section_dev_title">DEVELOPER</string>
     <string name="label_debug_mode_title">Debug mode</string>
     <string name="label_debug_mode_subtitle">If disabled, no logs are created or written (saves space and resources)</string>
@@ -95,6 +100,8 @@
     <string name="dialog_unpaired_remotely_title">No longer linked</string>
     <string name="dialog_unpaired_remotely_message">This car is no longer linked to any JaeDrive account (the car or the whole account was deleted from jaedrive.com). Trip syncing has stopped - go to Settings to link it again.</string>
     <string name="dialog_btn_ok">GOT IT</string>
+    <string name="dialog_location_denied_title">Location permission needed (via ADB)</string>
+    <string name="dialog_location_denied_message">Location isn\'t granted, and system prompts (permissions, Settings) never show up on this ROM - it was likely granted originally via ADB, and the last app reinstall reset it. Reconnect your PC and run:\n\nadb shell pm grant com.phabryc.jaedrive android.permission.ACCESS_FINE_LOCATION\n\nUntil then, new trips won\'t have a map trace, addresses, or an EV/hybrid split.</string>
     <string name="dialog_delete_trips_cloud_title">Also delete from the cloud?</string>
     <string name="dialog_delete_trips_cloud_message">The selected trips were already uploaded to jaedrive.com. Delete them there too? This action cannot be undone.</string>
     <string name="dialog_pairing_title">Link car to cloud</string>
@@ -126,6 +133,20 @@
     <string name="toast_vin_conflict">This VIN is already linked to another account.</string>
     <string name="toast_vin_error">Could not save the VIN. Check the connection and try again.</string>
     <string name="label_footer_range">Range:</string>
+    <string name="hero_label_mode">MODE</string>
+    <string name="hero_label_battery">BATTERY</string>
+    <string name="hero_label_fuel">FUEL</string>
+    <string name="hero_label_flow">FLOW</string>
+    <string name="hero_label_regen">REGEN</string>
+    <string name="overlay_regen_title">Regen level</string>
+    <string name="regen_level_high">HIGH</string>
+    <string name="regen_level_medium">MEDIUM</string>
+    <string name="regen_level_low">LOW</string>
+    <string name="overlay_refuel_detected">Refueling detected.\nReset a manual trip?</string>
+    <string name="overlay_btn_trip_a">TRIP A</string>
+    <string name="overlay_btn_trip_b">TRIP B</string>
+    <string name="overlay_btn_no">NO</string>
+    <string name="manual_trip_refuel_label">Refuel</string>
 
     <!-- Log -->
     <string name="label_save_log">SAVE LOG TO USB</string>

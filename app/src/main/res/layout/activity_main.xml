@@ -265,45 +265,78 @@
                     <View android:layout_width="match_parent" android:layout_height="2dp"
                         android:background="@color/glass_border" android:layout_marginBottom="22dp"/>
 
-                    <!-- Modalita' di guida / SOC / carburante / flusso energia: quattro
-                         colonne uguali, stessa struttura icona+valore su due righe. -->
+                    <!-- Modalita' di guida / SOC / carburante / flusso energia / rigenerazione:
+                         colonne uguali, icona+valore in alto ed un'etichetta piccola sotto per
+                         chiarire cosa si sta guardando (richiesto dall'utente 2026-08-02 - prima
+                         c'era solo l'icona, non sempre ovvia a colpo d'occhio). Rigenerazione
+                         spostata qui (prima era una riga a parte piu' piccola sotto) per essere
+                         leggibile alla pari delle altre, stessa richiesta. -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical">
                         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                            android:orientation="horizontal" android:gravity="center">
-                            <ImageView android:id="@+id/icon_footer_mode" android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_eco" android:tint="@color/primary" android:layout_marginEnd="10dp"/>
-                            <TextView android:id="@+id/tv_footer_mode" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/primary" android:textSize="23sp" android:textStyle="bold"/>
+                            android:orientation="vertical" android:gravity="center">
+                            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+                                <ImageView android:id="@+id/icon_footer_mode" android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_eco" android:tint="@color/primary" android:layout_marginEnd="8dp"/>
+                                <TextView android:id="@+id/tv_footer_mode" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/primary" android:textSize="23sp" android:textStyle="bold"/>
+                            </LinearLayout>
+                            <TextView android:text="@string/hero_label_mode" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:id="@+id/sep_footer_soc" android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:id="@+id/row_footer_soc" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                            android:orientation="horizontal" android:gravity="center">
-                            <ImageView android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_battery" android:tint="@color/on_surface_variant" android:layout_marginEnd="10dp"/>
-                            <TextView android:id="@+id/tv_footer_soc" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
+                            android:orientation="vertical" android:gravity="center">
+                            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+                                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_battery" android:tint="@color/on_surface_variant" android:layout_marginEnd="8dp"/>
+                                <TextView android:id="@+id/tv_footer_soc" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
+                            </LinearLayout>
+                            <TextView android:text="@string/hero_label_battery" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                            android:orientation="horizontal" android:gravity="center">
-                            <ImageView android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_fuel" android:tint="@color/on_surface_variant" android:layout_marginEnd="10dp"/>
-                            <TextView android:id="@+id/tv_footer_fuel" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
+                            android:orientation="vertical" android:gravity="center">
+                            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+                                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_fuel" android:tint="@color/on_surface_variant" android:layout_marginEnd="8dp"/>
+                                <TextView android:id="@+id/tv_footer_fuel" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
+                            </LinearLayout>
+                            <TextView android:text="@string/hero_label_fuel" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                         <View android:id="@+id/sep_footer_flow" android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
                         <LinearLayout android:id="@+id/row_footer_flow" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                            android:orientation="horizontal" android:gravity="center">
-                            <View android:id="@+id/dot_footer_flow" android:layout_width="18dp" android:layout_height="18dp"
-                                android:background="@drawable/dot_primary" android:layout_marginEnd="10dp"/>
-                            <TextView android:id="@+id/tv_footer_flow" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+                            android:orientation="vertical" android:gravity="center">
+                            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+                                <View android:id="@+id/dot_footer_flow" android:layout_width="16dp" android:layout_height="16dp"
+                                    android:background="@drawable/dot_primary" android:layout_marginEnd="8dp"/>
+                                <TextView android:id="@+id/tv_footer_flow" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="17sp" android:textStyle="bold"/>
+                            </LinearLayout>
+                            <TextView android:text="@string/hero_label_flow" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
+                        </LinearLayout>
+                        <View android:id="@+id/sep_footer_regen" android:layout_width="2dp" android:layout_height="35dp" android:background="@color/glass_border"/>
+                        <LinearLayout android:id="@+id/row_footer_regen" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                            android:orientation="vertical" android:gravity="center">
+                            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center">
+                                <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_restart" android:tint="@color/on_surface_variant" android:layout_marginEnd="8dp"/>
+                                <TextView android:id="@+id/tv_footer_regen" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="19sp" android:textStyle="bold"/>
+                            </LinearLayout>
+                            <TextView android:text="@string/hero_label_regen" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp" android:textColor="@color/on_surface_variant" android:textSize="10sp" android:letterSpacing="0.06"/>
                         </LinearLayout>
                     </LinearLayout>
 
-                    <!-- Autonomia residua (ID_DISPLAY_MILEAGE) - solo ibride/elettriche, vedi
-                         VehicleCatalog.EnergyCapability e MainActivity.refreshEnergyCapabilityUi(). -->
+                    <!-- Autonomia residua (ID_ENDURANCE_KM/ID_TOTAL_RANGE) - solo ibride/elettriche,
+                         vedi VehicleCatalog.EnergyCapability e MainActivity.refreshEnergyCapabilityUi().
+                         Font ingrandito (richiesta 2026-08-02, era 15sp per entrambi, poco leggibile
+                         al volo come gli altri valori della riga sopra). -->
                     <LinearLayout
                         android:id="@+id/row_footer_range"
                         android:layout_width="match_parent"
@@ -313,9 +346,9 @@
                         android:layout_marginTop="16dp"
                         android:visibility="gone">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:text="@string/label_footer_range" android:textColor="@color/on_surface_variant" android:textSize="15sp" android:layout_marginEnd="8dp"/>
+                            android:text="@string/label_footer_range" android:textColor="@color/on_surface_variant" android:textSize="17sp" android:layout_marginEnd="10dp"/>
                         <TextView android:id="@+id/tv_footer_range" android:layout_width="wrap_content" android:layout_height="wrap_content"
-                            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="15sp" android:textStyle="bold"/>
+                            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface" android:textSize="23sp" android:textStyle="bold"/>
                     </LinearLayout>
                 </LinearLayout>
 
@@ -1026,6 +1059,61 @@
                     </LinearLayout>
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/switch_gps"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/section_popups_title"
+                    android:textColor="@color/primary"
+                    android:textSize="20sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="12dp"/>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/card_bg"
+                    android:padding="24dp"
+                    android:layout_marginBottom="16dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_regen_popup_title" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_regen_popup_subtitle" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
+                    </LinearLayout>
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_regen_popup"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/card_bg"
+                    android:padding="24dp"
+                    android:layout_marginBottom="28dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_refuel_popup_title" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_refuel_popup_subtitle" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
+                    </LinearLayout>
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_refuel_popup"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
                 </LinearLayout>

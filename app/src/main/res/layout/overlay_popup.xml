@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Popup overlay (TYPE_APPLICATION_OVERLAY, vedi OverlayPopup) mostrato sopra qualunque
+     altra app - stesso stile "glass card" del resto dell'app, cosi' si riconosce subito
+     come JaeDrive anche comparendo sopra un'altra schermata (navigazione, media, ecc). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/glass_card_glow_bg"
+    android:padding="32dp"
+    android:gravity="center_horizontal"
+    android:minWidth="300dp">
+
+    <ImageView
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_marginBottom="16dp"
+        android:src="@drawable/jd_logo"
+        android:contentDescription="@null"/>
+
+    <!-- Testo grande apposta (feedback sul campo 2026-08-02: la prima versione era troppo
+         piccola per leggerla al volo mentre si guida) - un popup che si vede solo per
+         qualche secondo o con cui si interagisce mentre si e' alla guida deve essere
+         leggibile a colpo d'occhio, non richiedere di concentrarsi sullo schermo. -->
+    <TextView
+        android:id="@+id/tv_overlay_message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textColor="@color/on_surface"
+        android:textSize="30sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:maxWidth="480dp"/>
+
+    <LinearLayout
+        android:id="@+id/row_overlay_buttons"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="24dp"
+        android:visibility="gone"/>
+</LinearLayout>

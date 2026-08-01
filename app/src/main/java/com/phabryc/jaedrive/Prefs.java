@@ -23,6 +23,13 @@ public class Prefs {
     private static final String KEY_VEHICLE_POWERTRAIN = "vehicle_powertrain";
     private static final String KEY_SYNCED_VIN = "synced_vin";
     private static final String KEY_CLOUD_UNPAIRED_REMOTELY = "cloud_unpaired_remotely";
+    // Ultimo livello carburante (%) visto da TrackingService, persistito ad ogni lettura -
+    // sopravvive al riavvio del processo/servizio cosi' la lettura successiva (vicina alla
+    // prossima accensione) puo' confrontarsi con "l'ultimo valore prima dello spegnimento"
+    // per rilevare un rifornimento - vedi TrackingService.checkFuelRefillOnStartup().
+    private static final String KEY_LAST_FUEL_PCT_SEEN = "last_fuel_pct_seen";
+    private static final String KEY_REGEN_POPUP_ENABLED = "regen_popup_enabled";
+    private static final String KEY_REFUEL_POPUP_ENABLED = "refuel_popup_enabled";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -176,5 +183,33 @@ public class Prefs {
 
     public static void setSyncedVin(Context ctx, String vin) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SYNCED_VIN, vin).apply();
+    }
+
+    // -1 (nessuna lettura ancora persistita, es. primissimo avvio in assoluto) invece di 0:
+    // 0% carburante e' un valore reale possibile, non va confuso con "sconosciuto".
+    public static float getLastFuelPctSeen(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getFloat(KEY_LAST_FUEL_PCT_SEEN, -1f);
+    }
+
+    public static void setLastFuelPctSeen(Context ctx, float pct) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putFloat(KEY_LAST_FUEL_PCT_SEEN, pct).apply();
+    }
+
+    // Attivi di default (true) - l'utente li disattiva esplicitamente dalle Impostazioni
+    // se non li vuole, vedi MainActivity.setupImpostazioni()/TrackingService.
+    public static boolean isRegenPopupEnabled(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_REGEN_POPUP_ENABLED, true);
+    }
+
+    public static void setRegenPopupEnabled(Context ctx, boolean enabled) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_REGEN_POPUP_ENABLED, enabled).apply();
+    }
+
+    public static boolean isRefuelPopupEnabled(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_REFUEL_POPUP_ENABLED, true);
+    }
+
+    public static void setRefuelPopupEnabled(Context ctx, boolean enabled) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_REFUEL_POPUP_ENABLED, enabled).apply();
     }
 }

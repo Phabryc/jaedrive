@@ -333,13 +333,28 @@ public class TrackingService extends Service {
                 } else if (key == KEY_DISPLAY_SOC && value.length >= 2) {
                     lastKnownSocPct = (value[0] * 256 + value[1]) / 100.0f;
                 } else if (key == KEY_FUEL_PERCENT && value.length >= 2) {
-                    lastKnownFuelPct = (value[0] * 256 + value[1]) / 10.0f;
+                    float pct = (value[0] * 256 + value[1]) / 10.0f;
+                    lastKnownFuelPct = pct;
+                    checkFuelRefillOnStartup(pct);
+                    Prefs.setLastFuelPctSeen(TrackingService.this, pct);
                 } else if (key == KEY_DRIVE_MODE && value.length > 0) {
                     // Valore diretto (0=ECO/1=NORMAL/2=SPORT), stesso enum confermato sul
                     // campo e gia' usato da MainActivity per la UI live.
                     lastKnownDriveMode = value[0];
                 } else if (key == KEY_ENERGY_RECYCLE_LEVEL && value.length > 0) {
-                    lastKnownRegenLevel = value[0];
+                    int newLevel = value[0];
+                    // Popup solo se e' un vero CAMBIO (non la primissima lettura dopo
+                    // l'avvio, lastKnownRegenLevel parte da -1) e solo se l'app non e' gia'
+                    // in primo piano (la riga "Rigenerazione" in DATI mostra la stessa cosa
+                    // in tempo reale li' - vedi MainActivity.updateFooterStatus()). Richiesta
+                    // dell'utente 2026-08-02: notificare il cambio impostato dal guidatore
+                    // (es. da un tasto volante) anche con l'app chiusa/in background.
+                    if (lastKnownRegenLevel >= 0 && newLevel != lastKnownRegenLevel && !MainActivity.isForeground
+                            && Prefs.isRegenPopupEnabled(TrackingService.this)) {
+                        OverlayPopup.showRegenLevel(TrackingService.this,
+                            VDInfoClient.regenLevelLabel(TrackingService.this, newLevel), 4000);
+                    }
+                    lastKnownRegenLevel = newLevel;
                 } else if (key == KEY_INSTANTANEOUS_CONSUMPTION) {
                     // Valore grezzo, nessuna scala confermata per questo ID specifico (a
                     // differenza della famiglia SUM_FUEL/AVG_FUEL_CONS/x0.1 gia' verificata
@@ -411,6 +426,51 @@ public class TrackingService extends Service {
             }
         }
         lastFuelLiters = fuelLitersNow;
+    }
+
+    // Rilevamento rifornimento "all'accensione" (richiesta utente 2026-08-02): confronta la
+    // prima lettura di ID_FUEL_PERCENT di questa sessione (poco dopo l'avvio del service,
+    // quindi vicino all'accensione reale del quadro) con l'ultima nota PRIMA dello spegnimento
+    // precedente (persistita in Prefs ad ogni lettura, vedi sopra) - se e' salita di almeno
+    // FUEL_REFILL_THRESHOLD_PCT punti percentuali, offre di azzerare un trip manuale con
+    // l'etichetta di rifornimento. Un solo controllo per sessione (fuelStartupCheckDone):
+    // le letture successive nella stessa guida non devono ri-scattare il popup ad ogni
+    // piccola oscillazione del sensore livello carburante.
+    private static final float FUEL_REFILL_THRESHOLD_PCT = 10f;
+    private boolean fuelStartupCheckDone = false;
+
+    private void checkFuelRefillOnStartup(float currentPct) {
+        if (fuelStartupCheckDone) return;
+        fuelStartupCheckDone = true;
+        float previousPct = Prefs.getLastFuelPctSeen(this);
+        if (previousPct >= 0 && currentPct - previousPct >= FUEL_REFILL_THRESHOLD_PCT) {
+            appendServiceLog(String.format(Locale.ITALY,
+                "Rifornimento rilevato all'accensione: %.1f%% -> %.1f%%", previousPct, currentPct));
+            if (Prefs.isRefuelPopupEnabled(this)) showFuelRefillPopup();
+        }
+    }
+
+    // Mostrato SEMPRE (a differenza del popup rigenerazione sopra), anche con l'app in
+    // primo piano - richiesta esplicita dell'utente: un rifornimento e' un evento raro e
+    // importante abbastanza da meritare l'interruzione anche se si sta gia' guardando
+    // l'app. TRIP A/TRIP B azzerano quello slot e gli assegnano l'etichetta di rifornimento
+    // (sovrascrivendo il nome di default che ManualTripComputer.reset() imposterebbe da solo).
+    private void showFuelRefillPopup() {
+        String label = getString(R.string.manual_trip_refuel_label);
+        OverlayPopup.showActionPopup(this,
+            getString(R.string.overlay_refuel_detected),
+            new String[]{getString(R.string.overlay_btn_trip_a), getString(R.string.overlay_btn_trip_b), getString(R.string.overlay_btn_no)},
+            new Runnable[]{
+                () -> resetManualTripForRefuel(ManualTripComputer.SLOT_A, label),
+                () -> resetManualTripForRefuel(ManualTripComputer.SLOT_B, label),
+                () -> appendServiceLog("Rifornimento rilevato: utente ha scelto di non resettare nessun trip manuale"),
+            });
+    }
+
+    private void resetManualTripForRefuel(String slot, String label) {
+        ManualTripComputer.reset(this, slot);
+        ManualTripComputer.setLabel(this, slot, label);
+        appendServiceLog("Trip manuale " + slot + " azzerato per rifornimento, etichetta \"" + label + "\"");
     }
 
     // Progresso gia' accumulato dagli slot manuali PRIMA del passaggio al modello ad

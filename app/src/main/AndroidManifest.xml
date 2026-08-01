@@ -32,6 +32,13 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
+    <!-- Per i popup overlay in background (cambio livello rigenerazione, rifornimento
+         rilevato - vedi OverlayPopup) - permesso "speciale" (Settings.canDrawOverlays()),
+         non un semplice dangerous permission: su questa ROM va concesso esternamente
+         (ADB "appops set ... SYSTEM_ALERT_WINDOW allow", o dallo sviluppatore DSA), stessa
+         storia di ACCESS_FINE_LOCATION - vedi MainActivity.showLocationPermissionMissingDialog(). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+
     <application
         android:allowBackup="false"
         android:label="@string/app_name"

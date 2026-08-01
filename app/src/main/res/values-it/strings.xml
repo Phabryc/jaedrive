@@ -69,6 +69,11 @@
     <string name="section_units_title">UNITÀ DI MISURA</string>
     <string name="label_gps_track_title">Salva traccia GPS</string>
     <string name="label_gps_track_subtitle">Se disattivato, i viaggi restano tracciati solo per il calcolo dei consumi</string>
+    <string name="section_popups_title">POPUP</string>
+    <string name="label_regen_popup_title">Popup livello rigenerazione</string>
+    <string name="label_regen_popup_subtitle">Mostra un popup quando cambi il livello di rigenerazione (se l\'app è in background)</string>
+    <string name="label_refuel_popup_title">Popup rifornimento rilevato</string>
+    <string name="label_refuel_popup_subtitle">Chiede se resettare un trip manuale quando rileva un rifornimento all\'accensione</string>
     <string name="section_dev_title">SVILUPPO</string>
     <string name="label_debug_mode_title">Modalità debug</string>
     <string name="label_debug_mode_subtitle">Se disattivata, non vengono creati/scritti i log (risparmia spazio e risorse)</string>
@@ -98,6 +103,8 @@
     <string name="dialog_unpaired_remotely_title">Non piu\' associata</string>
     <string name="dialog_unpaired_remotely_message">Quest\'auto non e\' piu\' associata a nessun account JaeDrive (l\'auto o l\'intero account sono stati eliminati da jaedrive.com). La sincronizzazione dei viaggi si e\' fermata - vai in Impostazioni per associarla di nuovo.</string>
     <string name="dialog_btn_ok">HO CAPITO</string>
+    <string name="dialog_location_denied_title">Serve il permesso posizione (via ADB)</string>
+    <string name="dialog_location_denied_message">Il permesso posizione non e\' concesso, e su questa ROM le richieste di sistema (permessi, Impostazioni) non compaiono mai - probabilmente e\' stato concesso in origine via ADB, e l\'ultima reinstallazione dell\'app lo ha azzerato. Ricollega il PC e lancia:\n\nadb shell pm grant com.phabryc.jaedrive android.permission.ACCESS_FINE_LOCATION\n\nFinche\' non lo fai, niente traccia sulla mappa, indirizzi o split EV/ibrido per i nuovi viaggi.</string>
     <string name="dialog_delete_trips_cloud_title">Eliminare anche dal cloud?</string>
     <string name="dialog_delete_trips_cloud_message">I viaggi selezionati erano gia\' stati caricati su jaedrive.com. Eliminarli anche li\'? Questa azione non puo\' essere annullata.</string>
     <string name="dialog_pairing_title">Associa auto al cloud</string>
@@ -129,6 +136,20 @@
     <string name="toast_vin_conflict">Questo VIN e\' gia\' associato a un altro account.</string>
     <string name="toast_vin_error">Impossibile salvare il VIN. Verifica la connessione e riprova.</string>
     <string name="label_footer_range">Autonomia:</string>
+    <string name="hero_label_mode">MODALITÀ</string>
+    <string name="hero_label_battery">BATTERIA</string>
+    <string name="hero_label_fuel">CARBURANTE</string>
+    <string name="hero_label_flow">FLUSSO</string>
+    <string name="hero_label_regen">RIGEN.</string>
+    <string name="overlay_regen_title">Livello di rigenerazione</string>
+    <string name="regen_level_high">ALTO</string>
+    <string name="regen_level_medium">MEDIO</string>
+    <string name="regen_level_low">BASSO</string>
+    <string name="overlay_refuel_detected">Rifornimento rilevato.\nVuoi resettare un trip manuale?</string>
+    <string name="overlay_btn_trip_a">TRIP A</string>
+    <string name="overlay_btn_trip_b">TRIP B</string>
+    <string name="overlay_btn_no">NO</string>
+    <string name="manual_trip_refuel_label">Rifornimento</string>
 
     <!-- Log -->
     <string name="label_save_log">SALVA LOG SU USB</string>
