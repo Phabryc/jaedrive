@@ -4,6 +4,7 @@ import { requireUser } from "../auth/requireUser.js";
 import { generateDeviceToken, sha256Hex } from "../lib/tokens.js";
 import { reverseGeocode, firstAndLastPoint, searchAddress } from "../lib/geocode.js";
 import { computeVehicleStats } from "../lib/stats.js";
+import { computeKmByBucket } from "../lib/gpxEnergy.js";
 import { haversineMeters } from "../lib/geo.js";
 import { deleteFirebaseUser } from "../auth/firebase.js";
 
@@ -311,6 +312,35 @@ export async function userRoutes(app: FastifyInstance) {
     return reply.send({ scanned: trips.length, updated, remaining: totalMissing - updated });
   });
 
+  // Ricalcolo km EV/HEV per i trip AUTO gia' caricati - vedi lib/gpxEnergy.ts per il perche'
+  // (ID_EV_MILEAGE/ID_HEV_MILEAGE via VDB confermati inaffidabili sul campo 2026-08-01, gia'
+  // rimossi lato Android per i nuovi upload). A differenza di backfill-addresses qui non c'e'
+  // nessun servizio esterno da rispettare (solo regex + calcolo su un campo gia' in DB), un
+  // solo giro basta - nessun batch/"remaining" da gestire. Sovrascrive SEMPRE (non solo se
+  // null): a differenza degli indirizzi mancanti, qui i valori esistenti sono per definizione
+  // quelli vecchi/sbagliati (dal VDB), non "gia' corretti da non toccare".
+  app.post("/vehicles/:id/backfill-energy-km", async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const owned = await loadOwnedVehicle(req.authUser!.id, id);
+    if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
+
+    const trips = await prisma.trip.findMany({
+      where: { vehicleId: id, kind: "auto", gpxRaw: { not: null } },
+      select: { id: true, gpxRaw: true },
+    });
+
+    let updated = 0;
+    for (const t of trips) {
+      if (!t.gpxRaw) continue;
+      const result = computeKmByBucket(t.gpxRaw);
+      if (!result) continue;
+      await prisma.trip.update({ where: { id: t.id }, data: { kmEv: result.kmEv, kmHev: result.kmHev } });
+      updated++;
+    }
+
+    return reply.send({ scanned: trips.length, updated });
+  });
+
   app.get("/trips/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const trip = await prisma.trip.findUnique({ where: { id }, include: { vehicle: true } });
@@ -343,10 +373,22 @@ export async function userRoutes(app: FastifyInstance) {
     // "kind" opzionale (2026-07-26): aggiunto per il dettaglio di un trip manuale (vedi
     // jaedrive_todo #15), che vuole le statistiche calcolate SOLO sui trip AUTO caduti nel
     // suo range di date - lo stesso filtro gia' supportato da GET .../trips.
+    //
+    // BUG TROVATO SUL CAMPO (2026-08-01): quando "kind" non e' specificato (il caso della
+    // dashboard principale, vedi VehicleStatsPanel.tsx) il default era "nessun filtro",
+    // cioe' AUTO + MANUAL sommati insieme in totals.km/totals.liters - ma i trip manuali
+    // (Trip A/B) sono accumulatori che sommano km/litri ad OGNI lettura VDB indipendentemente
+    // dal viaggio automatico a marcia (vedi Android ManualTripComputer), quindi non sono una
+    // partizione distinta della guida ma una vista che si SOVRAPPONE agli stessi trip AUTO -
+    // sommarli assieme conta due (o piu') volte lo stesso carburante realmente consumato.
+    // Utente ha segnalato esattamente questo: "sembra abbia fatto due pieni" con un solo
+    // pieno reale. Default ora "auto" (stessa scelta gia' fatta per /stats/calendar, stessa
+    // motivazione), non piu' "nessun filtro" - un chiamante che vuole esplicitamente un altro
+    // kind puo' ancora richiederlo via query string.
     const { from, to, kind } = req.query as { from?: string; to?: string; kind?: string };
     const where = {
       vehicleId: id,
-      ...(kind ? { kind } : {}),
+      kind: kind ?? "auto",
       ...(from || to
         ? { startedAt: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
         : {}),
