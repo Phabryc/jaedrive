@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { TripSummary } from "../lib/types";
-import { IconLocationPin, IconFlagCheckered } from "./icons";
+import { IconLocationPin, IconFlagCheckered, IconRoute, IconFuel, IconGauge } from "./icons";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 import { useUnits } from "../lib/UnitsContext";
 import { toDisplayDistance, toDisplayConsumption, consumptionUnitLabel } from "../lib/units";
@@ -51,20 +52,35 @@ export function TripRow({ trip }: { trip: TripSummary }) {
           {t(KIND_LABEL_KEY[trip.kind])} · {formatRange(trip.startedAt, trip.endedAt)}
         </p>
       </div>
-      <div className="flex justify-between gap-4 text-sm tabular-nums sm:shrink-0 sm:justify-end sm:text-right">
-        <div>
-          <p className="text-onsurface-variant">{distanceUnit}</p>
-          <p>{trip.km != null ? toDisplayDistance(trip.km, distanceUnit).toFixed(1) : "–"}</p>
-        </div>
-        <div>
-          <p className="text-onsurface-variant">{t("trip.liters")}</p>
-          <p>{trip.liters != null ? trip.liters.toFixed(2) : "–"}</p>
-        </div>
-        <div>
-          <p className="text-onsurface-variant">{consumptionUnitLabel(distanceUnit, consumptionFormat)}</p>
-          <p>{trip.avgConsumption != null ? toDisplayConsumption(trip.avgConsumption, distanceUnit, consumptionFormat).toFixed(1) : "–"}</p>
-        </div>
+      <div className="flex gap-2 text-sm tabular-nums sm:shrink-0">
+        <StatBox
+          icon={<IconRoute size={14} />}
+          value={trip.km != null ? toDisplayDistance(trip.km, distanceUnit).toFixed(1) : "–"}
+          unit={distanceUnit}
+        />
+        <StatBox
+          icon={<IconFuel size={14} />}
+          value={trip.liters != null ? trip.liters.toFixed(2) : "–"}
+          unit={t("trip.liters")}
+        />
+        <StatBox
+          icon={<IconGauge size={14} />}
+          value={trip.avgConsumption != null ? toDisplayConsumption(trip.avgConsumption, distanceUnit, consumptionFormat).toFixed(1) : "–"}
+          unit={consumptionUnitLabel(distanceUnit, consumptionFormat)}
+        />
       </div>
     </Link>
+  );
+}
+
+function StatBox({ icon, value, unit }: { icon: ReactNode; value: string; unit: string }) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border border-surface-border px-2 py-1">
+      <span className="shrink-0 text-onsurface-variant">{icon}</span>
+      <div className="leading-tight">
+        <p className="font-medium">{value}</p>
+        <p className="text-[10px] text-onsurface-variant">{unit}</p>
+      </div>
+    </div>
   );
 }
