@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { TripDetail as TripDetailType, TripSummary, Vehicle, VehicleStats } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { Button } from "../components/Button";
 import { TripMap } from "../components/TripMap";
 import { TripRow } from "../components/TripRow";
 import { StatsBody, STATS_GRID_CLASS } from "../components/VehicleStatsPanel";
@@ -126,7 +127,7 @@ export default function TripDetail() {
         {t("common.back")}
       </button>
 
-      <div className="mb-4 flex items-start justify-between gap-4">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           {trip.startLabel || trip.label ? (
             <div className="flex flex-col gap-1">
@@ -150,22 +151,15 @@ export default function TripDetail() {
             {t(KIND_LABEL_KEY[trip.kind])} · {new Date(trip.startedAt).toLocaleString(locale)}
           </p>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           {trip.kind === "auto" && trip.gpxRaw && !savedRoute && (
-            <button
-              onClick={() => setShowSaveRoute((s) => !s)}
-              className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
-            >
+            <Button variant="secondary" size="sm" onClick={() => setShowSaveRoute((s) => !s)}>
               {t("tripDetail.saveAsRoute")}
-            </button>
+            </Button>
           )}
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="rounded-md border border-bad px-3 py-1.5 text-sm text-bad hover:bg-bad/10 disabled:opacity-50"
-          >
+          <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
             {t("common.delete")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -179,13 +173,9 @@ export default function TripDetail() {
             onKeyDown={(e) => e.key === "Enter" && handleSaveRoute()}
             className="flex-1 rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
           />
-          <button
-            onClick={handleSaveRoute}
-            disabled={savingRoute || !routeName.trim()}
-            className="rounded-md border border-accent px-3 py-1.5 text-sm text-accent disabled:opacity-50"
-          >
+          <Button variant="primary" size="sm" onClick={handleSaveRoute} disabled={savingRoute || !routeName.trim()}>
             {savingRoute ? t("common.saving") : t("common.save")}
-          </button>
+          </Button>
         </div>
       )}
       {saveRouteError && <p className="mb-4 text-sm text-bad">{saveRouteError}</p>}

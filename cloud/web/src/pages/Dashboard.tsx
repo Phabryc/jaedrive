@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { buttonVariants } from "../components/Button";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 import { vehicleTitle, vehicleImageFor } from "../lib/vehicleCatalog";
 
@@ -23,10 +24,7 @@ export default function Dashboard() {
     <AppShell>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">{t("appShell.myVehicles")}</h1>
-        <Link
-          to="/pair"
-          className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
-        >
+        <Link to="/pair" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           {t("dashboard.addVehicle")}
         </Link>
       </div>

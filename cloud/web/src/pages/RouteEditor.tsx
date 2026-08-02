@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { AppShell } from "../components/AppShell";
+import { Button } from "../components/Button";
 import { AddressSearch } from "../components/AddressSearch";
 import { RouteMapEditor, type LatLon } from "../components/RouteMapEditor";
 import { useLanguage } from "../lib/i18n/LanguageContext";
@@ -170,13 +171,9 @@ export default function RouteEditor() {
 
       {error && <p className="mt-4 text-sm text-bad">{error}</p>}
 
-      <button
-        onClick={handleSave}
-        disabled={saving || !name.trim() || !start || !end}
-        className="mt-6 rounded-md border border-accent px-4 py-2 text-sm text-accent disabled:opacity-50 disabled:border-surface-border disabled:text-onsurface-variant"
-      >
+      <Button variant="primary" className="mt-6" onClick={handleSave} disabled={saving || !name.trim() || !start || !end}>
         {saving ? t("common.saving") : t("routeEditor.saveButton")}
-      </button>
+      </Button>
     </AppShell>
   );
 }

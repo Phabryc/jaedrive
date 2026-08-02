@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { TripsPage, Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { Button } from "../components/Button";
 import { TripRow } from "../components/TripRow";
 import { VehicleStatsPanel } from "../components/VehicleStatsPanel";
 import { VehicleInfoCard } from "../components/VehicleInfoCard";
@@ -117,21 +118,13 @@ export default function Trips() {
 
       {data && totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="rounded-md border border-surface-border px-3 py-1 disabled:opacity-40"
-          >
+          <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             {t("trips.prevPage")}
-          </button>
+          </Button>
           <span className="text-onsurface-variant">{t("trips.pageOf", { page, total: totalPages })}</span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
-            className="rounded-md border border-surface-border px-3 py-1 disabled:opacity-40"
-          >
+          <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
             {t("trips.nextPage")}
-          </button>
+          </Button>
         </div>
       )}
     </AppShell>

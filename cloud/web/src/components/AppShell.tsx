@@ -5,6 +5,7 @@ import { auth } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { Button } from "./Button";
 import jdLogo from "../assets/jd_logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -33,12 +34,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
             <span className="hidden whitespace-nowrap sm:inline">{user?.email}</span>
             <LanguageSwitcher />
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => signOut(auth).then(() => navigate("/login"))}
-              className="whitespace-nowrap rounded-md border border-surface-border px-3 py-1 hover:border-accent hover:text-onsurface"
+              className="whitespace-nowrap"
             >
               {t("appShell.logout")}
-            </button>
+            </Button>
           </nav>
         </div>
       </header>

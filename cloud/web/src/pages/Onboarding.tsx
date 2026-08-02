@@ -4,6 +4,7 @@ import { api, ApiError, type Profile } from "../lib/api";
 import { useProfile } from "../lib/ProfileContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { Button } from "../components/Button";
 import jdLogo from "../assets/jd_logo.png";
 
 export default function Onboarding() {
@@ -92,13 +93,9 @@ export default function Onboarding() {
           </label>
 
           {error && <p className="text-sm text-bad">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy || !acceptLegal}
-            className="mt-1 rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={busy || !acceptLegal} className="mt-1 w-full">
             {t("common.continue")}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

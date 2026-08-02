@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { PresetRoute, Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { Button, buttonVariants } from "../components/Button";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
 // Elenco dei percorsi preimpostati di un veicolo (jaedrive_todo #14) - creazione con
@@ -38,12 +39,9 @@ export default function Routes() {
           ← {vehicle?.nickname ?? t("routes.backFallback")}
         </Link>
       )}
-      <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">{t("routes.title")}</h1>
-        <Link
-          to={`/vehicles/${vehicleId}/routes/new`}
-          className="rounded-md border border-accent px-3 py-1.5 text-sm text-accent hover:bg-accent/10"
-        >
+        <Link to={`/vehicles/${vehicleId}/routes/new`} className={buttonVariants({ variant: "primary", size: "sm" })}>
           {t("routes.newRoute")}
         </Link>
       </div>
@@ -53,19 +51,16 @@ export default function Routes() {
 
       <div className="flex flex-col gap-3">
         {routes?.map((r) => (
-          <div key={r.id} className="flex items-center justify-between gap-4 rounded-lg border border-surface-border bg-surface p-4">
+          <div key={r.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-surface-border bg-surface p-4">
             <Link to={`/vehicles/${vehicleId}/routes/${r.id}`} className="min-w-0 flex-1">
               <p className="truncate font-medium hover:text-accent">{r.name}</p>
               <p className="mt-1 text-xs text-onsurface-variant">
                 {t("routes.radiusCreated", { radius: r.radiusMeters.toFixed(0), date: new Date(r.createdAt).toLocaleDateString(locale) })}
               </p>
             </Link>
-            <button
-              onClick={() => handleDelete(r)}
-              className="shrink-0 rounded-md border border-bad px-3 py-1 text-xs text-bad hover:bg-bad/10"
-            >
+            <Button variant="danger" size="sm" className="shrink-0" onClick={() => handleDelete(r)}>
               {t("common.delete")}
-            </button>
+            </Button>
           </div>
         ))}
       </div>

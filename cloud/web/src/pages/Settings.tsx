@@ -5,6 +5,7 @@ import { auth } from "../lib/firebase";
 import { api, ApiError } from "../lib/api";
 import type { Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { Button } from "../components/Button";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { DistanceUnitSwitcher, ConsumptionFormatSwitcher } from "../components/UnitsSwitcher";
 import { hasElectricData } from "../lib/vehicleCatalog";
@@ -150,53 +151,39 @@ export default function Settings() {
         <div className="flex flex-col gap-3">
           {vehicles.map((v) => (
             <div key={v.id} className="rounded-lg border border-surface-border bg-surface p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
                   <p className="font-medium">{v.nickname}</p>
                   <p className="font-mono text-xs text-onsurface-variant">{v.vin}</p>
                 </div>
-                <button
-                  onClick={() => deleteVehicle(v.id, v.nickname)}
-                  className="rounded-md border border-bad px-3 py-1 text-xs text-bad hover:bg-bad/10"
-                >
+                <Button variant="danger" size="sm" onClick={() => deleteVehicle(v.id, v.nickname)}>
                   {t("settings.deleteVehicle")}
-                </button>
+                </Button>
               </div>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <input
                   placeholder={t("settings.newNamePlaceholder")}
                   value={editing[v.id] ?? ""}
                   onChange={(e) => setEditing((s) => ({ ...s, [v.id]: e.target.value }))}
-                  className="flex-1 rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  className="min-w-0 flex-1 rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
                 />
-                <button
-                  onClick={() => saveNickname(v.id)}
-                  className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
-                >
+                <Button variant="secondary" size="sm" onClick={() => saveNickname(v.id)}>
                   {t("settings.rename")}
-                </button>
+                </Button>
               </div>
 
               <div className="mt-3 flex flex-col gap-2 border-t border-surface-border pt-3">
                 <div className="flex flex-wrap items-center gap-3 text-xs">
-                  <button
-                    onClick={() => handleBackfillAddresses(v.id)}
-                    disabled={backfillBusy[v.id]}
-                    className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
-                  >
+                  <Button variant="secondary" size="sm" onClick={() => handleBackfillAddresses(v.id)} disabled={backfillBusy[v.id]}>
                     {backfillBusy[v.id] ? t("settings.backfillBusy") : t("settings.backfillButton")}
-                  </button>
+                  </Button>
                   {backfillStatus[v.id] && <span className="text-onsurface-variant">{backfillStatus[v.id]}</span>}
                 </div>
                 {hasElectricData(v.powertrain) && (
                   <div className="flex flex-wrap items-center gap-3 text-xs">
-                    <button
-                      onClick={() => handleBackfillEnergyKm(v.id)}
-                      disabled={energyBackfillBusy[v.id]}
-                      className="rounded-md border border-surface-border px-3 py-1 text-onsurface-variant hover:border-accent hover:text-onsurface disabled:opacity-50"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => handleBackfillEnergyKm(v.id)} disabled={energyBackfillBusy[v.id]}>
                       {energyBackfillBusy[v.id] ? t("settings.energyBackfillBusy") : t("settings.energyBackfillButton")}
-                    </button>
+                    </Button>
                     {energyBackfillStatus[v.id] && <span className="text-onsurface-variant">{energyBackfillStatus[v.id]}</span>}
                   </div>
                 )}
@@ -210,13 +197,9 @@ export default function Settings() {
         <p className="mb-1 text-sm font-medium text-bad">{t("settings.dangerZoneTitle")}</p>
         <p className="mb-3 text-sm text-onsurface-variant">{t("settings.deleteAccountDescription")}</p>
         {deleteAccountError && <p className="mb-3 text-sm text-bad">{deleteAccountError}</p>}
-        <button
-          onClick={deleteAccount}
-          disabled={deletingAccount}
-          className="rounded-md border border-bad px-3 py-1.5 text-sm text-bad hover:bg-bad/10 disabled:opacity-50"
-        >
+        <Button variant="danger" onClick={deleteAccount} disabled={deletingAccount}>
           {t("settings.deleteAccount")}
-        </button>
+        </Button>
       </section>
       </div>
     </AppShell>

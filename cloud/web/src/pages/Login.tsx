@@ -10,6 +10,7 @@ import { useAuth } from "../lib/AuthContext";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { ApiError } from "../lib/api";
+import { Button } from "../components/Button";
 import jdLogo from "../assets/jd_logo.png";
 
 export default function Login() {
@@ -91,13 +92,9 @@ export default function Login() {
             className="rounded-md border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
           />
           {error && <p className="text-sm text-bad">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy}
-            className="mt-1 rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={busy} className="mt-1 w-full">
             {mode === "signin" ? t("common.login") : t("login.signupButton")}
-          </button>
+          </Button>
         </form>
 
         <div className="my-4 flex items-center gap-2 text-xs text-onsurface-variant">
@@ -115,12 +112,14 @@ export default function Login() {
           {t("login.continueWithGoogle")}
         </button>
 
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-          className="mt-4 w-full text-center text-xs text-onsurface-variant hover:text-onsurface"
+          className="mt-4 w-full font-normal"
         >
           {mode === "signin" ? t("login.switchToSignup") : t("login.switchToSignin")}
-        </button>
+        </Button>
 
         <p className="mt-4 text-center text-[11px] text-onsurface-variant">
           <a href="/legal/eula" className="hover:text-onsurface hover:underline">

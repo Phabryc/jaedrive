@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { PresetRouteDetail, Vehicle } from "../lib/types";
 import { AppShell } from "../components/AppShell";
+import { Button, buttonVariants } from "../components/Button";
 import { TripRow } from "../components/TripRow";
 import { StatsBody, STATS_GRID_CLASS } from "../components/VehicleStatsPanel";
 import { hasElectricData } from "../lib/vehicleCatalog";
@@ -44,21 +45,18 @@ export default function RouteDetail() {
         {t("routeDetail.backLink")}
       </Link>
 
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{route.name}</h1>
           <p className="mt-1 text-sm text-onsurface-variant">{t("routeDetail.radiusLabel", { radius: route.radiusMeters.toFixed(0) })}</p>
         </div>
         <div className="flex shrink-0 gap-2">
-          <Link
-            to={`/vehicles/${vehicleId}/routes/${routeId}/edit`}
-            className="rounded-md border border-surface-border px-3 py-1.5 text-sm hover:border-accent"
-          >
+          <Link to={`/vehicles/${vehicleId}/routes/${routeId}/edit`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {t("common.edit")}
           </Link>
-          <button onClick={handleDelete} className="rounded-md border border-bad px-3 py-1.5 text-sm text-bad hover:bg-bad/10">
+          <Button variant="danger" size="sm" onClick={handleDelete}>
             {t("common.delete")}
-          </button>
+          </Button>
         </div>
       </div>
 

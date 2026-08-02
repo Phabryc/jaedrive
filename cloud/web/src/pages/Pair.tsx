@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { AppShell } from "../components/AppShell";
+import { Button } from "../components/Button";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
 export default function Pair() {
@@ -66,13 +67,9 @@ export default function Pair() {
             className="rounded-md border border-surface-border bg-surface px-3 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-accent"
           />
           {error && <p className="text-sm text-bad">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy || code.trim().length < 4}
-            className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-bg disabled:opacity-50"
-          >
+          <Button type="submit" variant="primary" disabled={busy || code.trim().length < 4} className="w-full">
             {t("pair.submitButton")}
-          </button>
+          </Button>
         </form>
       </div>
     </AppShell>

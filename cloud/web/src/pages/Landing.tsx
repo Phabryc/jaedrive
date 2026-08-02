@@ -2,6 +2,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { buttonVariants } from "../components/Button";
 import jdLogo from "../assets/jd_logo.png";
 import { IconGauge, IconFuel, IconCloud, IconRoute } from "../components/icons";
 import { vehicleImageFor } from "../lib/vehicleCatalog";
@@ -39,10 +40,7 @@ export default function Landing() {
           <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <Link
-              to="/login"
-              className="rounded-md border border-surface-border px-4 py-1.5 text-sm hover:border-accent hover:text-onsurface"
-            >
+            <Link to="/login" className={buttonVariants({ variant: "secondary", size: "sm" })}>
               {t("common.login")}
             </Link>
           </div>
@@ -62,16 +60,10 @@ export default function Landing() {
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-balance text-base text-onsurface-variant sm:text-lg">{t("landing.heroSubtitle")}</p>
           <div className="mt-8 flex items-center justify-center gap-3">
-            <Link
-              to="/login"
-              className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-bg transition hover:opacity-90"
-            >
+            <Link to="/login" className={buttonVariants({ variant: "primary" })}>
               {t("common.login")}
             </Link>
-            <a
-              href="#funzionalita"
-              className="rounded-md border border-surface-border px-5 py-2.5 text-sm text-onsurface-variant transition hover:border-accent hover:text-onsurface"
-            >
+            <a href="#funzionalita" className={buttonVariants({ variant: "secondary" })}>
               {t("landing.ctaSecondary")}
             </a>
           </div>
@@ -108,10 +100,7 @@ export default function Landing() {
 
         <section className="mx-auto max-w-2xl px-4 py-20 text-center">
           <h2 className="text-2xl font-semibold">{t("landing.finalCtaTitle")}</h2>
-          <Link
-            to="/login"
-            className="mt-6 inline-block rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-bg transition hover:opacity-90"
-          >
+          <Link to="/login" className={buttonVariants({ variant: "primary", className: "mt-6 inline-flex" })}>
             {t("landing.finalCtaButton")}
           </Link>
         </section>
