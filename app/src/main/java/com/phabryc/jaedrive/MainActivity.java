@@ -131,6 +131,15 @@ public class MainActivity extends AppCompatActivity {
     private TextView toggleLangIt, toggleLangEn;
     private SwitchCompat switchGps, switchDebugMode, switchRegenPopup, switchRefuelPopup;
     private TextView btnTestRefuelPopup;
+    private View devSectionContainer;
+    // Sblocco sezione Sviluppo: SOLO in memoria (non in Prefs), richiesta esplicita
+    // 2026-08-02 - deve ri-nascondersi allo spegnimento dell'auto, cioe' quando il processo
+    // dell'app viene ucciso (l'head unit spegne l'app col motore, non e' un vero "sleep"
+    // Android). Static cosi' sopravvive a una ricreazione dell'Activity (es. rotazione)
+    // entro lo stesso processo, ma si azzera da solo al prossimo avvio del processo.
+    private static boolean devSectionUnlocked = false;
+    private int vehicleCardTapCount = 0;
+    private static final int DEV_SECTION_UNLOCK_TAPS = 10;
     private TextView tvAppVersion;
     private TextView tvVehicleVin;
     private TextView tvVinLabel;
@@ -310,6 +319,7 @@ public class MainActivity extends AppCompatActivity {
         toggleLangEn = findViewById(R.id.toggle_lang_en);
         switchGps = findViewById(R.id.switch_gps);
         switchDebugMode = findViewById(R.id.switch_debug_mode);
+        devSectionContainer = findViewById(R.id.dev_section_container);
         btnTestRefuelPopup = findViewById(R.id.btn_test_refuel_popup);
         switchRegenPopup = findViewById(R.id.switch_regen_popup);
         switchRefuelPopup = findViewById(R.id.switch_refuel_popup);
@@ -369,13 +379,13 @@ public class MainActivity extends AppCompatActivity {
         });
         btnCancelSelection.setOnClickListener(v -> exitSelectionMode());
         btnDeleteSelected.setOnClickListener(v -> confirmDeleteSelectedTrips());
+        updateLogTabVisibility();
         showSection(0);
         setupImpostazioni();
         setupVehicleSection();
         // Chiamata il piu' presto possibile (non dipende dal car service, solo da
-        // ContentResolver) cosi' vince la corsa con i segnali VDB/CarPropertyManager sotto:
-        // vedi tryReadRealVin() per il perche' e' considerata la fonte VIN autorevole.
-        tryReadRealVin();
+        // ContentResolver) - vedi readVehicleIdentifier() per i dettagli.
+        readVehicleIdentifier();
         // Obbligatorio solo se marca/modello/motorizzazione non sono mai stati impostati -
         // vedi Prefs.isVehicleInfoSet()/VehicleCatalog. Non cancellabile in questo caso
         // (nessun bottone CHIUDI, nessun dismiss col tasto indietro).
@@ -448,8 +458,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int KEY_FUEL_PERCENT = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_FUEL_PERCENT);
     private static final int KEY_ENERGY_FLOW = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_FLOW);
     private static final int KEY_ENERGY_RECYCLE_LEVEL = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_ENERGY_RECYCLE_LEVEL);
-    private static final int KEY_VIN = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_VIN);
-    private static final int KEY_VIN_ALT = VDInfoClient.keyFor(VDInfoClient.MODULE_DOANOSE, VDInfoClient.ID_VIN_ALT);
     private static final int KEY_TIRE_PRESSURE_WARNING = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE_WARNING);
     private static final int KEY_TIRE_PRESSURE = VDInfoClient.keyFor(VDInfoClient.MODULE_READONLY_INFO, VDInfoClient.ID_TIRE_PRESSURE);
 
@@ -980,6 +988,36 @@ public class MainActivity extends AppCompatActivity {
 
         if (index == 1) refreshTrackList();
         if (index == 3) renderLogView();
+    }
+
+    // Tab Log nascosto quando la modalita' debug e' spenta (richiesta 2026-08-02, coerente
+    // col nuovo default OFF - vedi Prefs.isDebugModeEnabled()): senza log da scrivere
+    // (appendLog() e TrackingService lo saltano gia' se disattivata) il tab resterebbe solo
+    // vuoto. Se l'utente la disattiva mentre e' proprio sul tab Log, torna alla Dashboard
+    // invece di lasciarlo su un tab appena nascosto.
+    private void updateLogTabVisibility() {
+        boolean enabled = Prefs.isDebugModeEnabled(this);
+        navLog.setVisibility(enabled ? View.VISIBLE : View.GONE);
+        if (!enabled && contentLog.getVisibility() == View.VISIBLE) {
+            showSection(0);
+        }
+    }
+
+    // Sblocco sezione Sviluppo: 10 tocchi sulla card veicolo in Impostazioni (stesso pattern
+    // del "numero build" di Android), richiesta 2026-08-02. Il tocco singolo continua ad
+    // aprire il dialogo Veicolo come prima - il conteggio corre in parallelo, non lo
+    // sostituisce. Vedi devSectionUnlocked per perche' non e' persistito in Prefs.
+    private void handleVehicleCardTapForDevUnlock() {
+        if (devSectionUnlocked) return;
+        vehicleCardTapCount++;
+        int remaining = DEV_SECTION_UNLOCK_TAPS - vehicleCardTapCount;
+        if (remaining <= 0) {
+            devSectionUnlocked = true;
+            devSectionContainer.setVisibility(View.VISIBLE);
+            Toast.makeText(this, getString(R.string.toast_dev_unlocked), Toast.LENGTH_LONG).show();
+        } else if (remaining <= 3) {
+            Toast.makeText(this, getString(R.string.toast_dev_unlock_countdown, remaining), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void styleNavItem(View container, ImageView icon, TextView label, boolean active) {
@@ -1612,6 +1650,8 @@ public class MainActivity extends AppCompatActivity {
             appendLog("Traccia GPS " + (checked ? "attivata" : "disattivata") + " dalle Impostazioni");
         });
 
+        devSectionContainer.setVisibility(devSectionUnlocked ? View.VISIBLE : View.GONE);
+
         switchDebugMode.setChecked(Prefs.isDebugModeEnabled(this));
         switchDebugMode.setOnCheckedChangeListener((btn, checked) -> {
             boolean wasEnabled = Prefs.isDebugModeEnabled(this);
@@ -1620,6 +1660,7 @@ public class MainActivity extends AppCompatActivity {
                 // Log solo l'attivazione stessa: se era disattivata non c'era nulla da registrare prima.
                 appendLog("Modalità debug attivata dalle Impostazioni");
             }
+            updateLogTabVisibility();
             if (contentLog.getVisibility() == View.VISIBLE) renderLogView();
         });
 
@@ -1715,7 +1756,10 @@ public class MainActivity extends AppCompatActivity {
     private void setupVehicleSection() {
         refreshVehicleCard();
         refreshEnergyCapabilityUi();
-        findViewById(R.id.card_vehicle).setOnClickListener(v -> showVehicleOnboardingDialog(false));
+        findViewById(R.id.card_vehicle).setOnClickListener(v -> {
+            showVehicleOnboardingDialog(false);
+            handleVehicleCardTapForDevUnlock();
+        });
     }
 
     private void refreshVehicleCard() {
@@ -1770,13 +1814,13 @@ public class MainActivity extends AppCompatActivity {
         };
 
         // Sezione VIN: sempre visibile, anche nel primo onboarding obbligatorio - mostra
-        // semplicemente il VIN gia' rilevato (tryReadRealVin() gira in onCreate PRIMA di questo
-        // dialogo, vedi chiamata li' sopra), cosi' l'utente vede subito cosa verra' usato per
-        // il pairing (vedi resetPairingFlow(), che legge lo stesso tvVehicleVin/vinResolved -
-        // e' il VIN che il server incrocia con quelli gia' registrati, vedi routes/user.ts
-        // "pairing/claim"). Il pulsante di correzione ha senso solo se l'auto e' gia'
-        // associata (altrimenti non c'e' ancora nulla su cui fare la PATCH), quindi resta
-        // nascosto durante il primo onboarding.
+        // semplicemente ivi.sn gia' rilevato (readVehicleIdentifier() gira in onCreate PRIMA
+        // di questo dialogo, vedi chiamata li' sopra), cosi' l'utente vede subito cosa verra'
+        // usato per il pairing (vedi resetPairingFlow(), che legge lo stesso tvVehicleVin/
+        // vinResolved - e' l'identificativo che il server incrocia con quelli gia'
+        // registrati, vedi routes/user.ts "pairing/claim"). Il pulsante di correzione ha
+        // senso solo se l'auto e' gia' associata (altrimenti non c'e' ancora nulla su cui
+        // fare la PATCH), quindi resta nascosto durante il primo onboarding.
         vinSection.setVisibility(View.VISIBLE);
         boolean alreadyPaired = Prefs.isCloudPaired(this);
         String known = alreadyPaired ? Prefs.getSyncedVin(this) : null;
@@ -1785,9 +1829,9 @@ public class MainActivity extends AppCompatActivity {
         } else if (vinResolved) {
             tvVinOnboarding.setText(tvVehicleVin.getText());
         }
-        // Etichetta coerente con quella di Impostazioni: se il valore mostrato e' il
-        // fallback ivi.sn (S/N del DMC, non un VIN vero), l'utente deve saperlo a colpo
-        // d'occhio invece di scambiarlo per il telaio dell'auto.
+        // Etichetta coerente con quella di Impostazioni: sempre "S/N DMC" (mai un VIN vero,
+        // vedi il commento su vinResolved) - l'utente deve saperlo a colpo d'occhio invece
+        // di scambiarlo per il telaio dell'auto.
         updateVinLabel(tvVinOnboardingLabel);
         if (alreadyPaired) {
             btnVinRefresh.setVisibility(View.VISIBLE);
@@ -2557,8 +2601,6 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     vdbValues.put(key, value);
                     updateFooterStatus();
-                    if (key == KEY_VIN) renderVin(value, false);
-                    if (key == KEY_VIN_ALT) renderVin(value, true);
                     if (key == KEY_TIRE_PRESSURE_WARNING) renderTirePressureWarning(value);
                     if (key == KEY_TIRE_PRESSURE) renderTirePressureRaw(value);
                 });
@@ -2687,80 +2729,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // VIN in Impostazioni: due segnali sperimentali candidati, nessuno con un caller di
-    // riferimento trovato nei decompile - ID_VIN=0x9/READONLY_INFO confermato sul campo
-    // che restituisce sempre IS_NULL su questa auto (segnale genuinamente assente li', non
-    // un problema di decodifica), quindi si tenta anche ID_VIN_ALT=0x10/MODULE_DOANOSE
-    // (vedi VDInfoClient). Se la decodifica ASCII produce una stringa plausibile (10-17
-    // caratteri alfanumerici, lo standard VIN reale) la mostriamo; altrimenti mostriamo
-    // l'array grezzo cosi' resta comunque visibile per un'eventuale diagnosi futura invece
-    // di sparire silenziosamente. Una volta trovata una stringa plausibile da una fonte, non
-    // la sovrascriviamo piu' con dati grezzi/peggiori dall'altra fonte.
+    // VIN in Impostazioni: nessuna lettura elettronica del VIN vero e' piu' tentata (rimossa
+    // il 2026-08-02, sia il tentativo VDB - ID_VIN/ID_VIN_ALT, vedi VDInfoClient - sia
+    // sys.vehicle.hardware.vin.code via SystemProperties/reflection). Confermato via
+    // decompile di ENG MODE (com.desaysv.engmode, stesso identico meccanismo di lettura)
+    // che quella system property esiste davvero sul sistema, ma il suo manifest dichiara
+    // android:sharedUserId="android.uid.system" - un dominio di privilegio irraggiungibile
+    // da JaeDrive (stesso muro gia' incontrato con CAR_IDENTIFICATION/CAR_MILEAGE, non
+    // superabile da nessuna tecnica lato-app senza installare JaeDrive come priv-app, gia'
+    // scartato per rischio sull'auto quotidiana dell'utente). Si usa quindi direttamente
+    // "ivi.sn" (S/N del DMC, suggerito dallo sviluppatore DSA) come unico identificativo
+    // automatico - non un VIN vero, ma l'unico dato univoco per-veicolo realisticamente
+    // ottenibile.
     private boolean vinResolved = false;
 
-    // true SOLO quando il valore mostrato in tvVehicleVin e' in realta' il fallback
-    // "ivi.sn" (S/N del DMC, non un VIN) - vedi SETTING_IVI_SN_FALLBACK. L'utente ha
-    // chiesto che sia sempre chiaro a schermo quale dei due dati si sta mostrando, quindi
-    // questo flag pilota l'etichetta sia in Impostazioni (tvVinLabel) sia nel dialogo di
-    // onboarding (vedi updateVinLabel()/showVehicleOnboardingDialog()).
-    private boolean vinSourceIsDmcSerial = false;
-
-    // Aggiorna l'etichetta "VIN"/"S/N DMC" in Impostazioni (tvVinLabel) e, se non-null,
-    // quella dentro il dialogo di onboarding attualmente aperto - richiamata ogni volta che
-    // vinSourceIsDmcSerial cambia (tryReadRealVin() all'avvio, refreshVinFromCar() dal
-    // pulsante RILEVA VIN).
+    // Aggiorna l'etichetta "S/N DMC" in Impostazioni (tvVinLabel) e, se non-null, quella
+    // dentro il dialogo di onboarding attualmente aperto. Sempre la stessa etichetta ora che
+    // l'unica fonte automatica e' ivi.sn (mai un VIN vero) - vedi commento su vinResolved.
     private void updateVinLabel(TextView tvLabelInDialog) {
         if (tvVinLabel != null) {
-            tvVinLabel.setText(vinSourceIsDmcSerial ? R.string.label_vin_fallback_dmc : R.string.label_vin);
+            tvVinLabel.setText(R.string.label_vin_fallback_dmc);
         }
         if (tvLabelInDialog != null) {
-            tvLabelInDialog.setText(vinSourceIsDmcSerial ? R.string.label_vin_fallback_dmc : R.string.label_vehicle_vin);
+            tvLabelInDialog.setText(R.string.label_vin_fallback_dmc);
         }
     }
 
-    // Prima ipotesi (Settings.Global "ivi.sn", suggerita dallo sviluppatore DSA) corretta
-    // dallo stesso DSA: quella chiave restituisce il numero di serie del DMC (l'unita'
-    // infotainment - "IVI Serial Number"), NON il VIN. Il VIN vero e' invece quello mostrato
-    // nella app ufficiale ENG MODE (com.desaysv.engmode), schermo "App Info" - trovato nel
-    // suo decompile: SystemUtil.getVIN() legge la system property
-    // "sys.vehicle.hardware.vin.code" via android.os.SystemProperties.get(key, "UNKNOW").
-    // A differenza dei segnali VDB/CarPropertyManager sopra (mai confermati affidabili),
-    // questa e' la stessa identica fonte che la piattaforma usa per il proprio schermo VIN
-    // ufficiale - la piu' autorevole trovata finora. Per questo viene letta per prima (vedi
-    // chiamata in onCreate, prima ancora che il car service sia pronto) cosi' vince la
-    // gating "vinResolved" sopra e le altre fonti non la sovrascrivono mai.
-    private static final String SYS_PROP_VIN = "sys.vehicle.hardware.vin.code";
-    // Stesso default usato da SystemUtil.getVIN() se la property non e' impostata - va
-    // trattato come "nessun VIN", non come un VIN letterale "UNKNOW".
-    private static final String SYS_PROP_VIN_UNSET = "UNKNOW";
-    // Il DSA ha poi precisato: non tutti i modelli/versioni software espongono
-    // sys.vehicle.hardware.vin.code (dipende dalla build del veicolo). Su quelli che non lo
-    // fanno, "ivi.sn" resta l'unico identificativo univoco leggibile senza input manuale -
-    // usato quindi come fallback, mai come prima scelta, perche' non e' un VIN reale.
+    // Suggerita dallo sviluppatore DSA: restituisce il numero di serie del DMC (l'unita'
+    // infotainment - "IVI Serial Number"), non il VIN - vedi commento su vinResolved per il
+    // perche' e' l'unico identificativo automatico usato da JaeDrive.
     private static final String SETTING_IVI_SN_FALLBACK = "ivi.sn";
 
-    // SystemProperties e' una classe @hide (non nell'SDK pubblico), quindi va letta via
-    // reflection - tecnica standard per leggere (sola lettura) proprieta' di sistema da
-    // un'app di terze parti, nessun permesso richiesto. Ritorna defaultValue se la classe/
-    // il metodo non sono raggiungibili (restrizioni hidden-API piu' severe su Android
-    // futuri/altri ROM) invece di lanciare, cosi' il chiamante puo' trattarlo come "assente"
-    // esattamente come un IS_NULL dei segnali VDB.
-    private static String getSystemProperty(String key, String defaultValue) {
-        try {
-            Class<?> cls = Class.forName("android.os.SystemProperties");
-            java.lang.reflect.Method get = cls.getMethod("get", String.class, String.class);
-            return (String) get.invoke(null, key, defaultValue);
-        } catch (Exception e) {
-            return defaultValue;
-        }
-    }
-
-    private boolean isRealVin(String vin) {
-        return vin != null && !vin.trim().isEmpty() && !vin.trim().equalsIgnoreCase(SYS_PROP_VIN_UNSET);
-    }
-
-    // Letto SOLO come fallback (vedi SETTING_IVI_SN_FALLBACK) - non e' un VIN, quindi
-    // qualunque stringa non vuota va bene, niente controllo su SYS_PROP_VIN_UNSET.
+    // Qualunque stringa non vuota va bene, non e' un VIN da validare in un formato preciso.
     private String readIviSnFallback() {
         try {
             String raw = Settings.Global.getString(getContentResolver(), SETTING_IVI_SN_FALLBACK);
@@ -2771,51 +2771,35 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void tryReadRealVin() {
-        String vin = getSystemProperty(SYS_PROP_VIN, "");
-        appendLog("[SystemProperties] " + SYS_PROP_VIN + " = \"" + vin + "\"");
-        boolean isDmcSerial = false;
-        if (!isRealVin(vin)) {
-            vin = readIviSnFallback();
-            isDmcSerial = vin != null;
-            if (vin != null) appendLog("[Settings.Global] fallback " + SETTING_IVI_SN_FALLBACK + " = \"" + vin + "\"");
-        }
-        if (vin == null || vin.trim().isEmpty()) return;
+    private void readVehicleIdentifier() {
+        String vin = readIviSnFallback();
+        if (vin != null) appendLog("[Settings.Global] " + SETTING_IVI_SN_FALLBACK + " = \"" + vin + "\"");
+        if (vin == null || vin.isEmpty()) return;
         if (!vinResolved) {
-            tvVehicleVin.setText(vin.trim());
+            tvVehicleVin.setText(vin);
             vinResolved = true;
-            vinSourceIsDmcSerial = isDmcSerial;
             updateVinLabel(null);
         }
     }
 
     // Pulsante "Rileva VIN" nel dialogo Veicolo (vedi showVehicleOnboardingDialog(), sezione
-    // vehicle_vin_section - mostrata solo per un'auto gia' associata al cloud): a differenza
-    // della prima versione di questa feature, la correzione NON e' piu' automatica in
-    // background - l'utente preme il pulsante, vede subito il VIN rilevato e l'esito del
-    // salvataggio (incluso un errore esplicito se quel VIN risulta gia' in uso da un'altra
-    // auto/account, invece di fallire in silenzio in un log che nessuno guarda). Rilegge la
-    // system property fresca invece di fidarsi solo del valore letto all'avvio, con fallback
-    // su qualunque VIN gia' risolto (VDB/CarPropertyManager) se e' vuota su questo avvio.
+    // vehicle_vin_section - mostrata solo per un'auto gia' associata al cloud): l'utente
+    // preme il pulsante, vede subito il valore rilevato e l'esito del salvataggio (incluso
+    // un errore esplicito se risulta gia' in uso da un'altra auto/account, invece di
+    // fallire in silenzio in un log che nessuno guarda). Rilegge ivi.sn fresco invece di
+    // fidarsi solo del valore letto all'avvio, con fallback sull'ultimo valore gia' risolto
+    // se e' vuoto in questo momento.
     private void refreshVinFromCar(TextView tvVinDisplay, TextView tvVinLabelInDialog) {
-        String raw = getSystemProperty(SYS_PROP_VIN, "");
-        boolean isDmcSerial = false;
-        String vin = isRealVin(raw) ? raw.trim() : null;
-        if (vin == null) {
-            vin = readIviSnFallback();
-            isDmcSerial = vin != null;
-        }
+        String vin = readIviSnFallback();
         if (vin == null && vinResolved) {
             // Nessuna fonte fresca disponibile in questo momento - riusa l'ultimo valore
-            // gia' mostrato (e la sua natura VIN/DMC) invece di mostrare un errore.
+            // gia' mostrato invece di mostrare un errore.
             vin = tvVehicleVin.getText().toString().trim();
-            isDmcSerial = vinSourceIsDmcSerial;
         }
         if (vin == null || vin.isEmpty()) {
             Toast.makeText(this, getString(R.string.toast_vin_not_detected), Toast.LENGTH_SHORT).show();
             return;
         }
-        vinSourceIsDmcSerial = isDmcSerial;
         updateVinLabel(tvVinLabelInDialog);
 
         String token = Prefs.getCloudDeviceToken(this);
@@ -2837,29 +2821,6 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> Toast.makeText(this, getString(R.string.toast_vin_error), Toast.LENGTH_LONG).show());
             }
         }, "JaeDrive-VinSync").start();
-    }
-
-    private int[] lastLoggedVinRaw;
-    private int[] lastLoggedVinAltRaw;
-
-    private void renderVin(int[] raw, boolean fromAlt) {
-        if (tvVehicleVin == null) return;
-        // Dedup sul cambiamento (stesso motivo di handlePropertyChange()/
-        // renderTirePressureWarning(): un valore polled ogni 2s per l'intera sessione
-        // di guida altrimenti riempie da solo il buffer di log da 150.000 caratteri.
-        int[] lastLogged = fromAlt ? lastLoggedVinAltRaw : lastLoggedVinRaw;
-        if (!Arrays.equals(raw, lastLogged)) {
-            if (fromAlt) lastLoggedVinAltRaw = raw; else lastLoggedVinRaw = raw;
-            appendLog(String.format("[VDB] VIN%s raw=%s", fromAlt ? " (alt/DOANOSE)" : "", Arrays.toString(raw)));
-        }
-        if (vinResolved) return;
-        String decoded = VDInfoClient.decodeAsciiString(raw);
-        if (decoded != null && decoded.length() >= 10) {
-            tvVehicleVin.setText(decoded);
-            vinResolved = true;
-        } else if (raw != null && raw.length > 0) {
-            tvVehicleVin.setText(Arrays.toString(raw));
-        }
     }
 
     // Sperimentale (2026-07-25): ID_TIRE_PRESSURE_WARNING ha un vero chiamante confermato nel

@@ -103,7 +103,7 @@
                 android:id="@+id/tv_vehicle_vin_onboarding_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/label_vehicle_vin"
+                android:text="@string/label_vin_fallback_dmc"
                 android:textColor="@color/primary"
                 android:textSize="14sp"
                 android:letterSpacing="0.08"

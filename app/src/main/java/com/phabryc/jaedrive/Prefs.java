@@ -65,11 +65,12 @@ public class Prefs {
 
     // Letto sia da MainActivity (buffer/log a schermo) sia da TrackingService (log su file,
     // log per-viaggio allegato al TripRecord): se disattivato, evita di scrivere/accumulare
-    // log per non sprecare spazio/risorse quando non servono. Default ON: il progetto e'
-    // ancora in fase di reverse-engineering attiva, i log restano utili finche' non si
-    // disattivano esplicitamente da qui.
+    // log per non sprecare spazio/risorse quando non servono. Default OFF (cambiato
+    // 2026-08-02, richiesta esplicita): la sezione Sviluppo in Impostazioni e' ormai nascosta
+    // di default (vedi MainActivity.devSectionUnlocked), coerente con un utente finale non
+    // piu' solo l'autore in fase di reverse-engineering attiva.
     public static boolean isDebugModeEnabled(Context ctx) {
-        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DEBUG_MODE_ENABLED, true);
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_DEBUG_MODE_ENABLED, false);
     }
 
     public static void setDebugModeEnabled(Context ctx, boolean enabled) {

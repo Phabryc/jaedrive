@@ -84,10 +84,11 @@
     <string name="label_test_refuel_popup_title">Test popup rifornimento</string>
     <string name="label_test_refuel_popup_subtitle">Fa comparire il popup rifornimento dopo 5s, per provarlo con l\'app in background</string>
     <string name="btn_test_refuel_popup">TEST</string>
+    <string name="toast_dev_unlocked">Sezione Sviluppo sbloccata</string>
+    <string name="toast_dev_unlock_countdown">Ancora %1$d tocchi per sbloccare la sezione Sviluppo</string>
     <string name="section_system_info_title">INFO SISTEMA</string>
     <string name="label_version">Versione</string>
     <string name="label_vehicle">Veicolo</string>
-    <string name="label_vin">Telaio (VIN)</string>
     <string name="label_vin_unavailable">Non disponibile</string>
     <string name="label_vin_fallback_dmc">N. serie DMC (VIN non disp.)</string>
     <string name="section_language_title">LINGUA</string>
@@ -135,7 +136,6 @@
     <string name="label_vehicle_brand">MARCA</string>
     <string name="label_vehicle_model">MODELLO</string>
     <string name="label_vehicle_powertrain">MOTORIZZAZIONE</string>
-    <string name="label_vehicle_vin">VIN</string>
     <string name="label_vehicle_vin_unknown">Non rilevato</string>
     <string name="label_vehicle_vin_refresh">RILEVA VIN</string>
     <string name="toast_vin_not_detected">Nessun VIN rilevabile al momento su quest\'auto.</string>

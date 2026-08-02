@@ -81,10 +81,11 @@
     <string name="label_test_refuel_popup_title">Test refuel popup</string>
     <string name="label_test_refuel_popup_subtitle">Triggers the refuel popup after 5s, so you can test it with the app in background</string>
     <string name="btn_test_refuel_popup">TEST</string>
+    <string name="toast_dev_unlocked">Developer section unlocked</string>
+    <string name="toast_dev_unlock_countdown">%1$d more taps to unlock the Developer section</string>
     <string name="section_system_info_title">SYSTEM INFO</string>
     <string name="label_version">Version</string>
     <string name="label_vehicle">Vehicle</string>
-    <string name="label_vin">VIN</string>
     <string name="label_vin_unavailable">Not available</string>
     <string name="label_vin_fallback_dmc">DMC S/N (VIN unavailable)</string>
     <string name="section_language_title">LANGUAGE</string>
@@ -132,7 +133,6 @@
     <string name="label_vehicle_brand">BRAND</string>
     <string name="label_vehicle_model">MODEL</string>
     <string name="label_vehicle_powertrain">POWERTRAIN</string>
-    <string name="label_vehicle_vin">VIN</string>
     <string name="label_vehicle_vin_unknown">Not detected</string>
     <string name="label_vehicle_vin_refresh">GET VIN</string>
     <string name="toast_vin_not_detected">No VIN could be detected on this car right now.</string>

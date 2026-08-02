@@ -29,12 +29,13 @@ public class VDInfoClient {
     // Moduli (com.desaysv.ivi.vdb.event.id.carinfo.VDEventCarInfo)
     public static final int MODULE_NEW_ENERGY   = 0x50002;
     public static final int MODULE_READONLY_INFO = 0x50004;
-    // MODULE_DOANOSE ("diagnose", refuso nel nome originale Desay): confermato sul campo
-    // che ID_VIN=0x9/MODULE_READONLY_INFO restituisce sempre IS_NULL su questa auto (non
-    // e' un problema di decodifica, il segnale e' proprio assente li'). Secondo candidato
-    // trovato nel decompile: DiagnosisID.ID_VIN=0x10 sotto questo modulo, che il dispatcher
-    // (smali com/desaysv/ivi/vds/carinfo/a/a.smali) mappa comunque a un handler concreto
-    // (non e' una costante dichiarata a vuoto) - percio' vale la pena tentarlo.
+    // MODULE_DOANOSE ("diagnose", refuso nel nome originale Desay) - usato solo per
+    // ID_MODEL_CODE/ID_BRAND qui sotto (rilevazione modello/marca, tentativo chiuso, vedi
+    // quei due campi). Il vecchio tentativo VIN su questo modulo (ID_VIN_ALT=0x10) e' stato
+    // rimosso il 2026-08-02: il VIN vero esiste sul sistema ma e' leggibile solo da app con
+    // uid=system (vedi ENG MODE, confermato via decompile - sharedUserId="android.uid.system"),
+    // architettonicamente irraggiungibile da JaeDrive; l'app usa direttamente "ivi.sn" (S/N
+    // del DMC) come identificativo, senza piu' tentare nessuna lettura elettronica del VIN.
     public static final int MODULE_DOANOSE = 0x50007;
 
     // com.desaysv.ivi.extra.project.carinfo.NewEnergyID
@@ -113,17 +114,6 @@ public class VDInfoClient {
     // decompilati - stessa situazione in cui erano VIN_ALT/MODEL_CODE/BRAND prima di
     // provarli. Potrebbe restituire IS_NULL o un valore reale, non lo sappiamo senza test.
     public static final int ID_TIRE_PRESSURE = 0x8c;
-    // Trovato nel decompile di SVVDSCarInfo.apk (com.desaysv.ivi.extra.project.carinfo.ReadOnlyID),
-    // stesso modulo READONLY_INFO gia' confermato funzionante per i segnali carburante. Nessun
-    // caller di riferimento trovato nei decompile per capire il formato esatto del valore
-    // (probabile stringa, non un numero scalato come gli altri campi di questo modulo) - vedi
-    // decodeAsciiString(). Non ancora testato sul campo.
-    public static final int ID_VIN = 0x9;
-
-    // com.desaysv.ivi.extra.project.carinfo.DiagnosisID - secondo candidato per il VIN
-    // (vedi commento su MODULE_DOANOSE). Anche qui nessun caller di riferimento trovato.
-    public static final int ID_VIN_ALT = 0x10;
-
     // Stessa classe DiagnosisID/stesso modulo MODULE_DOANOSE - candidati per modello/marca
     // reali (vedi TODO "rilevazione automatica modello/motorizzazione"). Nessun caller di
     // riferimento trovato (come ID_VIN_ALT), ma il dispatcher di CarInfoService
@@ -179,8 +169,9 @@ public class VDInfoClient {
         // situazione gia' vista per ID_VEHICLE_MODE_ID. ID_TIRE_PRESSURE_WARNING invece
         // risponde sempre (mai IS_NULL, anche se e' rimasto su raw=[0]=nessun avviso per
         // tutta la giornata) - segnale vivo, resta nel poll.
-        {MODULE_READONLY_INFO, ID_VIN},
-        {MODULE_DOANOSE, ID_VIN_ALT},
+        // ID_VIN/ID_VIN_ALT rimossi dal poll (2026-08-02): il VIN vero e' irraggiungibile da
+        // JaeDrive (vedi commento su MODULE_DOANOSE) - l'app usa direttamente "ivi.sn" come
+        // identificativo, nessuna lettura elettronica del VIN piu' tentata.
         // ID_MODEL_CODE/ID_BRAND rimossi dal poll (2026-07-25): erano un tentativo
         // sperimentale di rilevazione automatica, mai decodificabile in modo affidabile
         // (vedi note sui due campi qui sopra) - marca/modello/motorizzazione arrivano ora
@@ -372,7 +363,7 @@ public class VDInfoClient {
         }
     };
 
-    // Segnali come ID_VIN restituiscono sempre IS_NULL su questa auto (confermato sul
+    // Alcuni segnali restituiscono sempre IS_NULL su questa auto (confermato sul
     // campo) - loggare lo stesso identico esito ad ogni ciclo di poll (ogni 2s, per
     // sempre, moltiplicato per ogni istanza di VDInfoClient attiva) era la causa
     // principale del rallentamento segnalato aprendo il tab LOG: il buffer di testo

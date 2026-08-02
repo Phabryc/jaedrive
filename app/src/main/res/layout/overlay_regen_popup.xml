@@ -4,7 +4,8 @@
      al titolo, valore su una riga a parte sotto, piu' grande - richiesto esplicitamente
      dall'utente dopo aver visto la prima versione (centrata, testo unico) sul campo. Logo
      ingrandito e valore centrato su richiesta successiva (2026-08-02: il logo a 40dp era
-     "una macchia", irriconoscibile). -->
+     "una macchia", irriconoscibile). Raddoppiato di nuovo lo stesso giorno (64dp ancora
+     poco visibile). -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
@@ -19,8 +20,8 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
         <ImageView
-            android:layout_width="64dp"
-            android:layout_height="64dp"
+            android:layout_width="128dp"
+            android:layout_height="128dp"
             android:layout_marginEnd="14dp"
             android:src="@drawable/jd_logo"
             android:contentDescription="@null"/>
