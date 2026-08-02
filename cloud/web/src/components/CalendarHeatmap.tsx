@@ -200,7 +200,7 @@ export function CalendarHeatmap({
         <button onClick={() => shiftMonth(-1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
           ←
         </button>
-        <span className="w-20 text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
+        <span className="min-w-[92px] whitespace-nowrap text-center tabular-nums text-[13px] text-onsurface">{t(MONTH_KEYS[month])} {year}</span>
         <button onClick={() => shiftMonth(1)} className="rounded border border-surface-border px-2 py-1 hover:border-accent hover:text-onsurface">
           →
         </button>

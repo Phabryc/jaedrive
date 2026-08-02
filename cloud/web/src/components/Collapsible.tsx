@@ -44,7 +44,7 @@ export function Collapsible({
 
   return (
     <div className={`rounded-lg border border-surface-border bg-surface p-4 ${className}`.trim()}>
-      <div className={`flex items-center justify-between gap-3 ${collapsed ? "" : "mb-3"}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 ${collapsed ? "" : "mb-3"}`}>
         <button
           onClick={() => setCollapsed((c) => !c)}
           aria-expanded={!collapsed}

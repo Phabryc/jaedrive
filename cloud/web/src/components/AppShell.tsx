@@ -5,7 +5,8 @@ import { auth } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Button } from "./Button";
+import { Button, buttonVariants } from "./Button";
+import { IconSettings } from "./icons";
 import jdLogo from "../assets/jd_logo.png";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -13,33 +14,54 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
+  function handleLogout() {
+    signOut(auth).then(() => navigate("/login"));
+  }
+
   return (
     <div className="min-h-screen bg-bg text-onsurface">
       <header className="sticky top-0 z-10 border-b border-surface-border bg-bg/90 backdrop-blur">
-        {/* flex-wrap + gap-y sul contenitore esterno: sotto sm il logo e la nav diventano
-            due righe invece di stringersi in una sola (era il bug reale trovato con uno
-            screenshot mobile - "My"/"vehicles" e "Log"/"out" andavano a capo a META' parola).
-            whitespace-nowrap su ogni voce fa si' che, se anche la nav da sola non ci sta su
-            una riga, vada a capo un elemento intero alla volta, mai dentro una singola parola. */}
-        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
+        {/* Sotto sm: due righe (logo centrato sopra, "Le mie auto"/pulsante a sx e il resto
+            a dx sotto) invece di stringere tutto in un'unica riga - richiesta esplicita
+            2026-08-02, la vecchia riga singola risultava illeggibile su schermo stretto.
+            Da sm in su resta la riga singola originale, invariata. */}
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 px-4 py-3 sm:hidden">
+          <Link to="/dashboard" className="flex justify-center">
+            <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
+          </Link>
+          <div className="flex items-center justify-between gap-2">
+            <Link to="/dashboard" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              {t("appShell.myVehicles")}
+            </Link>
+            <div className="flex items-center gap-2">
+              <LanguageSwitcher />
+              <Link
+                to="/settings"
+                aria-label={t("appShell.settings")}
+                className={buttonVariants({ variant: "secondary", size: "sm", className: "px-2.5" })}
+              >
+                <IconSettings size={16} />
+              </Link>
+              <Button variant="secondary" size="sm" onClick={handleLogout}>
+                {t("appShell.logout")}
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="mx-auto hidden max-w-[1800px] items-center justify-between gap-x-4 px-4 py-3 sm:flex sm:px-6 lg:px-8">
           <Link to="/dashboard" className="shrink-0">
             <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
           </Link>
-          <nav className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-onsurface-variant sm:gap-x-4">
+          <nav className="flex items-center gap-x-4 text-sm text-onsurface-variant">
             <Link to="/dashboard" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.myVehicles")}
             </Link>
             <Link to="/settings" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.settings")}
             </Link>
-            <span className="hidden whitespace-nowrap sm:inline">{user?.email}</span>
+            <span className="whitespace-nowrap">{user?.email}</span>
             <LanguageSwitcher />
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => signOut(auth).then(() => navigate("/login"))}
-              className="whitespace-nowrap"
-            >
+            <Button variant="secondary" size="sm" onClick={handleLogout} className="whitespace-nowrap">
               {t("appShell.logout")}
             </Button>
           </nav>
