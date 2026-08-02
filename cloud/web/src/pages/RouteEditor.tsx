@@ -25,6 +25,7 @@ export default function RouteEditor() {
   const [start, setStart] = useState<LatLon | null>(null);
   const [end, setEnd] = useState<LatLon | null>(null);
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_RADIUS);
+  const [roundTrip, setRoundTrip] = useState(false);
   const [focusTrigger, setFocusTrigger] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function RouteEditor() {
       setStart({ lat: route.startLat, lon: route.startLon });
       setEnd({ lat: route.endLat, lon: route.endLon });
       setRadiusMeters(route.radiusMeters);
+      setRoundTrip(route.roundTrip);
       setLoaded(true);
     });
   }, [vehicleId, routeId]);
@@ -57,6 +59,7 @@ export default function RouteEditor() {
           startLon: start.lon,
           endLat: end.lat,
           endLon: end.lon,
+          roundTrip,
         });
         navigate(`/vehicles/${vehicleId}/routes/${routeId}`);
       } else {
@@ -67,6 +70,7 @@ export default function RouteEditor() {
           endLat: end.lat,
           endLon: end.lon,
           radiusMeters,
+          roundTrip,
         });
         navigate(`/vehicles/${vehicleId}/routes/${route.id}`);
       }
@@ -168,6 +172,17 @@ export default function RouteEditor() {
           className="w-full accent-accent"
         />
       </div>
+
+      <label className="mt-4 flex max-w-xs items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={roundTrip}
+          onChange={(e) => setRoundTrip(e.target.checked)}
+          className="h-4 w-4 accent-accent"
+        />
+        <span>{t("routeEditor.roundTripLabel")}</span>
+      </label>
+      <p className="mt-1 max-w-xs text-xs text-onsurface-variant">{t("routeEditor.roundTripHint")}</p>
 
       {error && <p className="mt-4 text-sm text-bad">{error}</p>}
 

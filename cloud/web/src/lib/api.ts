@@ -111,20 +111,31 @@ export const api = {
       endLat?: number;
       endLon?: number;
       radiusMeters?: number;
+      roundTrip?: boolean;
     },
   ) => request<PresetRoute>(`/vehicles/${vehicleId}/routes`, { method: "POST", body: JSON.stringify(data) }),
 
   updateRoute: (
     vehicleId: string,
     routeId: string,
-    data: { name?: string; radiusMeters?: number; startLat?: number; startLon?: number; endLat?: number; endLon?: number },
+    data: {
+      name?: string;
+      radiusMeters?: number;
+      startLat?: number;
+      startLon?: number;
+      endLat?: number;
+      endLon?: number;
+      roundTrip?: boolean;
+    },
   ) => request<PresetRoute>(`/vehicles/${vehicleId}/routes/${routeId}`, { method: "PATCH", body: JSON.stringify(data) }),
 
   deleteRoute: (vehicleId: string, routeId: string) =>
     request<void>(`/vehicles/${vehicleId}/routes/${routeId}`, { method: "DELETE" }),
 
-  routeDetail: (vehicleId: string, routeId: string) =>
-    request<PresetRouteDetail>(`/vehicles/${vehicleId}/routes/${routeId}`),
+  routeDetail: (vehicleId: string, routeId: string, direction?: "outbound" | "return" | "all") =>
+    request<PresetRouteDetail>(
+      `/vehicles/${vehicleId}/routes/${routeId}${direction && direction !== "all" ? `?direction=${direction}` : ""}`,
+    ),
 
   // Un batch alla volta (vedi routes/user.ts) - "remaining" > 0 vuol dire richiamare
   // ancora per completare tutto lo storico.

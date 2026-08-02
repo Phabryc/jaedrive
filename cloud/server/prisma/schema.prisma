@@ -90,6 +90,12 @@ model PresetRoute {
   endLat       Float    @map("end_lat")
   endLon       Float    @map("end_lon")
   radiusMeters Float    @default(150) @map("radius_meters")
+  // Se true, il match (routes/user.ts GET .../routes/:routeId) controlla ANCHE la direzione
+  // opposta (partenza~arrivo del percorso E arrivo~partenza del percorso), etichettando quei
+  // trip "return" invece di "outbound" - richiesta esplicita utente 2026-08-02, per percorsi
+  // ricorrenti fatti in entrambi i sensi (es. "Casa-Lavoro"). Di default false: un trip
+  // percorso al contrario NON conta come match finche' non lo si abilita esplicitamente.
+  roundTrip    Boolean  @default(false) @map("round_trip")
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([vehicleId])

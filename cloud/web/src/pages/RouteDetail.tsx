@@ -7,7 +7,13 @@ import { Button, buttonVariants } from "../components/Button";
 import { TripRow } from "../components/TripRow";
 import { StatsBody, STATS_GRID_CLASS } from "../components/VehicleStatsPanel";
 import { hasElectricData } from "../lib/vehicleCatalog";
-import { useLanguage } from "../lib/i18n/LanguageContext";
+import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
+
+const DIRECTION_FILTERS: { value: "all" | "outbound" | "return"; labelKey: TranslationKey }[] = [
+  { value: "all", labelKey: "routeDetail.directionAll" },
+  { value: "outbound", labelKey: "routeDetail.directionOutbound" },
+  { value: "return", labelKey: "routeDetail.directionReturn" },
+];
 
 export default function RouteDetail() {
   const { t } = useLanguage();
@@ -15,12 +21,20 @@ export default function RouteDetail() {
   const navigate = useNavigate();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [detail, setDetail] = useState<PresetRouteDetail | null>(null);
+  const [direction, setDirection] = useState<"outbound" | "return" | "all">("all");
 
   useEffect(() => {
     if (!vehicleId || !routeId) return;
     api.vehicles().then((all) => setVehicle(all.find((v) => v.id === vehicleId) ?? null));
-    api.routeDetail(vehicleId, routeId).then(setDetail);
   }, [vehicleId, routeId]);
+
+  useEffect(() => {
+    if (!vehicleId || !routeId) return;
+    // Non azzerare "detail" qui: cambiare filtro direzione ricarica solo trips/stats, non
+    // deve far sparire l'header (nome percorso, pulsanti modifica/elimina) - si vede il
+    // contenuto precedente finche' non arriva quello nuovo, niente flash di caricamento.
+    api.routeDetail(vehicleId, routeId, direction).then(setDetail);
+  }, [vehicleId, routeId, direction]);
 
   async function handleDelete() {
     if (!vehicleId || !routeId || !detail) return;
@@ -59,6 +73,25 @@ export default function RouteDetail() {
           </Button>
         </div>
       </div>
+
+      {route.roundTrip && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {DIRECTION_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setDirection(f.value)}
+              className={`rounded-md border px-3 py-1 text-xs ${
+                direction === f.value
+                  ? "border-accent text-accent"
+                  : "border-surface-border text-onsurface-variant hover:text-onsurface"
+              }`}
+            >
+              {t(f.labelKey)}
+              {f.value !== "all" && ` (${detail.counts[f.value]})`}
+            </button>
+          ))}
+        </div>
+      )}
 
       <p className="mb-4 text-sm text-onsurface-variant">
         {t(trips.length === 1 ? "routeDetail.matchOne" : "routeDetail.matchMany", {

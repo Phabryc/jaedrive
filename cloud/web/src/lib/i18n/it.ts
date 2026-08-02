@@ -152,6 +152,7 @@ export const it = {
   "tripDetail.driveModeTitle": "Modalità di guida",
   "tripDetail.manualRangeTitle": "Viaggi GPS in questo periodo",
   "tripDetail.manualRangeEmpty": "Nessun percorso GPS registrato tra l'inizio e la fine di questo accumulo manuale.",
+  "tripDetail.manualBreakdownNote": "Stimato dai viaggi GPS automatici registrati durante questo periodo.",
 
   // Routes (elenco percorsi preimpostati)
   "routes.backFallback": "Viaggi",
@@ -167,6 +168,9 @@ export const it = {
   "routeDetail.matchMany": "{{count}} viaggi corrispondono a questo percorso (partenza e arrivo entro {{radius}} m).",
   "routeDetail.emptyState":
     "Nessun viaggio corrisponde ancora a questo percorso. Il viaggio usato per crearlo dovrebbe comparire qui - se non lo vedi, prova ad allargare il raggio di match modificando il percorso.",
+  "routeDetail.directionAll": "Tutto",
+  "routeDetail.directionOutbound": "Andata",
+  "routeDetail.directionReturn": "Ritorno",
 
   // RouteEditor
   "routeEditor.editTitle": "Modifica percorso",
@@ -180,6 +184,8 @@ export const it = {
   "routeEditor.hintSetEnd": "Clicca sulla mappa per impostare l'arrivo, oppure cerca un indirizzo qui sopra.",
   "routeEditor.hintDrag": "Trascina i due marker sulla mappa per affinare la posizione.",
   "routeEditor.radiusLabel": "Raggio di tolleranza: {{radius}} m",
+  "routeEditor.roundTripLabel": "Andata e ritorno",
+  "routeEditor.roundTripHint": "Fa corrispondere anche i viaggi percorsi in senso contrario (arrivo→partenza), etichettati \"Ritorno\". I viaggi si potranno poi filtrare per direzione nella pagina del percorso.",
   "routeEditor.saveButton": "Salva percorso",
 
   // AddressSearch

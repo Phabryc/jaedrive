@@ -48,8 +48,15 @@ export function TripRow({ trip }: { trip: TripSummary }) {
         ) : (
           <p className="truncate font-medium">{t(KIND_LABEL_KEY[trip.kind])}</p>
         )}
-        <p className="mt-1 text-xs text-onsurface-variant">
-          {t(KIND_LABEL_KEY[trip.kind])} · {formatRange(trip.startedAt, trip.endedAt)}
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-onsurface-variant">
+          <span>
+            {t(KIND_LABEL_KEY[trip.kind])} · {formatRange(trip.startedAt, trip.endedAt)}
+          </span>
+          {trip.direction && (
+            <span className="rounded-full border border-surface-border px-1.5 py-0.5 text-[10px] text-onsurface-variant">
+              {t(trip.direction === "outbound" ? "routeDetail.directionOutbound" : "routeDetail.directionReturn")}
+            </span>
+          )}
         </p>
       </div>
       <div className="flex gap-2 text-sm tabular-nums sm:shrink-0">

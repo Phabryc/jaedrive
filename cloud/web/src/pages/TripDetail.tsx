@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { TripDetail as TripDetailType, TripSummary, Vehicle, VehicleStats } from "../lib/types";
@@ -13,7 +13,7 @@ import { BatteryFuelChart, SpeedChart, ElevationChart } from "../components/Trip
 import { ExperimentalTripCharts } from "../components/ExperimentalTripCharts";
 import { CategoryBand } from "../components/CategoryBand";
 import { DRIVE_MODE_COLOR, DRIVE_MODE_LABEL } from "../lib/driveMode";
-import { IconLocationPin, IconFlagCheckered } from "../components/icons";
+import { IconLocationPin, IconFlagCheckered, IconRoute, IconFuel, IconGauge } from "../components/icons";
 import { hasElectricData } from "../lib/vehicleCatalog";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
 import { useUnits } from "../lib/UnitsContext";
@@ -191,9 +191,10 @@ export default function TripDetail() {
       {trip.gpxRaw && <TripMap gpxRaw={trip.gpxRaw} />}
 
       <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-3">
-        <Stat label={t("trip.kmTraveled")} value={trip.km != null ? formatDistance(trip.km, distanceUnit) : "–"} />
-        <Stat label={t("trip.liters")} value={trip.liters != null ? trip.liters.toFixed(2) : "–"} />
+        <Stat icon={<IconRoute size={18} />} label={t("trip.kmTraveled")} value={trip.km != null ? formatDistance(trip.km, distanceUnit) : "–"} />
+        <Stat icon={<IconFuel size={18} />} label={t("trip.liters")} value={trip.liters != null ? trip.liters.toFixed(2) : "–"} />
         <Stat
+          icon={<IconGauge size={18} />}
           label={t("trip.avgConsumption")}
           value={trip.avgConsumption != null ? formatConsumption(trip.avgConsumption, distanceUnit, consumptionFormat) : "–"}
         />
@@ -212,6 +213,9 @@ export default function TripDetail() {
             </div>
           ))}
         </div>
+      )}
+      {hasBreakdown && trip.kind === "manual" && (
+        <p className="mt-2 text-xs text-onsurface-variant">{t("tripDetail.manualBreakdownNote")}</p>
       )}
 
       {points.length > 1 && (
@@ -256,9 +260,10 @@ export default function TripDetail() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-surface-border bg-surface p-4 text-center">
+    <div className="flex flex-col items-center gap-1 rounded-lg border border-surface-border bg-surface p-4 text-center">
+      <span className="text-onsurface-variant">{icon}</span>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
       <p className="text-xs text-onsurface-variant">{label}</p>
     </div>

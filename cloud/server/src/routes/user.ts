@@ -4,7 +4,7 @@ import { requireUser } from "../auth/requireUser.js";
 import { generateDeviceToken, sha256Hex } from "../lib/tokens.js";
 import { reverseGeocode, firstAndLastPoint, searchAddress } from "../lib/geocode.js";
 import { computeVehicleStats } from "../lib/stats.js";
-import { computeKmByBucket } from "../lib/gpxEnergy.js";
+import { computeKmByBucket, computeFlowBreakdownForRange } from "../lib/gpxEnergy.js";
 import { haversineMeters } from "../lib/geo.js";
 import { deleteFirebaseUser } from "../auth/firebase.js";
 
@@ -348,6 +348,44 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: "Trip not found" });
     }
     const { vehicle, ...rest } = trip;
+
+    // Ripartizione flusso energia per i MANUALI (richiesta esplicita 2026-08-02) - calcolata
+    // al volo dai trip AUTO che si sovrappongono al range [startedAt, endedAt] di questo
+    // manuale (vedi lib/gpxEnergy.ts computeFlowBreakdownForRange() per il perche' e'
+    // possibile: il tracciamento automatico gira sempre in parallelo). Mai persistita sul
+    // trip manuale stesso: se arrivano altri trip AUTO in futuro per lo stesso intervallo
+    // (non dovrebbe succedere, ma il calcolo e' comunque a costo quasi nullo), il prossimo
+    // GET la ricalcola gia' aggiornata. Nessun calcolo se il trip e' ancora aperto (endedAt
+    // null - range non ancora definito) o non e' manuale.
+    if (trip.kind === "manual" && trip.endedAt) {
+      const overlapping = await prisma.trip.findMany({
+        where: {
+          vehicleId: trip.vehicleId,
+          kind: "auto",
+          gpxRaw: { not: null },
+          startedAt: { lte: trip.endedAt },
+          OR: [{ endedAt: { gte: trip.startedAt } }, { endedAt: null }],
+        },
+        select: { gpxRaw: true },
+      });
+      if (overlapping.length) {
+        const breakdown = computeFlowBreakdownForRange(
+          overlapping.map((t) => t.gpxRaw!),
+          trip.startedAt,
+          trip.endedAt,
+        );
+        if (breakdown) {
+          return reply.send({
+            ...rest,
+            pctEv: breakdown.pctEv,
+            pctSeries: breakdown.pctSeries,
+            pctParallel: breakdown.pctParallel,
+            pctOther: breakdown.pctOther,
+          });
+        }
+      }
+    }
+
     return reply.send(rest);
   });
 
@@ -529,6 +567,7 @@ export async function userRoutes(app: FastifyInstance) {
             endLat: { type: "number", minimum: -90, maximum: 90 },
             endLon: { type: "number", minimum: -180, maximum: 180 },
             radiusMeters: { type: "number", minimum: MIN_ROUTE_RADIUS_M, maximum: MAX_ROUTE_RADIUS_M },
+            roundTrip: { type: "boolean" },
           },
         },
       },
@@ -538,7 +577,7 @@ export async function userRoutes(app: FastifyInstance) {
       const owned = await loadOwnedVehicle(req.authUser!.id, id);
       if (!owned) return reply.code(404).send({ error: "Vehicle not found" });
 
-      const { name, sourceTripId, startLat, startLon, endLat, endLon, radiusMeters } = req.body as {
+      const { name, sourceTripId, startLat, startLon, endLat, endLon, radiusMeters, roundTrip } = req.body as {
         name: string;
         sourceTripId?: string;
         startLat?: number;
@@ -546,6 +585,7 @@ export async function userRoutes(app: FastifyInstance) {
         endLat?: number;
         endLon?: number;
         radiusMeters?: number;
+        roundTrip?: boolean;
       };
 
       let start: { lat: number; lon: number };
@@ -575,6 +615,7 @@ export async function userRoutes(app: FastifyInstance) {
           endLat: end.lat,
           endLon: end.lon,
           radiusMeters: radiusMeters ?? DEFAULT_ROUTE_RADIUS_M,
+          roundTrip: roundTrip ?? false,
         },
       });
       return reply.code(201).send(route);
@@ -595,6 +636,7 @@ export async function userRoutes(app: FastifyInstance) {
             startLon: { type: "number", minimum: -180, maximum: 180 },
             endLat: { type: "number", minimum: -90, maximum: 90 },
             endLon: { type: "number", minimum: -180, maximum: 180 },
+            roundTrip: { type: "boolean" },
           },
         },
       },
@@ -607,13 +649,14 @@ export async function userRoutes(app: FastifyInstance) {
       const existing = await prisma.presetRoute.findFirst({ where: { id: routeId, vehicleId: id } });
       if (!existing) return reply.code(404).send({ error: "Route not found" });
 
-      const { name, radiusMeters, startLat, startLon, endLat, endLon } = req.body as {
+      const { name, radiusMeters, startLat, startLon, endLat, endLon, roundTrip } = req.body as {
         name?: string;
         radiusMeters?: number;
         startLat?: number;
         startLon?: number;
         endLat?: number;
         endLon?: number;
+        roundTrip?: boolean;
       };
       const route = await prisma.presetRoute.update({
         where: { id: routeId },
@@ -624,6 +667,7 @@ export async function userRoutes(app: FastifyInstance) {
           ...(startLon !== undefined ? { startLon } : {}),
           ...(endLat !== undefined ? { endLat } : {}),
           ...(endLon !== undefined ? { endLon } : {}),
+          ...(roundTrip !== undefined ? { roundTrip } : {}),
         },
       });
       return reply.send(route);
@@ -650,6 +694,14 @@ export async function userRoutes(app: FastifyInstance) {
   // alla scala personale di questo progetto (vedi lo stesso trade-off gia' documentato su
   // GET .../stats), ma e' l'endpoint piu' pesante di questo file: select ridotta al minimo
   // indispensabile (id/startedAt/gpxRaw) per limitare il danno.
+  //
+  // Andata/ritorno (route.roundTrip, richiesta esplicita 2026-08-02): se abilitato, un trip
+  // che NON matcha in avanti (partenza~route.start, arrivo~route.end) viene ricontrollato
+  // anche al CONTRARIO (partenza~route.end, arrivo~route.start) - se combacia e' un "return"
+  // invece di un "outbound". Nessuna nuova colonna sul trip: la direzione resta calcolata al
+  // volo come il match stesso, mai persistita. ?direction=outbound|return|all (default "all")
+  // filtra sia l'elenco che le statistiche restituite; "counts" riflette invece SEMPRE il
+  // totale non filtrato, cosi' la UI puo' mostrare i numeri sulle tab senza un'altra chiamata.
   app.get("/vehicles/:id/routes/:routeId", async (req, reply) => {
     const { id, routeId } = req.params as { id: string; routeId: string };
     const owned = await loadOwnedVehicle(req.authUser!.id, id);
@@ -658,21 +710,37 @@ export async function userRoutes(app: FastifyInstance) {
     const route = await prisma.presetRoute.findFirst({ where: { id: routeId, vehicleId: id } });
     if (!route) return reply.code(404).send({ error: "Route not found" });
 
+    const { direction } = req.query as { direction?: "outbound" | "return" | "all" };
+
     const candidates = await prisma.trip.findMany({
       where: { vehicleId: id, kind: "auto", gpxRaw: { not: null } },
       select: { id: true, gpxRaw: true },
     });
 
-    const matchedIds = new Set<string>();
+    const directionById = new Map<string, "outbound" | "return">();
     for (const c of candidates) {
       const points = firstAndLastPoint(c.gpxRaw!);
       if (!points) continue;
       const startOk = haversineMeters(points.first, { lat: route.startLat, lon: route.startLon }) <= route.radiusMeters;
       const endOk = haversineMeters(points.last, { lat: route.endLat, lon: route.endLon }) <= route.radiusMeters;
-      if (startOk && endOk) matchedIds.add(c.id);
+      if (startOk && endOk) {
+        directionById.set(c.id, "outbound");
+        continue;
+      }
+      if (!route.roundTrip) continue;
+      const startReturnOk = haversineMeters(points.first, { lat: route.endLat, lon: route.endLon }) <= route.radiusMeters;
+      const endReturnOk = haversineMeters(points.last, { lat: route.startLat, lon: route.startLon }) <= route.radiusMeters;
+      if (startReturnOk && endReturnOk) directionById.set(c.id, "return");
     }
 
-    const idsArray = Array.from(matchedIds);
+    const counts = { outbound: 0, return: 0 };
+    for (const d of directionById.values()) counts[d]++;
+
+    const wantedDirection = direction === "outbound" || direction === "return" ? direction : null;
+    const idsArray = Array.from(directionById.entries())
+      .filter(([, d]) => !wantedDirection || d === wantedDirection)
+      .map(([tripId]) => tripId);
+
     // Due select separate sugli stessi id: quella "lista" rispecchia TripSummary (leggera,
     // e' quella che il web mostra come elenco), quella "stats" ha i campi in piu' che
     // servono solo a computeVehicleStats() (stessa select gia' usata da GET .../stats) - piu'
@@ -704,10 +772,13 @@ export async function userRoutes(app: FastifyInstance) {
         ])
       : [[], []];
 
+    const tripsWithDirection = matchedTrips.map((t) => ({ ...t, direction: directionById.get(t.id) ?? null }));
+
     return reply.send({
       route,
-      trips: matchedTrips,
+      trips: tripsWithDirection,
       stats: computeVehicleStats(statsTrips),
+      counts,
     });
   });
 }

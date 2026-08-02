@@ -25,6 +25,10 @@ export interface TripSummary {
   pctSeries: number | null;
   pctParallel: number | null;
   pctOther: number | null;
+  // Solo quando il trip arriva da GET /vehicles/:id/routes/:routeId di un percorso con
+  // roundTrip abilitato (vedi PresetRoute) - mai persistito, calcolato al volo dal server in
+  // base a quale estremo del percorso combacia con partenza/arrivo del trip.
+  direction?: "outbound" | "return" | null;
 }
 
 export interface TripDetail extends TripSummary {
@@ -81,6 +85,7 @@ export interface PresetRoute {
   endLat: number;
   endLon: number;
   radiusMeters: number;
+  roundTrip: boolean;
   createdAt: string;
 }
 
@@ -88,6 +93,7 @@ export interface PresetRouteDetail {
   route: PresetRoute;
   trips: TripSummary[];
   stats: VehicleStats;
+  counts: { outbound: number; return: number };
 }
 
 export interface VehicleCalendarStats {

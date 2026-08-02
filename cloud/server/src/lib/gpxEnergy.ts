@@ -73,3 +73,109 @@ export function computeKmByBucket(gpxRaw: string): { kmEv: number; kmHev: number
   if (!anyKnown) return null;
   return { kmEv, kmHev };
 }
+
+// --- Ripartizione flusso energia per i viaggi MANUALI (richiesta esplicita 2026-08-02) ---
+//
+// Un viaggio manuale non ha una traccia GPX propria (solo un delta km/litri su uno slot
+// A/B), ma il tracciamento automatico gira SEMPRE in parallelo sullo stesso veicolo (vedi
+// Android TrackingService: ogni delta va "sia al viaggio automatico corrente (se aperto) sia
+// SEMPRE ai due trip computer manuali" - i due sistemi sono indipendenti e concorrenti, mai
+// l'uno in pausa per l'altro). Quindi per lo stesso intervallo di tempo [startedAt, endedAt]
+// del manuale possono gia' esistere una o piu' tracce GPX di trip AUTO (uno per ogni ciclo di
+// accensione avvenuto in quella finestra) - qui si aggregano i loro campioni ENERGY_FLOW
+// filtrati al solo intervallo di tempo effettivo del viaggio manuale.
+type FourBucket = "EV" | "SERIES" | "PARALLEL" | "OTHER";
+
+// Stessa tabella di EnergyFlowUtil.bucketFor() lato Android, ma a 4 categorie (non 3 come
+// bucketFor() qui sopra): CHR e IDLE restano fusi in "OTHER", esattamente come fa
+// EnergyFlowUtil.computeUploadBreakdown() per i pctEv/pctSeries/pctParallel/pctOther gia'
+// salvati sui trip AUTO - stessa metodologia (% di CAMPIONI, non km-weighted come
+// computeKmByBucket sopra) per restare confrontabile con quei valori.
+function fourBucketFor(value: number): FourBucket {
+  switch (value) {
+    case 2:
+      return "EV";
+    case 4:
+    case 5:
+    case 11:
+      return "SERIES";
+    case 8:
+    case 10:
+      return "PARALLEL";
+    default:
+      return "OTHER";
+  }
+}
+
+interface TimedFlowPoint {
+  timeMs: number;
+  energyFlow: number | null;
+}
+
+// Come extractPoints() sopra ma con il timestamp (<time>, ISO8601 UTC scritto da Android
+// TrackingService.buildGpx()) invece di lat/lon - qui serve SELEZIONARE i campioni per
+// intervallo di tempo, non misurare distanze.
+function extractTimedFlowPoints(gpxRaw: string): TimedFlowPoint[] {
+  const points: TimedFlowPoint[] = [];
+  const trkptRegex = /<trkpt lat="-?[\d.]+" lon="-?[\d.]+">([\s\S]*?)<\/trkpt>/g;
+  for (const m of gpxRaw.matchAll(trkptRegex)) {
+    const body = m[1];
+    const timeMatch = body.match(/<time>([^<]+)<\/time>/);
+    if (!timeMatch) continue;
+    const timeMs = Date.parse(timeMatch[1]);
+    if (Number.isNaN(timeMs)) continue;
+    const efMatch = body.match(/energyFlow>(-?\d+)</);
+    points.push({ timeMs, energyFlow: efMatch ? Number(efMatch[1]) : null });
+  }
+  return points;
+}
+
+export interface FlowBreakdown {
+  pctEv: number;
+  pctSeries: number;
+  pctParallel: number;
+  pctOther: number;
+}
+
+// gpxList: le tracce GPX di TUTTI i trip AUTO che si sovrappongono al range del viaggio
+// manuale (query a carico del chiamante, vedi routes/user.ts GET /trips/:id) - possono
+// essere piu' di una traccia se il viaggio manuale e' rimasto aperto per piu' accensioni.
+// Ritorna null se nessun campione ENERGY_FLOW valido cade nell'intervallo (es. nessun trip
+// AUTO sovrapposto, o nessuno con questo dato).
+export function computeFlowBreakdownForRange(gpxList: string[], rangeStart: Date, rangeEnd: Date): FlowBreakdown | null {
+  const startMs = rangeStart.getTime();
+  const endMs = rangeEnd.getTime();
+  let ev = 0;
+  let series = 0;
+  let parallel = 0;
+  let other = 0;
+  let known = 0;
+  for (const gpxRaw of gpxList) {
+    for (const p of extractTimedFlowPoints(gpxRaw)) {
+      if (p.timeMs < startMs || p.timeMs > endMs) continue;
+      if (p.energyFlow == null || p.energyFlow < 0) continue;
+      known++;
+      switch (fourBucketFor(p.energyFlow)) {
+        case "EV":
+          ev++;
+          break;
+        case "SERIES":
+          series++;
+          break;
+        case "PARALLEL":
+          parallel++;
+          break;
+        case "OTHER":
+          other++;
+          break;
+      }
+    }
+  }
+  if (known === 0) return null;
+  return {
+    pctEv: (100 * ev) / known,
+    pctSeries: (100 * series) / known,
+    pctParallel: (100 * parallel) / known,
+    pctOther: (100 * other) / known,
+  };
+}

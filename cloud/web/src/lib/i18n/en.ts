@@ -138,6 +138,7 @@ export const en: Record<keyof typeof it, string> = {
   "tripDetail.driveModeTitle": "Drive mode",
   "tripDetail.manualRangeTitle": "GPS trips in this period",
   "tripDetail.manualRangeEmpty": "No GPS trip recorded between the start and end of this manual accumulator.",
+  "tripDetail.manualBreakdownNote": "Estimated from the automatic GPS trips recorded during this period.",
 
   "routes.backFallback": "Trips",
   "routes.title": "Saved routes",
@@ -151,6 +152,9 @@ export const en: Record<keyof typeof it, string> = {
   "routeDetail.matchMany": "{{count}} trips match this route (start and end within {{radius}} m).",
   "routeDetail.emptyState":
     "No trip matches this route yet. The trip used to create it should show up here - if it doesn't, try widening the match radius by editing the route.",
+  "routeDetail.directionAll": "All",
+  "routeDetail.directionOutbound": "Outbound",
+  "routeDetail.directionReturn": "Return",
 
   "routeEditor.editTitle": "Edit route",
   "routeEditor.newTitle": "New route",
@@ -163,6 +167,8 @@ export const en: Record<keyof typeof it, string> = {
   "routeEditor.hintSetEnd": "Click the map to set the end, or search an address above.",
   "routeEditor.hintDrag": "Drag the two markers on the map to fine-tune the position.",
   "routeEditor.radiusLabel": "Match tolerance: {{radius}} m",
+  "routeEditor.roundTripLabel": "Round trip (outbound and return)",
+  "routeEditor.roundTripHint": "Also match trips driven in the opposite direction (end→start), labeled \"Return\". Trips can then be filtered by direction on the route page.",
   "routeEditor.saveButton": "Save route",
 
   "addressSearch.searching": "Searching...",
