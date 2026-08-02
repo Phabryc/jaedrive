@@ -95,7 +95,7 @@ export function VehicleStatsPanel({
           <p className="col-span-12 text-sm text-onsurface-variant">{t("stats.loading")}</p>
         )}
         <CalendarHeatmap
-          className="col-span-12 xl:col-span-4"
+          className="order-1 col-span-12 xl:order-none xl:col-span-4"
           vehicleId={vehicleId}
           rangeFrom={rangeFrom}
           rangeTo={rangeTo}
@@ -137,7 +137,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
       )}
 
       {hasTrend && (
-        <Collapsible className="col-span-12 xl:col-span-8" id="consumptionTrend" title={t("stats.consumptionTrend")}>
+        <Collapsible className="order-2 col-span-12 xl:order-none xl:col-span-8" id="consumptionTrend" title={t("stats.consumptionTrend")}>
           <ReactECharts
             option={{
               ...baseGridOptions,
@@ -162,7 +162,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
 
       {showElectric && (
         <Donut
-          className="col-span-12 sm:col-span-6"
+          className="order-3 col-span-12 sm:col-span-6 xl:order-none"
           id="energyBreakdown"
           title={t("stats.energyBreakdown")}
           noDataLabel={t("stats.noDataYet")}
@@ -172,7 +172,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
         />
       )}
       <Donut
-        className="col-span-12 sm:col-span-6"
+        className="order-3 col-span-12 sm:col-span-6 xl:order-none"
         id="driveModeBreakdown"
         title={t("stats.driveModeBreakdown")}
         noDataLabel={t("stats.noDataYet")}
@@ -180,8 +180,8 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
         colorMap={DRIVE_MODE_COLOR}
       />
 
-      {bestTrip && <TripRefCard className="col-span-12 sm:col-span-6" label={t("stats.bestTrip")} trip={bestTrip} tone="good" />}
-      {worstTrip && <TripRefCard className="col-span-12 sm:col-span-6" label={t("stats.worstTrip")} trip={worstTrip} tone="bad" />}
+      {bestTrip && <TripRefCard className="order-4 col-span-12 sm:col-span-6 xl:order-none" label={t("stats.bestTrip")} trip={bestTrip} tone="good" />}
+      {worstTrip && <TripRefCard className="order-4 col-span-12 sm:col-span-6 xl:order-none" label={t("stats.worstTrip")} trip={worstTrip} tone="bad" />}
     </>
   );
 }

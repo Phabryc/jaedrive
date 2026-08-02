@@ -26,7 +26,7 @@ export function TripRow({ trip }: { trip: TripSummary }) {
   return (
     <Link
       to={`/trips/${trip.id}`}
-      className="flex items-center justify-between gap-4 rounded-lg border border-surface-border bg-surface px-4 py-3 transition hover:border-accent"
+      className="flex flex-col gap-3 rounded-lg border border-surface-border bg-surface px-4 py-3 transition hover:border-accent sm:flex-row sm:items-center sm:justify-between sm:gap-4"
     >
       <div className="min-w-0">
         {trip.startLabel || trip.label ? (
@@ -51,7 +51,7 @@ export function TripRow({ trip }: { trip: TripSummary }) {
           {t(KIND_LABEL_KEY[trip.kind])} · {formatRange(trip.startedAt, trip.endedAt)}
         </p>
       </div>
-      <div className="flex shrink-0 gap-4 text-right text-sm tabular-nums">
+      <div className="flex justify-between gap-4 text-sm tabular-nums sm:shrink-0 sm:justify-end sm:text-right">
         <div>
           <p className="text-onsurface-variant">{distanceUnit}</p>
           <p>{trip.km != null ? toDisplayDistance(trip.km, distanceUnit).toFixed(1) : "–"}</p>
