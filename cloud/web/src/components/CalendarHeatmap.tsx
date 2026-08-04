@@ -76,6 +76,7 @@ export function CalendarHeatmap({
   useEffect(() => {
     if (rangeFrom === null && rangeTo === null) {
       setPendingStart(null);
+      setPeriodMode(false);
     }
   }, [rangeFrom, rangeTo]);
 
@@ -87,6 +88,7 @@ export function CalendarHeatmap({
   function clearRange() {
     onRangeChange(null, null);
     setPendingStart(null);
+    setPeriodMode(false);
   }
 
   function handleDayClick(date: string) {
