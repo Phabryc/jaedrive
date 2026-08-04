@@ -49,45 +49,63 @@ export async function userRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireUser);
 
   app.get("/me", async (req, reply) => {
-    const u = await prisma.user.findUnique({ where: { id: req.authUser!.id } });
-    if (!u) return reply.code(404).send({ error: "User not found" });
+    try {
+      const u = await prisma.user.findUnique({ where: { id: req.authUser!.id } });
+      if (!u) return reply.code(404).send({ error: "User not found" });
 
-    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-    const history = await prisma.deviceHistory.findMany({
-      where: { userId: u.id, firstPairedAt: { gte: oneYearAgo } },
-      select: { headunitId: true },
-      distinct: ['headunitId'],
-    });
-    const headunitSwapsUsed = history.length;
+      let headunitSwapsUsed = 0;
+      try {
+        const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+        const history = await (prisma as any).deviceHistory?.findMany({
+          where: { userId: u.id, firstPairedAt: { gte: oneYearAgo } },
+          select: { headunitId: true },
+          distinct: ['headunitId'],
+        });
+        if (history) headunitSwapsUsed = history.length;
+      } catch (err) {
+        console.warn("Could not query deviceHistory:", err);
+      }
 
-    const baseSwaps = u.subscriptionTier === 'GARAGE' ? 5 : 2;
-    const headunitSwapsMax = baseSwaps + u.extraDeviceSwaps;
-    const maxVehicles = u.subscriptionTier === 'GARAGE' ? 3 : 1;
+      const role = u.role ?? "USER";
+      const subscriptionStatus = u.subscriptionStatus ?? "FREE";
+      const subscriptionTier = u.subscriptionTier ?? "STANDARD";
+      const extraDeviceSwaps = u.extraDeviceSwaps ?? 0;
+      const baseSwaps = subscriptionTier === 'GARAGE' ? 5 : 2;
+      const headunitSwapsMax = baseSwaps + extraDeviceSwaps;
+      const maxVehicles = subscriptionTier === 'GARAGE' ? 3 : 1;
 
-    const activeVehiclesCount = await prisma.vehicle.count({ where: { userId: u.id } });
+      let activeVehiclesCount = 0;
+      try {
+        activeVehiclesCount = await prisma.vehicle.count({ where: { userId: u.id } });
+      } catch {}
 
-    return reply.send({
-      id: u.id,
-      email: u.email,
-      displayName: u.displayName,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      photoUrl: u.photoUrl,
-      profileComplete: isProfileComplete(u as any),
-      legalVersion: u.legalVersion,
-      currentLegalVersion: CURRENT_LEGAL_VERSION,
-      createdAt: u.createdAt,
-      subscription: {
-        status: u.subscriptionStatus,
-        tier: u.subscriptionTier,
-        expiresAt: u.subscriptionExpiresAt,
-        maxVehicles,
-        activeVehiclesCount,
-        headunitSwapsUsed,
-        headunitSwapsMax,
-        headunitSwapsRemaining: Math.max(0, headunitSwapsMax - headunitSwapsUsed),
-      },
-    });
+      return reply.send({
+        id: u.id,
+        email: u.email,
+        displayName: u.displayName,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        photoUrl: u.photoUrl,
+        role,
+        profileComplete: isProfileComplete(u as any),
+        legalVersion: u.legalVersion,
+        currentLegalVersion: CURRENT_LEGAL_VERSION,
+        createdAt: u.createdAt,
+        subscription: {
+          status: subscriptionStatus,
+          tier: subscriptionTier,
+          expiresAt: u.subscriptionExpiresAt ?? null,
+          maxVehicles,
+          activeVehiclesCount,
+          headunitSwapsUsed,
+          headunitSwapsMax,
+          headunitSwapsRemaining: Math.max(0, headunitSwapsMax - headunitSwapsUsed),
+        },
+      });
+    } catch (err) {
+      console.error("Error in /me endpoint:", err);
+      return reply.code(500).send({ error: "Internal server error" });
+    }
   });
 
   app.patch(

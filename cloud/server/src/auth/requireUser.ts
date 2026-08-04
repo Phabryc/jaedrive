@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 import { verifyFirebaseIdToken } from "./firebase.js";
 import { prisma } from "../db.js";
+import { env } from "../env.js";
 
 // preHandler for all /api/user/* routes. Verifies a Firebase ID token and lazily
 // creates/updates the mirrored `users` row - this service never stores credentials itself.
@@ -27,6 +28,8 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
   const photoUrl = typeof decoded.picture === "string" ? decoded.picture : null;
 
   const existing = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  const isAdminEmail = Boolean(decoded.email && env.adminEmails.includes(decoded.email));
+  const targetRole = isAdminEmail ? "ADMIN" : (existing?.role ?? "USER");
 
   const user = existing
     ? await prisma.user.update({
@@ -34,6 +37,7 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
         data: {
           email: decoded.email ?? undefined,
           lastLoginAt: new Date(),
+          role: targetRole,
           // Backfill only fields still null - never overwrite a value the user (or an
           // earlier login) already set, but DO fill in accounts that were created before
           // this prefill existed, or that were missing it for any other reason (e.g. this
@@ -51,6 +55,7 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
           firstName,
           lastName,
           photoUrl,
+          role: targetRole,
           lastLoginAt: new Date(),
         },
       });

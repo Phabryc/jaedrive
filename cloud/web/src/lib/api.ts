@@ -31,6 +31,27 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const user = auth.currentUser;
+  const idToken = user ? await user.getIdToken() : undefined;
+
+  const res = await fetch(`/api/admin${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+      ...init?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body.error ?? res.statusText);
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
 export interface SubscriptionDetails {
   status: "FREE" | "PREMIUM";
   tier?: "STANDARD" | "GARAGE";
@@ -152,9 +173,6 @@ export const api = {
   // Un batch alla volta (vedi routes/user.ts) - "remaining" > 0 vuol dire richiamare
   // ancora per completare tutto lo storico.
   backfillAddresses: (vehicleId: string) =>
-    // Corpo vuoto esplicito ("{}"): request() imposta sempre Content-Type: application/json,
-    // e Fastify rifiuta con 400 un body realmente vuoto quando quel content-type e' dichiarato
-    // (stesso motivo per cui heartbeat() manda {} invece di nessun body).
     request<{ scanned: number; updated: number; remaining: number }>(`/vehicles/${vehicleId}/backfill-addresses`, {
       method: "POST",
       body: JSON.stringify({}),
@@ -168,14 +186,14 @@ export const api = {
       body: JSON.stringify({}),
     }),
 
-  adminUsers: (q?: string) => request<Profile[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`),
-  adminUpdateSubscription: (id: string, data: any) => request<void>(`/admin/users/${id}/subscription`, { method: "PATCH", body: JSON.stringify(data) }),
-  adminAddExtraSwap: (id: string) => request<void>(`/admin/users/${id}/extra-swaps`, { method: "POST" }),
-  adminUpdateRole: (id: string, role: string) => request<void>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
-  adminDiscountCodes: () => request<any[]>("/admin/discount-codes"),
-  adminCreateDiscountCode: (data: any) => request<any>("/admin/discount-codes", { method: "POST", body: JSON.stringify(data) }),
-  adminDeleteDiscountCode: (id: string) => request<void>(`/admin/discount-codes/${id}`, { method: "DELETE" }),
-  adminStats: () => request<any>("/admin/stats"),
+  adminUsers: (q?: string) => adminRequest<Profile[]>(`/users${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  adminUpdateSubscription: (id: string, data: any) => adminRequest<void>(`/users/${id}/subscription`, { method: "POST", body: JSON.stringify(data) }),
+  adminAddExtraSwap: (id: string) => adminRequest<void>(`/users/${id}/extra-swaps`, { method: "POST" }),
+  adminUpdateRole: (id: string, role: string) => adminRequest<void>(`/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  adminDiscountCodes: () => adminRequest<any[]>("/discount-codes"),
+  adminCreateDiscountCode: (data: any) => adminRequest<any>("/discount-codes", { method: "POST", body: JSON.stringify(data) }),
+  adminDeleteDiscountCode: (id: string) => adminRequest<void>(`/discount-codes/${id}`, { method: "DELETE" }),
+  adminStats: () => adminRequest<any>("/stats"),
 };
 
 export { ApiError };
