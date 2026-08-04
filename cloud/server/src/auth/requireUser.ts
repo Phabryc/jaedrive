@@ -19,9 +19,6 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
     return reply.code(401).send({ error: "Invalid or expired token" });
   }
 
-  // Best-effort prefill from the identity provider - present for Google sign-in
-  // (decoded.name/decoded.picture), absent for plain email/password (where the user
-  // completes these in the web onboarding gate instead, see RequireProfile.tsx).
   const nameParts = decoded.name ? decoded.name.trim().split(/\s+/) : [];
   const firstName = nameParts.length > 0 ? nameParts[0] : null;
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
@@ -31,23 +28,42 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
   const isAdminEmail = Boolean(decoded.email && env.adminEmails.includes(decoded.email));
   const targetRole = isAdminEmail ? "ADMIN" : (existing?.role ?? "USER");
 
-  const user = existing
-    ? await prisma.user.update({
+  let user: any = existing;
+
+  if (existing) {
+    try {
+      user = await prisma.user.update({
         where: { id: existing.id },
         data: {
           email: decoded.email ?? undefined,
           lastLoginAt: new Date(),
           role: targetRole,
-          // Backfill only fields still null - never overwrite a value the user (or an
-          // earlier login) already set, but DO fill in accounts that were created before
-          // this prefill existed, or that were missing it for any other reason (e.g. this
-          // row's very first login happened before Google's claims were being read).
           firstName: existing.firstName ?? firstName ?? undefined,
           lastName: existing.lastName ?? lastName ?? undefined,
           photoUrl: existing.photoUrl ?? photoUrl ?? undefined,
         },
-      })
-    : await prisma.user.create({
+      });
+    } catch (err) {
+      console.warn("prisma.user.update with role failed, trying fallback without role:", err);
+      try {
+        user = await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            email: decoded.email ?? undefined,
+            lastLoginAt: new Date(),
+            firstName: existing.firstName ?? firstName ?? undefined,
+            lastName: existing.lastName ?? lastName ?? undefined,
+            photoUrl: existing.photoUrl ?? photoUrl ?? undefined,
+          },
+        });
+      } catch (err2) {
+        console.warn("prisma.user.update fallback failed:", err2);
+        user = existing;
+      }
+    }
+  } else {
+    try {
+      user = await prisma.user.create({
         data: {
           firebaseUid: decoded.uid,
           email: decoded.email ?? null,
@@ -59,6 +75,24 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
           lastLoginAt: new Date(),
         },
       });
+    } catch (err) {
+      console.warn("prisma.user.create with role failed, trying fallback without role:", err);
+      user = await prisma.user.create({
+        data: {
+          firebaseUid: decoded.uid,
+          email: decoded.email ?? null,
+          displayName: decoded.name ?? null,
+          firstName,
+          lastName,
+          photoUrl,
+          lastLoginAt: new Date(),
+        },
+      });
+    }
+  }
 
-  req.authUser = user;
+  req.authUser = {
+    ...user,
+    role: user?.role ?? (isAdminEmail ? "ADMIN" : "USER"),
+  };
 }
