@@ -201,11 +201,23 @@ export async function deviceRoutes(app: FastifyInstance) {
       return reply.send({ tripId: trip.id });
     });
 
-    protectedApp.post("/heartbeat", async (_req, reply) => {
-      // lastSeenAt is already bumped by the requireDevice preHandler on every authenticated
-      // device request - this route exists purely so the app has an explicit "I'm alive"
-      // call to make even between trips.
-      return reply.send({ ok: true });
+    protectedApp.post("/heartbeat", async (req, reply) => {
+      const device = req.authDevice!;
+      let subscription = { status: "FREE", tier: "STANDARD", expiresAt: null as string | null, isActive: false };
+      if (device.vehicleId) {
+        const vehicle = await prisma.vehicle.findUnique({ where: { id: device.vehicleId }, include: { user: true } });
+        if (vehicle?.user) {
+          const u = vehicle.user;
+          const isActive = u.subscriptionStatus === "PREMIUM" && (!u.subscriptionExpiresAt || u.subscriptionExpiresAt > new Date());
+          subscription = {
+            status: u.subscriptionStatus ?? "FREE",
+            tier: u.subscriptionTier ?? "STANDARD",
+            expiresAt: u.subscriptionExpiresAt ? u.subscriptionExpiresAt.toISOString() : null,
+            isActive,
+          };
+        }
+      }
+      return reply.send({ ok: true, subscription });
     });
 
     // Powers the Android app's "CLOUD" card in Impostazioni (name/email/photo of the
@@ -219,7 +231,19 @@ export async function deviceRoutes(app: FastifyInstance) {
       if (!vehicle) return reply.code(404).send({ error: "Vehicle not found" });
 
       const u = vehicle.user;
-      return reply.send({ firstName: u.firstName, lastName: u.lastName, email: u.email, photoUrl: u.photoUrl });
+      const isActive = u.subscriptionStatus === "PREMIUM" && (!u.subscriptionExpiresAt || u.subscriptionExpiresAt > new Date());
+      return reply.send({
+        firstName: u.firstName,
+        lastName: u.lastName,
+        email: u.email,
+        photoUrl: u.photoUrl,
+        subscription: {
+          status: u.subscriptionStatus ?? "FREE",
+          tier: u.subscriptionTier ?? "STANDARD",
+          expiresAt: u.subscriptionExpiresAt ? u.subscriptionExpiresAt.toISOString() : null,
+          isActive,
+        },
+      });
     });
 
     // Device-initiated trip delete - Android asks "delete from the cloud too?" after a
