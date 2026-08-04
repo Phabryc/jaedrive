@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <LanguageSwitcher />
               {profile?.role === "ADMIN" && (
                 <Link to="/admin" className={buttonVariants({ variant: "secondary", size: "sm", className: "px-2 text-accent" })}>
-                  Admin
+                  {t("admin.title")}
                 </Link>
               )}
               <Link
@@ -62,14 +62,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <nav className="flex items-center gap-x-4 text-sm text-onsurface-variant">
             {profile?.role === "ADMIN" && (
               <Link to="/admin" className="whitespace-nowrap font-medium text-accent hover:text-accent/80">
-                Pannello Admin
+                {t("admin.title")}
               </Link>
             )}
             <Link to="/dashboard" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.myVehicles")}
             </Link>
             <Link to="/settings" className="whitespace-nowrap hover:text-onsurface">
-              Profilo ed Impostazioni
+              {t("settings.titleUnified")}
             </Link>
             <span className="whitespace-nowrap">{user?.email}</span>
             <LanguageSwitcher />

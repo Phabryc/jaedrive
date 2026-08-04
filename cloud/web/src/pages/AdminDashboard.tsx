@@ -206,7 +206,7 @@ export default function AdminDashboard() {
   return (
     <AppShell>
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-6 text-2xl font-bold">Pannello Amministratore</h1>
+        <h1 className="mb-6 text-2xl font-bold">{t("admin.title")}</h1>
 
         <div className="mb-6 flex border-b border-surface-border">
           <button
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
                 : "border-transparent text-onsurface-variant hover:text-onsurface"
             }`}
           >
-            Utenti & Abbonamenti
+            {t("admin.tabUsers")}
           </button>
           <button
             onClick={() => setActiveTab("codes")}
@@ -227,7 +227,7 @@ export default function AdminDashboard() {
                 : "border-transparent text-onsurface-variant hover:text-onsurface"
             }`}
           >
-            Codici Sconto
+            {t("admin.tabCodes")}
           </button>
           <button
             onClick={() => setActiveTab("stats")}
@@ -237,7 +237,7 @@ export default function AdminDashboard() {
                 : "border-transparent text-onsurface-variant hover:text-onsurface"
             }`}
           >
-            Statistiche Sistema
+            {t("admin.tabStats")}
           </button>
         </div>
 
@@ -247,7 +247,7 @@ export default function AdminDashboard() {
             <div className="mb-4 flex items-center justify-between gap-4">
               <input
                 type="text"
-                placeholder="Cerca per email o nome..."
+                placeholder={t("admin.searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -256,23 +256,23 @@ export default function AdminDashboard() {
                 className="w-72 rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
               />
               <Button variant="secondary" size="sm" onClick={() => loadUsers()}>
-                Aggiorna Listato
+                {t("admin.refreshList")}
               </Button>
             </div>
 
             {loadingUsers ? (
-              <p className="text-sm text-onsurface-variant">Caricamento utenti...</p>
+              <p className="text-sm text-onsurface-variant">{t("admin.loadingUsers")}</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-surface-border bg-surface">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-surface-border bg-bg/50 text-xs uppercase text-onsurface-variant">
                     <tr>
-                      <th className="px-4 py-3">Utente</th>
-                      <th className="px-4 py-3">Stato Sub</th>
-                      <th className="px-4 py-3">Piano</th>
-                      <th className="px-4 py-3">Scadenza</th>
-                      <th className="px-4 py-3">Garage / Cambi</th>
-                      <th className="px-4 py-3 text-right">Azioni</th>
+                      <th className="px-4 py-3">{t("admin.user")}</th>
+                      <th className="px-4 py-3">{t("admin.subStatus")}</th>
+                      <th className="px-4 py-3">{t("admin.tier")}</th>
+                      <th className="px-4 py-3">{t("admin.expires")}</th>
+                      <th className="px-4 py-3">{t("admin.garageSwaps")}</th>
+                      <th className="px-4 py-3 text-right">{t("admin.actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
@@ -305,7 +305,7 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-3 text-xs">
                             {u.subscription?.expiresAt
-                              ? new Date(u.subscription.expiresAt).toLocaleDateString("it-IT")
+                              ? new Date(u.subscription.expiresAt).toLocaleDateString()
                               : "—"}
                           </td>
                           <td className="px-4 py-3 text-xs">
@@ -318,13 +318,13 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-3 text-right space-x-2">
                             <Button variant="secondary" size="sm" onClick={() => openSubModal(u)}>
-                              Gestisci Sub
+                              {t("admin.manageSub")}
                             </Button>
                             <Button variant="secondary" size="sm" onClick={() => handleAddExtraSwap(u.id)}>
-                              +1 Cambio
+                              {t("admin.addSwap")}
                             </Button>
                             <Button variant="secondary" size="sm" onClick={() => handleToggleRole(u)}>
-                              {u.role === "ADMIN" ? "Revoca Admin" : "Fai Admin"}
+                              {u.role === "ADMIN" ? t("admin.revokeAdmin") : t("admin.makeAdmin")}
                             </Button>
                           </td>
                         </tr>
@@ -342,7 +342,7 @@ export default function AdminDashboard() {
           <div>
             <form onSubmit={handleCreateCode} className="mb-6 rounded-xl border border-surface-border bg-surface p-4 flex flex-wrap items-end gap-3">
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Codice Promo (8 Caratteri)</label>
+                <label className="block text-xs text-onsurface-variant mb-1">{t("admin.codeLabel")}</label>
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
@@ -357,7 +357,7 @@ export default function AdminDashboard() {
                     size="sm"
                     onClick={() => setNewCode(generateRandomCode())}
                   >
-                    Genera 8-Char
+                    {t("admin.generate8")}
                   </Button>
                   {newCode && (
                     <button
@@ -371,23 +371,23 @@ export default function AdminDashboard() {
                   )}
                 </div>
                 {copiedCode === newCode && (
-                  <span className="text-[10px] font-semibold text-emerald-400 mt-1 block">Copiato negli appunti!</span>
+                  <span className="text-[10px] font-semibold text-emerald-400 mt-1 block">{t("admin.copiedClipboard")}</span>
                 )}
               </div>
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Tipo Sconto</label>
+                <label className="block text-xs text-onsurface-variant mb-1">{t("admin.discountType")}</label>
                 <select
                   value={newType}
                   onChange={(e: any) => setNewType(e.target.value)}
                   className="rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
                 >
-                  <option value="FREE_DAYS">Giorni Gratis</option>
-                  <option value="PERCENT">Percentuale (%)</option>
-                  <option value="FIXED_AMOUNT">Fisso (€)</option>
+                  <option value="FREE_DAYS">{t("admin.freeDays")}</option>
+                  <option value="PERCENT">{t("admin.percent")}</option>
+                  <option value="FIXED_AMOUNT">{t("admin.fixedAmount")}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Valore (giorni / %)</label>
+                <label className="block text-xs text-onsurface-variant mb-1">{t("admin.valueLabel")}</label>
                 <input
                   type="number"
                   value={newValue}
@@ -397,7 +397,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Max Utilizzi Totali (opzionale)</label>
+                <label className="block text-xs text-onsurface-variant mb-1">{t("admin.maxUsesLabel")}</label>
                 <input
                   type="number"
                   placeholder="Es: 100 o vuoto"
@@ -407,7 +407,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Email Riservata Ad Personam (opzionale)</label>
+                <label className="block text-xs text-onsurface-variant mb-1">{t("admin.assignedEmailLabel")}</label>
                 <input
                   type="email"
                   placeholder="adpersonam@email.com"
@@ -417,22 +417,22 @@ export default function AdminDashboard() {
                 />
               </div>
               <Button type="submit" disabled={creatingCode}>
-                Crea Codice Promo
+                {t("admin.createCode")}
               </Button>
             </form>
 
             {loadingCodes ? (
-              <p className="text-sm text-onsurface-variant">Caricamento codici...</p>
+              <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-surface-border bg-surface">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-surface-border bg-bg/50 text-xs uppercase text-onsurface-variant">
                     <tr>
-                      <th className="px-4 py-3">Codice</th>
-                      <th className="px-4 py-3">Sconto</th>
+                      <th className="px-4 py-3">{t("admin.codeLabel")}</th>
+                      <th className="px-4 py-3">{t("admin.discountType")}</th>
                       <th className="px-4 py-3">Target</th>
-                      <th className="px-4 py-3">Utilizzi</th>
-                      <th className="px-4 py-3 text-right">Azioni</th>
+                      <th className="px-4 py-3">{t("admin.garageSwaps")}</th>
+                      <th className="px-4 py-3 text-right">{t("admin.actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
@@ -450,7 +450,7 @@ export default function AdminDashboard() {
                               <IconCopy size={14} />
                             </button>
                             {copiedCode === c.code && (
-                              <span className="text-[10px] text-emerald-400 font-semibold">Copiato!</span>
+                              <span className="text-[10px] text-emerald-400 font-semibold">{t("admin.copied")}</span>
                             )}
                           </div>
                         </td>
@@ -469,7 +469,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-xs">{c.usedCount} utilizzi</td>
                         <td className="px-4 py-3 text-right">
                           <Button variant="danger" size="sm" onClick={() => handleDeleteCode(c.id)}>
-                            Elimina
+                            {t("common.delete")}
                           </Button>
                         </td>
                       </tr>
@@ -485,23 +485,23 @@ export default function AdminDashboard() {
         {activeTab === "stats" && (
           <div>
             {loadingStats || !stats ? (
-              <p className="text-sm text-onsurface-variant">Caricamento metriche...</p>
+              <p className="text-sm text-onsurface-variant">{t("common.loading")}</p>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-xl border border-surface-border bg-surface p-5">
-                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Utenti Totali</p>
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">{t("admin.statsTotalUsers")}</p>
                   <p className="mt-2 text-3xl font-bold">{stats.totalUsers}</p>
                 </div>
                 <div className="rounded-xl border border-surface-border bg-surface p-5">
-                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Abbonamenti Attivi</p>
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">{t("admin.statsActiveSubs")}</p>
                   <p className="mt-2 text-3xl font-bold text-emerald-400">{stats.activeSubscriptions}</p>
                 </div>
                 <div className="rounded-xl border border-surface-border bg-surface p-5">
-                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Headunit Collegate</p>
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">{t("admin.statsHeadunits")}</p>
                   <p className="mt-2 text-3xl font-bold text-sky-400">{stats.headunits}</p>
                 </div>
                 <div className="rounded-xl border border-surface-border bg-surface p-5">
-                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Viaggi Sincronizzati</p>
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">{t("admin.statsTotalTrips")}</p>
                   <p className="mt-2 text-3xl font-bold text-amber-400">{stats.totalTrips}</p>
                 </div>
               </div>
@@ -514,12 +514,12 @@ export default function AdminDashboard() {
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface p-6 shadow-2xl">
-            <h3 className="text-lg font-bold">Gestisci Abbonamento</h3>
+            <h3 className="text-lg font-bold">{t("admin.modalSubTitle")}</h3>
             <p className="text-xs text-onsurface-variant mb-4">{selectedUser.email}</p>
 
             <div className="space-y-4 text-sm">
               <div>
-                <label className="block text-xs font-medium mb-1">Stato Abbonamento</label>
+                <label className="block text-xs font-medium mb-1">{t("admin.modalStatus")}</label>
                 <select
                   value={modalStatus}
                   onChange={(e: any) => setModalStatus(e.target.value)}
@@ -531,7 +531,7 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-1">Piano Abbonamento</label>
+                <label className="block text-xs font-medium mb-1">{t("admin.modalTier")}</label>
                 <select
                   value={modalTier}
                   onChange={(e: any) => setModalTier(e.target.value)}
@@ -543,7 +543,7 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-1">Data Scadenza</label>
+                <label className="block text-xs font-medium mb-1">{t("admin.modalExpiresAt")}</label>
                 <input
                   type="date"
                   value={modalExpiresAt}
@@ -553,7 +553,7 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium mb-1">Note Pagamento / Riferimento</label>
+                <label className="block text-xs font-medium mb-1">{t("admin.modalNotes")}</label>
                 <input
                   type="text"
                   placeholder="Es: Pagato via PayPal ref #12345"
@@ -566,10 +566,10 @@ export default function AdminDashboard() {
 
             <div className="mt-6 flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setSelectedUser(null)}>
-                Annulla
+                {t("admin.cancel")}
               </Button>
               <Button onClick={handleSaveSub} disabled={updatingSub}>
-                Salva Abbonamento
+                {t("admin.saveSub")}
               </Button>
             </div>
           </div>
