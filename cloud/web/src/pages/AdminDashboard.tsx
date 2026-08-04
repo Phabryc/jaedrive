@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { Button } from "../components/Button";
 import { api, type Profile } from "../lib/api";
+import { IconCopy } from "../components/icons";
 
 interface AdminStats {
   totalUsers: number;
@@ -57,6 +58,14 @@ export default function AdminDashboard() {
   const [newMaxUses, setNewMaxUses] = useState<string>("");
   const [newEmail, setNewEmail] = useState("");
   const [creatingCode, setCreatingCode] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  function copyCode(codeToCopy: string) {
+    if (!codeToCopy) return;
+    navigator.clipboard.writeText(codeToCopy);
+    setCopiedCode(codeToCopy);
+    setTimeout(() => setCopiedCode(null), 2000);
+  }
 
   // Stats state
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -348,7 +357,20 @@ export default function AdminDashboard() {
                   >
                     Genera 8-Char
                   </Button>
+                  {newCode && (
+                    <button
+                      type="button"
+                      onClick={() => copyCode(newCode)}
+                      title="Copia codice"
+                      className="rounded-lg border border-surface-border bg-bg p-2 text-onsurface-variant hover:border-accent hover:text-accent transition"
+                    >
+                      <IconCopy size={16} />
+                    </button>
+                  )}
                 </div>
+                {copiedCode === newCode && (
+                  <span className="text-[10px] font-semibold text-emerald-400 mt-1 block">Copiato negli appunti!</span>
+                )}
               </div>
               <div>
                 <label className="block text-xs text-onsurface-variant mb-1">Tipo Sconto</label>
@@ -414,7 +436,22 @@ export default function AdminDashboard() {
                   <tbody className="divide-y divide-surface-border">
                     {codes.map((c) => (
                       <tr key={c.id}>
-                        <td className="px-4 py-3 font-mono font-bold">{c.code}</td>
+                        <td className="px-4 py-3 font-mono font-bold">
+                          <div className="flex items-center gap-2">
+                            <span>{c.code}</span>
+                            <button
+                              type="button"
+                              onClick={() => copyCode(c.code)}
+                              title="Copia codice"
+                              className="rounded border border-surface-border bg-bg p-1 text-onsurface-variant hover:border-accent hover:text-accent transition"
+                            >
+                              <IconCopy size={14} />
+                            </button>
+                            {copiedCode === c.code && (
+                              <span className="text-[10px] text-emerald-400 font-semibold">Copiato!</span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           {c.discountType === "PERCENT" && `${c.value}%`}
                           {c.discountType === "FIXED_AMOUNT" && `${c.value} €`}
