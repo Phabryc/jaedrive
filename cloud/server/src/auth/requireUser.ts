@@ -15,7 +15,8 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
   let decoded;
   try {
     decoded = await verifyFirebaseIdToken(idToken);
-  } catch {
+  } catch (err) {
+    req.log.warn({ err }, "Firebase verifyIdToken failed");
     return reply.code(401).send({ error: "Invalid or expired token" });
   }
 
@@ -24,7 +25,13 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
   const photoUrl = typeof decoded.picture === "string" ? decoded.picture : null;
 
-  const existing = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  let existing: any = null;
+  try {
+    existing = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  } catch (err) {
+    req.log.error({ err }, "prisma.user.findUnique failed");
+  }
+
   const isAdminEmail = Boolean(decoded.email && env.adminEmails.includes(decoded.email));
   const targetRole = isAdminEmail ? "ADMIN" : (existing?.role ?? "USER");
 
@@ -44,7 +51,7 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
         },
       });
     } catch (err) {
-      console.warn("prisma.user.update with role failed, trying fallback without role:", err);
+      req.log.warn({ err }, "prisma.user.update with role failed, trying fallback without role");
       try {
         user = await prisma.user.update({
           where: { id: existing.id },
@@ -57,7 +64,7 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
           },
         });
       } catch (err2) {
-        console.warn("prisma.user.update fallback failed:", err2);
+        req.log.warn({ err2 }, "prisma.user.update fallback failed");
         user = existing;
       }
     }
@@ -76,19 +83,27 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply) {
         },
       });
     } catch (err) {
-      console.warn("prisma.user.create with role failed, trying fallback without role:", err);
-      user = await prisma.user.create({
-        data: {
-          firebaseUid: decoded.uid,
-          email: decoded.email ?? null,
-          displayName: decoded.name ?? null,
-          firstName,
-          lastName,
-          photoUrl,
-          lastLoginAt: new Date(),
-        },
-      });
+      req.log.warn({ err }, "prisma.user.create with role failed, trying fallback without role");
+      try {
+        user = await prisma.user.create({
+          data: {
+            firebaseUid: decoded.uid,
+            email: decoded.email ?? null,
+            displayName: decoded.name ?? null,
+            firstName,
+            lastName,
+            photoUrl,
+            lastLoginAt: new Date(),
+          },
+        });
+      } catch (err2) {
+        req.log.error({ err2 }, "prisma.user.create failed completely");
+      }
     }
+  }
+
+  if (!user) {
+    return reply.code(500).send({ error: "User record could not be loaded or created" });
   }
 
   req.authUser = {

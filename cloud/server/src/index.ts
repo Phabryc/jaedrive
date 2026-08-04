@@ -30,6 +30,13 @@ await app.register(adminRoutes, { prefix: "/api/admin" });
 // separate frontend container, see DESIGN.md §2 and §13.
 const webDist = path.join(__dirname, "../../web/dist");
 await app.register(fastifyStatic, { root: webDist });
+app.setErrorHandler((error, req, reply) => {
+  app.log.error(error);
+  reply.status(error.statusCode ?? 500).send({
+    error: error.message || "Internal server error",
+  });
+});
+
 app.setNotFoundHandler((req, reply) => {
   if (req.raw.url?.startsWith("/api/")) {
     return reply.code(404).send({ error: "Not found" });
