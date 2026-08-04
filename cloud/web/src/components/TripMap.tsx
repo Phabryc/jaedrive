@@ -1,5 +1,6 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
+import type L from "leaflet";
 import { type LatLngBoundsExpression } from "leaflet";
 import { parseGpxTrack, parseGpxPoints, type GpxPoint } from "../lib/gpx";
 import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
@@ -46,8 +47,7 @@ function MapClickHandler({
           minIdx = i;
         }
       }
-      // ~2km radius threshold in lat/lon space (~0.02)
-      if (minIdx !== -1 && minDist < 0.02) {
+      if (minIdx !== -1 && minDist < 0.05) {
         onSelectIndex(minIdx);
       }
     },
@@ -144,6 +144,35 @@ function PointPopupContent({
   );
 }
 
+// Marker component that automatically opens its popup on render or position change
+function AutoOpenMarker({
+  position,
+  icon,
+  children,
+  onClose,
+}: {
+  position: [number, number];
+  icon: L.DivIcon;
+  children: React.ReactNode;
+  onClose?: () => void;
+}) {
+  const markerRef = useRef<L.Marker | null>(null);
+
+  useEffect(() => {
+    if (markerRef.current) {
+      markerRef.current.openPopup();
+    }
+  }, [position]);
+
+  return (
+    <Marker ref={markerRef} position={position} icon={icon}>
+      <Popup autoPan={false} eventHandlers={{ remove: () => onClose?.() }}>
+        {children}
+      </Popup>
+    </Marker>
+  );
+}
+
 export interface TripMapProps {
   gpxRaw?: string;
   points?: GpxPoint[];
@@ -174,6 +203,22 @@ export function TripMap({
     return segments.flatMap((s) => s.points);
   }, [points, segments]);
 
+  const handleTrackInteraction = (latlng: L.LatLng) => {
+    if (!points.length || !onSelectIndex) return;
+    let minDist = Infinity;
+    let minIdx = -1;
+    for (let i = 0; i < points.length; i++) {
+      const d = Math.hypot(points[i].lat - latlng.lat, points[i].lon - latlng.lng);
+      if (d < minDist) {
+        minDist = d;
+        minIdx = i;
+      }
+    }
+    if (minIdx !== -1) {
+      onSelectIndex(minIdx);
+    }
+  };
+
   if (allPoints.length === 0) {
     return (
       <div className="flex h-72 items-center justify-center rounded-lg border border-surface-border bg-surface text-sm text-onsurface-variant">
@@ -193,20 +238,41 @@ export function TripMap({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {segments.map((s, i) => (
-          <Polyline key={i} positions={s.points} pathOptions={{ color: BUCKET_COLOR[s.bucket], weight: 4 }} />
+          <g key={i}>
+            {/* Thick invisible polyline for easy touch/click target area */}
+            <Polyline
+              positions={s.points}
+              pathOptions={{ color: "transparent", weight: 20 }}
+              eventHandlers={{
+                click: (e) => handleTrackInteraction(e.latlng),
+                mouseover: (e) => handleTrackInteraction(e.latlng),
+              }}
+            />
+            {/* Visible track polyline */}
+            <Polyline
+              positions={s.points}
+              pathOptions={{ color: BUCKET_COLOR[s.bucket], weight: 5 }}
+              eventHandlers={{
+                click: (e) => handleTrackInteraction(e.latlng),
+                mouseover: (e) => handleTrackInteraction(e.latlng),
+              }}
+            />
+          </g>
         ))}
         <Marker position={allPoints[0]} icon={START_ICON} />
         <Marker position={allPoints[allPoints.length - 1]} icon={END_ICON} />
 
         {selectedPoint && selectedPos && (
-          <Marker position={selectedPos} icon={HIGHLIGHT_ICON}>
-            <Popup autoPan={false} eventHandlers={{ remove: () => onSelectIndex?.(null) }}>
-              <PointPopupContent
-                point={selectedPoint}
-                distance={selectedIndex != null && distances ? distances[selectedIndex] : undefined}
-              />
-            </Popup>
-          </Marker>
+          <AutoOpenMarker
+            position={selectedPos}
+            icon={HIGHLIGHT_ICON}
+            onClose={() => onSelectIndex?.(null)}
+          >
+            <PointPopupContent
+              point={selectedPoint}
+              distance={selectedIndex != null && distances ? distances[selectedIndex] : undefined}
+            />
+          </AutoOpenMarker>
         )}
 
         <MapSyncController selectedPos={selectedPos} />
