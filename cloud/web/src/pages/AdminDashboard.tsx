@@ -320,9 +320,15 @@ export default function AdminDashboard() {
                               {u.subscription?.tier ?? "STANDARD"}
                             </td>
                             <td className="px-4 py-3 text-xs">
-                              {u.subscription?.expiresAt
-                                ? new Date(u.subscription.expiresAt).toLocaleDateString()
-                                : "—"}
+                              {isSubActive ? (
+                                u.subscription?.expiresAt ? (
+                                  new Date(u.subscription.expiresAt).toLocaleDateString()
+                                ) : (
+                                  <span className="font-bold text-emerald-400">{t("admin.lifetime")}</span>
+                                )
+                              ) : (
+                                "—"
+                              )}
                             </td>
                             <td className="px-4 py-3 text-xs">
                               <div>
@@ -382,7 +388,15 @@ export default function AdminDashboard() {
                           <div>
                             <span className="text-onsurface-variant block">{t("admin.expires")}</span>
                             <span className="font-medium mt-0.5 block">
-                              {u.subscription?.expiresAt ? new Date(u.subscription.expiresAt).toLocaleDateString() : "—"}
+                              {isSubActive ? (
+                                u.subscription?.expiresAt ? (
+                                  new Date(u.subscription.expiresAt).toLocaleDateString()
+                                ) : (
+                                  <span className="font-bold text-emerald-400">{t("admin.lifetime")}</span>
+                                )
+                              ) : (
+                                "—"
+                              )}
                             </span>
                           </div>
                           <div className="col-span-2 pt-1 flex justify-between text-xs text-onsurface-variant">
@@ -679,7 +693,7 @@ export default function AdminDashboard() {
                   onChange={(e) => setModalExpiresAt(e.target.value)}
                   className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
                 />
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => addMonthsToModalDate(1)}
@@ -701,7 +715,19 @@ export default function AdminDashboard() {
                   >
                     +1y
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setModalExpiresAt("")}
+                    className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition"
+                  >
+                    ∞ {t("admin.lifetime")}
+                  </button>
                 </div>
+                {!modalExpiresAt && modalStatus === "PREMIUM" && (
+                  <p className="mt-2 text-xs font-semibold text-emerald-400 flex items-center gap-1">
+                    ✨ {t("admin.lifetimeNoExpiration")}
+                  </p>
+                )}
               </div>
 
               <div>

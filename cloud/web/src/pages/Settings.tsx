@@ -164,10 +164,14 @@ export default function Settings() {
                 >
                   {badgeLabel}
                 </span>
-                {sub?.expiresAt ? (
-                  <span className="text-xs text-onsurface-variant">
-                    {t("settings.expiresOn")} <strong>{new Date(sub.expiresAt).toLocaleDateString()}</strong>
-                  </span>
+                {sub?.status === "PREMIUM" ? (
+                  sub?.expiresAt ? (
+                    <span className="text-xs text-onsurface-variant">
+                      {t("settings.expiresOn")} <strong>{new Date(sub.expiresAt).toLocaleDateString()}</strong>
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-emerald-400">{t("settings.lifetime")}</span>
+                  )
                 ) : (
                   <span className="text-xs text-onsurface-variant">{t("settings.noExpirationFree")}</span>
                 )}

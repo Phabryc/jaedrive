@@ -355,4 +355,7 @@ export const it = {
   "pair.premiumRequiredDesc": "Per accoppiare l'Headunit dell'auto al Cloud e sincronizzare i tuoi viaggi è necessario un abbonamento Premium attivo.",
   "pair.havePromoCode": "Hai un codice promo / sconto?",
   "pair.redeemShort": "Riscatta",
+  "admin.lifetime": "A vita ∞",
+  "admin.lifetimeNoExpiration": "Scadenza: Nessuna (Abbonamento A vita)",
+  "settings.lifetime": "Abbonamento A vita ∞ (Nessuna scadenza)",
 } as const;

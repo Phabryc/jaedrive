@@ -333,4 +333,7 @@ export const en: Record<keyof typeof it, string> = {
   "pair.premiumRequiredDesc": "To pair your car's Headunit to the Cloud and sync your trips, an active Premium subscription is required.",
   "pair.havePromoCode": "Have a promo / discount code?",
   "pair.redeemShort": "Redeem",
+  "admin.lifetime": "Lifetime ∞",
+  "admin.lifetimeNoExpiration": "Expiration: None (Lifetime Subscription)",
+  "settings.lifetime": "Lifetime Subscription ∞ (No expiration)",
 };
