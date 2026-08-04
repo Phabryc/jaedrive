@@ -143,6 +143,24 @@ export async function userRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Questo codice promo è riservato ad un altro utente" });
       }
 
+      // Single redemption per user check
+      try {
+        const existingRedemption = await (prisma as any).discountCodeRedemption?.findUnique({
+          where: {
+            discountCodeId_userId: {
+              discountCodeId: promo.id,
+              userId: user.id,
+            },
+          },
+        });
+
+        if (existingRedemption) {
+          return reply.code(400).send({ error: "Hai già riscattato questo codice promo sul tuo account" });
+        }
+      } catch (err) {
+        req.log.warn({ err }, "Failed to check discountCodeRedemption");
+      }
+
       let daysToAdd = 30;
       if (promo.discountType === "FREE_DAYS") {
         daysToAdd = Math.max(1, promo.value);
@@ -169,6 +187,17 @@ export async function userRoutes(app: FastifyInstance) {
         where: { id: promo.id },
         data: { usedCount: { increment: 1 } },
       });
+
+      try {
+        await (prisma as any).discountCodeRedemption?.create({
+          data: {
+            discountCodeId: promo.id,
+            userId: user.id,
+          },
+        });
+      } catch (err) {
+        req.log.warn({ err }, "Could not record discountCodeRedemption");
+      }
 
       await prisma.subscriptionLog.create({
         data: {

@@ -46,6 +46,7 @@ model User {
   pairingsClaimed PairingRequest[]
   subscriptionLogs SubscriptionLog[]
   deviceHistory    DeviceHistory[]
+  discountRedemptions DiscountCodeRedemption[]
 
   role                  String    @default("USER")
   subscriptionStatus    String    @default("FREE") @map("subscription_status")
@@ -218,7 +219,21 @@ model DiscountCode {
   assignedEmail String?   @map("assigned_email")
   createdAt     DateTime  @default(now()) @map("created_at")
 
+  redemptions DiscountCodeRedemption[]
+
   @@map("discount_codes")
+}
+
+model DiscountCodeRedemption {
+  id             String       @id @default(uuid())
+  discountCodeId String       @map("discount_code_id")
+  discountCode   DiscountCode @relation(fields: [discountCodeId], references: [id], onDelete: Cascade)
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redeemedAt     DateTime     @default(now()) @map("redeemed_at")
+
+  @@unique([discountCodeId, userId])
+  @@map("discount_code_redemptions")
 }
 
 model SubscriptionLog {

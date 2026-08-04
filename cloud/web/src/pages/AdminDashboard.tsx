@@ -23,6 +23,15 @@ interface DiscountCode {
   createdAt: string;
 }
 
+function generateRandomCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<"users" | "codes" | "stats">("users");
 
@@ -43,8 +52,9 @@ export default function AdminDashboard() {
   const [codes, setCodes] = useState<DiscountCode[]>([]);
   const [loadingCodes, setLoadingCodes] = useState(false);
   const [newCode, setNewCode] = useState("");
-  const [newType, setNewType] = useState<"PERCENT" | "FIXED_AMOUNT" | "FREE_DAYS">("PERCENT");
-  const [newValue, setNewValue] = useState<number>(20);
+  const [newType, setNewType] = useState<"PERCENT" | "FIXED_AMOUNT" | "FREE_DAYS">("FREE_DAYS");
+  const [newValue, setNewValue] = useState<number>(30);
+  const [newMaxUses, setNewMaxUses] = useState<string>("");
   const [newEmail, setNewEmail] = useState("");
   const [creatingCode, setCreatingCode] = useState(false);
 
@@ -150,18 +160,20 @@ export default function AdminDashboard() {
 
   async function handleCreateCode(e: React.FormEvent) {
     e.preventDefault();
-    if (!newCode.trim()) return;
+    const finalCode = newCode.trim() || generateRandomCode();
     setCreatingCode(true);
     try {
       await api.adminCreateDiscountCode({
-        code: newCode.trim().toUpperCase(),
+        code: finalCode.toUpperCase(),
         discountType: newType,
         value: Number(newValue),
+        maxUses: newMaxUses.trim() ? Number(newMaxUses) : null,
         isGlobal: !newEmail.trim(),
         assignedEmail: newEmail.trim() || null,
       });
       setNewCode("");
       setNewEmail("");
+      setNewMaxUses("");
       await loadCodes();
     } catch {
       alert("Errore nella creazione del codice sconto");
@@ -319,15 +331,24 @@ export default function AdminDashboard() {
           <div>
             <form onSubmit={handleCreateCode} className="mb-6 rounded-xl border border-surface-border bg-surface p-4 flex flex-wrap items-end gap-3">
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Codice</label>
-                <input
-                  type="text"
-                  placeholder="Es: PROMO50"
-                  value={newCode}
-                  onChange={(e) => setNewCode(e.target.value)}
-                  className="rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none uppercase focus:border-accent"
-                  required
-                />
+                <label className="block text-xs text-onsurface-variant mb-1">Codice Promo (8 Caratteri)</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Es: X7K9P2M4"
+                    value={newCode}
+                    onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                    className="w-36 rounded-lg border border-surface-border bg-bg px-3 py-1.5 font-mono text-sm uppercase outline-none focus:border-accent"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setNewCode(generateRandomCode())}
+                  >
+                    Genera 8-Char
+                  </Button>
+                </div>
               </div>
               <div>
                 <label className="block text-xs text-onsurface-variant mb-1">Tipo Sconto</label>
@@ -336,13 +357,13 @@ export default function AdminDashboard() {
                   onChange={(e: any) => setNewType(e.target.value)}
                   className="rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
                 >
+                  <option value="FREE_DAYS">Giorni Gratis</option>
                   <option value="PERCENT">Percentuale (%)</option>
                   <option value="FIXED_AMOUNT">Fisso (€)</option>
-                  <option value="FREE_DAYS">Giorni Gratis</option>
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Valore</label>
+                <label className="block text-xs text-onsurface-variant mb-1">Valore (giorni / %)</label>
                 <input
                   type="number"
                   value={newValue}
@@ -352,7 +373,17 @@ export default function AdminDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-onsurface-variant mb-1">Email Riservata (Opzionale)</label>
+                <label className="block text-xs text-onsurface-variant mb-1">Max Utilizzi Totali (opzionale)</label>
+                <input
+                  type="number"
+                  placeholder="Es: 100 o vuoto"
+                  value={newMaxUses}
+                  onChange={(e) => setNewMaxUses(e.target.value)}
+                  className="w-32 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-onsurface-variant mb-1">Email Riservata Ad Personam (opzionale)</label>
                 <input
                   type="email"
                   placeholder="adpersonam@email.com"
@@ -362,7 +393,7 @@ export default function AdminDashboard() {
                 />
               </div>
               <Button type="submit" disabled={creatingCode}>
-                Crea Codice
+                Crea Codice Promo
               </Button>
             </form>
 

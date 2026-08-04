@@ -60,8 +60,22 @@ CREATE TABLE IF NOT EXISTS "subscription_logs" (
     CONSTRAINT "subscription_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable DiscountCodeRedemption
+CREATE TABLE IF NOT EXISTS "discount_code_redemptions" (
+    "id" TEXT NOT NULL,
+    "discount_code_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "redeemed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "discount_code_redemptions_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "device_history_user_id_headunit_id_key" ON "device_history"("user_id", "headunit_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "discount_codes_code_key" ON "discount_codes"("code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "discount_code_redemptions_discount_code_id_user_id_key" ON "discount_code_redemptions"("discount_code_id", "user_id");
+
