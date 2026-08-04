@@ -13,7 +13,7 @@ import { useProfile } from "../lib/ProfileContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 
 export default function Settings() {
-  const { profile } = useProfile();
+  const { profile, refresh: refreshProfile } = useProfile();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -21,10 +21,33 @@ export default function Settings() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
 
+  const [promoCode, setPromoCode] = useState("");
+  const [redeemingPromo, setRedeemingPromo] = useState(false);
+  const [promoMessage, setPromoMessage] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
   const [backfillBusy, setBackfillBusy] = useState<Record<string, boolean>>({});
   const [backfillStatus, setBackfillStatus] = useState<Record<string, string | null>>({});
   const [energyBackfillBusy, setEnergyBackfillBusy] = useState<Record<string, boolean>>({});
   const [energyBackfillStatus, setEnergyBackfillStatus] = useState<Record<string, string | null>>({});
+
+  async function handleRedeemPromo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!promoCode.trim()) return;
+    setRedeemingPromo(true);
+    setPromoMessage(null);
+    setPromoError(null);
+    try {
+      const res = await api.redeemDiscountCode(promoCode.trim());
+      setPromoMessage(res.message);
+      setPromoCode("");
+      await refreshProfile();
+    } catch (err: any) {
+      setPromoError(err.message || "Errore nel riscatto del codice promo");
+    } finally {
+      setRedeemingPromo(false);
+    }
+  }
 
   function reload() {
     api.vehicles().then(setVehicles);
@@ -165,6 +188,25 @@ export default function Settings() {
           <p className="mt-3 text-xs text-onsurface-variant">
             💡 <em>Nota: Il ricollegamento di un'Headunit già associata in precedenza non consuma quote di cambio.</em>
           </p>
+
+          {/* RISCATTO CODICE PROMO */}
+          <form onSubmit={handleRedeemPromo} className="mt-4 border-t border-surface-border pt-4">
+            <p className="text-xs font-semibold text-onsurface-variant mb-2">Riscatta Codice Promo / Sconto</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                placeholder="Es: PROMO2026"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                className="min-w-0 flex-1 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm uppercase outline-none focus:border-accent"
+              />
+              <Button type="submit" variant="secondary" size="sm" disabled={redeemingPromo || !promoCode.trim()}>
+                {redeemingPromo ? "Verifica..." : "Riscatta Codice"}
+              </Button>
+            </div>
+            {promoMessage && <p className="mt-2 text-xs font-semibold text-emerald-400">{promoMessage}</p>}
+            {promoError && <p className="mt-2 text-xs font-semibold text-bad">{promoError}</p>}
+          </form>
         </section>
 
         {/* LINGUA E UNITÀ */}

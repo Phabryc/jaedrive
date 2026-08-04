@@ -108,6 +108,87 @@ export async function userRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post(
+    "/redeem-discount-code",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["code"],
+          properties: { code: { type: "string", minLength: 1, maxLength: 50 } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { code } = req.body as { code: string };
+      const user = req.authUser!;
+
+      const promo = await prisma.discountCode.findUnique({
+        where: { code: code.trim().toUpperCase() },
+      });
+
+      if (!promo) {
+        return reply.code(400).send({ error: "Codice promo non valido" });
+      }
+
+      if (promo.expiresAt && promo.expiresAt < new Date()) {
+        return reply.code(400).send({ error: "Codice promo scaduto" });
+      }
+
+      if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) {
+        return reply.code(400).send({ error: "Codice promo esaurito" });
+      }
+
+      if (!promo.isGlobal && promo.assignedEmail && promo.assignedEmail.toLowerCase() !== (user.email ?? "").toLowerCase()) {
+        return reply.code(403).send({ error: "Questo codice promo è riservato ad un altro utente" });
+      }
+
+      let daysToAdd = 30;
+      if (promo.discountType === "FREE_DAYS") {
+        daysToAdd = Math.max(1, promo.value);
+      } else if (promo.discountType === "PERCENT" || promo.discountType === "FIXED_AMOUNT") {
+        daysToAdd = promo.value > 0 ? Math.round(promo.value) : 30;
+      }
+
+      const dbUser = await prisma.user.findUnique({ where: { id: user.id } });
+      const currentExpiry = dbUser?.subscriptionExpiresAt && dbUser.subscriptionExpiresAt > new Date()
+        ? dbUser.subscriptionExpiresAt
+        : new Date();
+
+      const newExpiry = new Date(currentExpiry.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          subscriptionStatus: "PREMIUM",
+          subscriptionExpiresAt: newExpiry,
+        },
+      });
+
+      await prisma.discountCode.update({
+        where: { id: promo.id },
+        data: { usedCount: { increment: 1 } },
+      });
+
+      await prisma.subscriptionLog.create({
+        data: {
+          userId: user.id,
+          status: "PREMIUM",
+          tier: dbUser?.subscriptionTier ?? "STANDARD",
+          expiresAt: newExpiry,
+          notes: `Riscattato codice promo: ${promo.code}`,
+          createdBy: user.id,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        message: `Codice promo riscattato con successo! Il tuo abbonamento Premium è attivo.`,
+        expiresAt: newExpiry,
+      });
+    }
+  );
+
   app.patch(
     "/me",
     {

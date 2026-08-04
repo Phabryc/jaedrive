@@ -52,11 +52,41 @@ export default function Pair() {
   if (profile?.subscription?.status !== "PREMIUM") {
     return (
       <AppShell>
-        <div className="mx-auto max-w-md rounded-lg border border-bad/40 bg-bad/5 p-4 text-center">
-          <h2 className="mb-2 text-lg font-bold text-bad">Abbonamento Richiesto</h2>
-          <p className="text-sm text-onsurface-variant">
-            Per accoppiare una nuova headunit al cloud è necessario un abbonamento Premium.
+        <div className="mx-auto max-w-md rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 text-center shadow-lg">
+          <h2 className="mb-2 text-lg font-bold text-amber-400">Abbonamento Premium Richiesto</h2>
+          <p className="text-sm text-onsurface-variant mb-4">
+            Per accoppiare l'Headunit dell'auto al Cloud e sincronizzare i tuoi viaggi è necessario un abbonamento Premium attivo.
           </p>
+          <div className="rounded-lg border border-surface-border bg-surface p-4 text-left">
+            <p className="text-xs font-semibold text-onsurface-variant mb-2">Hai un codice promo / sconto?</p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const formEl = e.currentTarget;
+                const input = (formEl.elements.namedItem("promo") as HTMLInputElement).value;
+                if (!input.trim()) return;
+                try {
+                  const res = await api.redeemDiscountCode(input.trim());
+                  alert(res.message);
+                  window.location.reload();
+                } catch (err: any) {
+                  alert(err.message || "Codice non valido");
+                }
+              }}
+              className="flex gap-2"
+            >
+              <input
+                name="promo"
+                type="text"
+                placeholder="Es: PROMO2026"
+                className="min-w-0 flex-1 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm uppercase outline-none focus:border-accent"
+                required
+              />
+              <Button type="submit" variant="secondary" size="sm">
+                Riscatta
+              </Button>
+            </form>
+          </div>
         </div>
       </AppShell>
     );
