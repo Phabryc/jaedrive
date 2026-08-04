@@ -204,7 +204,7 @@ export default function AdminDashboard() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-7xl space-y-6">
         <h1 className="text-xl sm:text-2xl font-bold">{t("admin.title")}</h1>
 
         {/* RESPONSIVE SCROLLABLE TABS */}
@@ -626,7 +626,7 @@ export default function AdminDashboard() {
       {/* MODAL GESTIONE ABBONAMENTO */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface p-5 sm:p-6 shadow-2xl my-auto space-y-4">
+          <div className="w-full max-w-md rounded-2xl border border-surface-border bg-[#14161a] p-5 sm:p-6 shadow-2xl my-auto space-y-4">
             <div>
               <h3 className="text-lg font-bold">{t("admin.modalSubTitle")}</h3>
               <p className="text-xs text-onsurface-variant truncate">{selectedUser.email}</p>

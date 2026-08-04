@@ -75,9 +75,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               )}
             </button>
 
-            {/* DROPDOWN POPOVER */}
+            {/* DROPDOWN POPOVER - 100% OPAQUE BACKGROUND */}
             {userMenuOpen && (
-              <div className="absolute right-0 mt-2 w-72 origin-top-right rounded-2xl border border-surface-border bg-surface p-3 shadow-2xl z-50 animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-72 origin-top-right rounded-2xl border border-surface-border bg-[#14161a] p-3 shadow-2xl z-50 animate-in fade-in zoom-in-95">
                 {/* USER INFO HEADER */}
                 <div className="flex items-center gap-3 p-2 border-b border-surface-border pb-3">
                   {profile?.photoUrl ? (
