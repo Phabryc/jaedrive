@@ -107,7 +107,7 @@ export function StatsBody({
   const { distanceUnit, consumptionFormat } = useUnits();
   const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
   const hasTrend = consumptionTrend.length >= 2;
-  const kpiSpan = "col-span-6 sm:col-span-3 xl:col-span-2";
+  const kpiSpan = "col-span-6 sm:col-span-4 xl:col-span-2";
 
   return (
     <>
