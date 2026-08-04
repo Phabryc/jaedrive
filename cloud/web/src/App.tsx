@@ -13,6 +13,8 @@ import RouteDetail from "./pages/RouteDetail";
 import RouteEditor from "./pages/RouteEditor";
 import Settings from "./pages/Settings";
 import LegalDocument from "./pages/LegalDocument";
+import ProfilePage from "./pages/Profile";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -41,6 +43,8 @@ export default function App() {
       <Route path="/vehicles/:vehicleId/routes/:routeId" element={<Protected><RouteDetail /></Protected>} />
       <Route path="/trips/:id" element={<Protected><TripDetail /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
+      <Route path="/profile" element={<Protected><ProfilePage /></Protected>} />
+      <Route path="/admin" element={<Protected><AdminDashboard /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

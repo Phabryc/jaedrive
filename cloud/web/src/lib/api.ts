@@ -31,6 +31,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface SubscriptionDetails {
+  status: "FREE" | "PREMIUM";
+  tier?: "STANDARD" | "GARAGE";
+  expiresAt?: string | null;
+  activeVehicles: number;
+  maxVehicles: number;
+  headunitSwaps: number;
+  maxHeadunitSwaps: number;
+}
+
 export interface Profile {
   id: string;
   email: string | null;
@@ -39,6 +49,8 @@ export interface Profile {
   lastName: string | null;
   photoUrl: string | null;
   profileComplete: boolean;
+  role?: "USER" | "ADMIN";
+  subscription?: SubscriptionDetails;
 }
 
 export const api = {
@@ -155,6 +167,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+
+  adminUsers: (q?: string) => request<Profile[]>(`/admin/users${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  adminUpdateSubscription: (id: string, data: any) => request<void>(`/admin/users/${id}/subscription`, { method: "PATCH", body: JSON.stringify(data) }),
+  adminAddExtraSwap: (id: string) => request<void>(`/admin/users/${id}/extra-swaps`, { method: "POST" }),
+  adminUpdateRole: (id: string, role: string) => request<void>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  adminDiscountCodes: () => request<any[]>("/admin/discount-codes"),
+  adminCreateDiscountCode: (data: any) => request<any>("/admin/discount-codes", { method: "POST", body: JSON.stringify(data) }),
+  adminDeleteDiscountCode: (id: string) => request<void>(`/admin/discount-codes/${id}`, { method: "DELETE" }),
+  adminStats: () => request<any>("/admin/stats"),
 };
 
 export { ApiError };

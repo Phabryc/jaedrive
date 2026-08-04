@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { env } from "./env.js";
 import { deviceRoutes } from "./routes/device.js";
 import { userRoutes } from "./routes/user.js";
+import { adminRoutes } from "./routes/admin.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,6 +24,7 @@ await app.register(fastifyRateLimit, { global: false });
 
 await app.register(deviceRoutes, { prefix: "/api/device" });
 await app.register(userRoutes, { prefix: "/api/user" });
+await app.register(adminRoutes, { prefix: "/api/admin" });
 
 // Serves the built React SPA (see cloud/web) from the same process/port as the API - no
 // separate frontend container, see DESIGN.md §2 and §13.

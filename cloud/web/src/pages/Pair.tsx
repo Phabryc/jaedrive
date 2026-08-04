@@ -4,8 +4,10 @@ import { api, ApiError } from "../lib/api";
 import { AppShell } from "../components/AppShell";
 import { Button } from "../components/Button";
 import { useLanguage } from "../lib/i18n/LanguageContext";
+import { useProfile } from "../lib/ProfileContext";
 
 export default function Pair() {
+  const { profile } = useProfile();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -46,6 +48,19 @@ export default function Pair() {
   }
 
   const autoClaiming = busy && autoSubmitted.current && !error;
+
+  if (profile?.subscription?.status !== "PREMIUM") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-md rounded-lg border border-bad/40 bg-bad/5 p-4 text-center">
+          <h2 className="mb-2 text-lg font-bold text-bad">Abbonamento Richiesto</h2>
+          <p className="text-sm text-onsurface-variant">
+            Per accoppiare una nuova headunit al cloud è necessario un abbonamento Premium.
+          </p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>

@@ -16,4 +16,6 @@ export const env = {
   firebaseProjectId: required("FIREBASE_PROJECT_ID"),
   firebaseServiceAccountJson: required("FIREBASE_SERVICE_ACCOUNT_JSON"),
   nodeEnv: process.env.NODE_ENV ?? "development",
+  resendApiKey: process.env.RESEND_API_KEY,
+  adminEmails: process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(",").map(e => e.trim()) : [],
 };

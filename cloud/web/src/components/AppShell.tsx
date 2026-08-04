@@ -8,9 +8,11 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { Button, buttonVariants } from "./Button";
 import { IconSettings } from "./icons";
 import jdLogo from "../assets/jd_logo.png";
+import { useProfile } from "../lib/ProfileContext";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { profile } = useProfile();
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -35,6 +37,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
             <div className="flex items-center gap-2">
               <LanguageSwitcher />
+              {profile?.role === "ADMIN" && (
+                <Link to="/admin" className={buttonVariants({ variant: "secondary", size: "sm", className: "px-2 text-accent" })}>
+                  Admin
+                </Link>
+              )}
+              <Link
+                to="/profile"
+                aria-label="Profilo"
+                className={buttonVariants({ variant: "secondary", size: "sm", className: "px-2.5" })}
+              >
+                <IconSettings size={16} /> {/* Can use IconUser later */}
+              </Link>
               <Link
                 to="/settings"
                 aria-label={t("appShell.settings")}
@@ -53,8 +67,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
           </Link>
           <nav className="flex items-center gap-x-4 text-sm text-onsurface-variant">
+            {profile?.role === "ADMIN" && (
+              <Link to="/admin" className="whitespace-nowrap font-medium text-accent hover:text-accent/80">
+                Pannello Admin
+              </Link>
+            )}
             <Link to="/dashboard" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.myVehicles")}
+            </Link>
+            <Link to="/profile" className="whitespace-nowrap hover:text-onsurface">
+              Profilo
             </Link>
             <Link to="/settings" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.settings")}

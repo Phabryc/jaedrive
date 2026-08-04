@@ -50,17 +50,18 @@ export async function deviceRoutes(app: FastifyInstance) {
           properties: {
             vin: { type: "string", minLength: 5, maxLength: 32 },
             appVersion: { type: "string", nullable: true },
+            headunitId: { type: "string", nullable: true },
           },
         },
       },
     },
     async (req, reply) => {
-      const { vin, appVersion } = req.body as { vin: string; appVersion?: string };
+      const { vin, appVersion, headunitId } = req.body as { vin: string; appVersion?: string; headunitId?: string };
 
       const code = generatePairingCode();
       const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
       const pairing = await prisma.pairingRequest.create({
-        data: { code, vin: vin.trim().toUpperCase(), deviceHint: appVersion ?? null, expiresAt },
+        data: { code, vin: vin.trim().toUpperCase(), deviceHint: appVersion ?? null, headunitId: headunitId ?? null, expiresAt },
       });
 
       return reply.send({ pairingRequestId: pairing.id, code: pairing.code, expiresAt: pairing.expiresAt });
@@ -102,6 +103,15 @@ export async function deviceRoutes(app: FastifyInstance) {
       const device = req.authDevice!;
       if (!device.vehicleId) {
         return reply.code(409).send({ error: "Device is not paired to a vehicle" });
+      }
+
+      const vehicle = await prisma.vehicle.findUnique({ where: { id: device.vehicleId }, include: { user: true } });
+      if (!vehicle) {
+        return reply.code(404).send({ error: "Vehicle not found" });
+      }
+
+      if (vehicle.user.subscriptionStatus !== "PREMIUM" || (vehicle.user.subscriptionExpiresAt && vehicle.user.subscriptionExpiresAt < new Date())) {
+        return reply.code(403).send({ error: "SUBSCRIPTION_REQUIRED" });
       }
 
       const body = req.body as {

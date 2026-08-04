@@ -49,7 +49,23 @@ export async function userRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireUser);
 
   app.get("/me", async (req, reply) => {
-    const u = req.authUser!;
+    const u = await prisma.user.findUnique({ where: { id: req.authUser!.id } });
+    if (!u) return reply.code(404).send({ error: "User not found" });
+
+    const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const history = await prisma.deviceHistory.findMany({
+      where: { userId: u.id, firstPairedAt: { gte: oneYearAgo } },
+      select: { headunitId: true },
+      distinct: ['headunitId'],
+    });
+    const headunitSwapsUsed = history.length;
+
+    const baseSwaps = u.subscriptionTier === 'GARAGE' ? 5 : 2;
+    const headunitSwapsMax = baseSwaps + u.extraDeviceSwaps;
+    const maxVehicles = u.subscriptionTier === 'GARAGE' ? 3 : 1;
+
+    const activeVehiclesCount = await prisma.vehicle.count({ where: { userId: u.id } });
+
     return reply.send({
       id: u.id,
       email: u.email,
@@ -57,11 +73,20 @@ export async function userRoutes(app: FastifyInstance) {
       firstName: u.firstName,
       lastName: u.lastName,
       photoUrl: u.photoUrl,
-      // Drives the web app's onboarding gate (RequireProfile.tsx).
-      profileComplete: isProfileComplete(u),
+      profileComplete: isProfileComplete(u as any),
       legalVersion: u.legalVersion,
       currentLegalVersion: CURRENT_LEGAL_VERSION,
       createdAt: u.createdAt,
+      subscription: {
+        status: u.subscriptionStatus,
+        tier: u.subscriptionTier,
+        expiresAt: u.subscriptionExpiresAt,
+        maxVehicles,
+        activeVehiclesCount,
+        headunitSwapsUsed,
+        headunitSwapsMax,
+        headunitSwapsRemaining: Math.max(0, headunitSwapsMax - headunitSwapsUsed),
+      },
     });
   });
 
@@ -173,9 +198,38 @@ export async function userRoutes(app: FastifyInstance) {
       const { code } = req.body as { code: string };
       const userId = req.authUser!.id;
 
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return reply.code(404).send({ error: "User not found" });
+
+      if (user.subscriptionStatus !== "PREMIUM" || (user.subscriptionExpiresAt && user.subscriptionExpiresAt < new Date())) {
+        return reply.code(403).send({ error: "SUBSCRIPTION_REQUIRED" });
+      }
+
       const pairing = await prisma.pairingRequest.findUnique({ where: { code: code.trim().toUpperCase() } });
       if (!pairing || pairing.status !== "pending" || pairing.expiresAt < new Date()) {
         return reply.code(400).send({ error: "Invalid or expired code" });
+      }
+
+      if (pairing.headunitId) {
+        const hasSeenThisHeadunit = await prisma.deviceHistory.findFirst({
+          where: { userId, headunitId: pairing.headunitId }
+        });
+
+        if (!hasSeenThisHeadunit) {
+          const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+          const history = await prisma.deviceHistory.findMany({
+            where: { userId, firstPairedAt: { gte: oneYearAgo } },
+            select: { headunitId: true },
+            distinct: ['headunitId'],
+          });
+          const headunitSwapsUsed = history.length;
+          const baseSwaps = user.subscriptionTier === 'GARAGE' ? 5 : 2;
+          const headunitSwapsMax = baseSwaps + user.extraDeviceSwaps;
+
+          if (headunitSwapsUsed >= headunitSwapsMax) {
+            return reply.code(403).send({ error: "SWAP_LIMIT_EXCEEDED" });
+          }
+        }
       }
 
       // Resolve the vehicle by VIN - see DESIGN.md §7 step 5 for the three cases.
@@ -194,8 +248,25 @@ export async function userRoutes(app: FastifyInstance) {
           vehicleId: vehicle.id,
           deviceTokenHash: sha256Hex(rawToken),
           appVersion: pairing.deviceHint,
+          headunitId: pairing.headunitId,
         },
       });
+
+      if (pairing.headunitId) {
+        const existingHistory = await prisma.deviceHistory.findFirst({
+          where: { userId, headunitId: pairing.headunitId }
+        });
+        if (existingHistory) {
+          await prisma.deviceHistory.update({
+            where: { id: existingHistory.id },
+            data: { lastPairedAt: new Date(), isActive: true }
+          });
+        } else {
+          await prisma.deviceHistory.create({
+            data: { userId, headunitId: pairing.headunitId }
+          });
+        }
+      }
 
       await prisma.pairingRequest.update({
         where: { id: pairing.id },

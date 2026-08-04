@@ -44,6 +44,14 @@ model User {
 
   vehicles        Vehicle[]
   pairingsClaimed PairingRequest[]
+  subscriptionLogs SubscriptionLog[]
+  deviceHistory    DeviceHistory[]
+
+  role                  String    @default("USER")
+  subscriptionStatus    String    @default("FREE")
+  subscriptionTier      String    @default("STANDARD")
+  subscriptionExpiresAt DateTime? @map("subscription_expires_at")
+  extraDeviceSwaps      Int       @default(0) @map("extra_device_swaps")
 
   @@map("users")
 }
@@ -109,6 +117,7 @@ model Device {
   vehicle         Vehicle?  @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   deviceTokenHash String    @unique @map("device_token_hash")
   appVersion      String?   @map("app_version")
+  headunitId      String?   @map("headunit_id")
   lastSeenAt      DateTime? @map("last_seen_at")
   createdAt       DateTime  @default(now()) @map("created_at")
 
@@ -124,6 +133,7 @@ model PairingRequest {
   code          String   @unique
   vin           String
   deviceHint    String?  @map("device_hint")
+  headunitId    String?  @map("headunit_id")
   status        String   @default("pending") // pending | claimed | expired
   deviceId      String?  @map("device_id")
   device        Device?  @relation(fields: [deviceId], references: [id])
@@ -194,4 +204,46 @@ model Trip {
   @@unique([vehicleId, kind, startedAt])
   @@index([vehicleId, startedAt(sort: Desc)])
   @@map("trips")
+}
+
+model DiscountCode {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  discountType  String    @map("discount_type")
+  value         Float
+  maxUses       Int?      @map("max_uses")
+  usedCount     Int       @default(0) @map("used_count")
+  expiresAt     DateTime? @map("expires_at")
+  isGlobal      Boolean   @default(false) @map("is_global")
+  assignedEmail String?   @map("assigned_email")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@map("discount_codes")
+}
+
+model SubscriptionLog {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headunitId String?   @map("headunit_id")
+  status     String
+  tier       String
+  expiresAt  DateTime? @map("expires_at")
+  notes      String?
+  createdBy  String?   @map("created_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@map("subscription_logs")
+}
+
+model DeviceHistory {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headunitId    String    @map("headunit_id")
+  firstPairedAt DateTime  @default(now()) @map("first_paired_at")
+  lastPairedAt  DateTime  @default(now()) @map("last_paired_at")
+  isActive      Boolean   @default(true) @map("is_active")
+
+  @@map("device_history")
 }
