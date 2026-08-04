@@ -34,7 +34,7 @@ export const en: Record<keyof typeof it, string> = {
   "legal.terms": "Terms of Service",
   "legal.privacy": "Privacy Policy",
 
-  "appShell.myVehicles": "My vehicles",
+  "appShell.myVehicles": "Garage",
   "appShell.settings": "Settings",
   "appShell.logout": "Log out",
 

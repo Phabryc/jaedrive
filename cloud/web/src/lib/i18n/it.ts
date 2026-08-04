@@ -40,7 +40,7 @@ export const it = {
   "legal.privacy": "Informativa Privacy",
 
   // AppShell (barra di navigazione dell'app autenticata)
-  "appShell.myVehicles": "Le mie auto",
+  "appShell.myVehicles": "Garage",
   "appShell.settings": "Impostazioni",
   "appShell.logout": "Esci",
 
