@@ -160,7 +160,7 @@ export function StatsBody({
 
       {showElectric && (
         <Donut
-          className="order-3 col-span-12 sm:col-span-6 xl:order-none xl:col-span-4 xl:self-stretch flex flex-col"
+          className={`order-3 col-span-12 sm:col-span-6 ${hasTrend ? "xl:col-span-6" : "xl:col-span-4"} xl:order-none xl:self-stretch flex flex-col`}
           id="energyBreakdown"
           title={t("stats.energyBreakdown")}
           noDataLabel={t("stats.noDataYet")}
@@ -170,7 +170,15 @@ export function StatsBody({
         />
       )}
       <Donut
-        className={`order-3 col-span-12 sm:col-span-6 ${showElectric ? "xl:col-span-4" : "xl:col-span-8"} xl:order-none xl:self-stretch flex flex-col`}
+        className={`order-3 col-span-12 sm:col-span-6 ${
+          hasTrend
+            ? showElectric
+              ? "xl:col-span-6"
+              : "xl:col-span-12"
+            : showElectric
+              ? "xl:col-span-4"
+              : "xl:col-span-8"
+        } xl:order-none xl:self-stretch flex flex-col`}
         id="driveModeBreakdown"
         title={t("stats.driveModeBreakdown")}
         noDataLabel={t("stats.noDataYet")}
@@ -239,7 +247,7 @@ function Donut({
 
   return (
     <Collapsible className={className} id={id} title={title}>
-      <div className="flex-1 min-h-[200px] w-full">
+      <div className="flex-1 min-h-[220px] w-full">
         <ReactECharts
           option={{
             backgroundColor: "transparent",
@@ -255,15 +263,19 @@ function Donut({
             series: [
               {
                 type: "pie",
-                radius: ["45%", "70%"],
-                center: ["50%", "42%"],
+                radius: ["48%", "78%"],
+                center: ["50%", "44%"],
                 itemStyle: { borderColor: "#0A0A0A", borderWidth: 2 },
+                // Le etichette sulla torta (con linea di richiamo) venivano troncate ("H...")
+                // su contenitori stretti come una card mobile a piena larghezza - la legenda
+                // qui sotto identifica gia' ogni fetta per intero, quindi disattivate invece
+                // di provare a farci stare un testo lungo in poco spazio.
                 label: { show: false },
                 data: entries.map(([key, value]) => ({ name: labelMap?.[key] ?? key, value, itemStyle: { color: colorMap[key] } })),
               },
             ],
           }}
-          style={{ height: "100%", minHeight: 200 }}
+          style={{ height: "100%", minHeight: 220 }}
           notMerge
         />
       </div>
