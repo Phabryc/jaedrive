@@ -121,7 +121,7 @@ export default function Settings() {
   return (
     <AppShell>
       <div className="mx-auto max-w-2xl space-y-6">
-        <h1 className="text-xl font-semibold">Profilo ed Impostazioni</h1>
+        <h1 className="text-xl font-semibold">{t("settings.titleUnified")}</h1>
 
         {/* PROFILO UTENTE */}
         <section className="flex items-center gap-4 rounded-xl border border-surface-border bg-surface p-5">
@@ -149,7 +149,7 @@ export default function Settings() {
 
         {/* ABBONAMENTO E GARAGE */}
         <section className="rounded-xl border border-surface-border bg-surface p-5">
-          <h2 className="mb-4 text-base font-semibold">Abbonamento e Posti Garage</h2>
+          <h2 className="mb-4 text-base font-semibold">{t("settings.subAndGarage")}</h2>
 
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <span
@@ -163,45 +163,45 @@ export default function Settings() {
             </span>
             {sub?.expiresAt ? (
               <span className="text-xs text-onsurface-variant">
-                Scadenza: <strong>{new Date(sub.expiresAt).toLocaleDateString("it-IT")}</strong>
+                {t("settings.expiresOn")} <strong>{new Date(sub.expiresAt).toLocaleDateString()}</strong>
               </span>
             ) : (
-              <span className="text-xs text-onsurface-variant">Nessuna data di scadenza (Piano Free)</span>
+              <span className="text-xs text-onsurface-variant">{t("settings.noExpirationFree")}</span>
             )}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <div className="rounded-lg border border-surface-border bg-bg/50 p-3">
-              <p className="text-xs text-onsurface-variant">Posti Garage occupati</p>
+              <p className="text-xs text-onsurface-variant">{t("settings.garageSeatsOccupied")}</p>
               <p className="mt-1 font-bold">
-                {sub?.activeVehicles ?? 0} di {sub?.maxVehicles ?? 1} veicoli
+                {t("settings.vehiclesCount", { active: sub?.activeVehicles ?? 0, max: sub?.maxVehicles ?? 1 })}
               </p>
             </div>
             <div className="rounded-lg border border-surface-border bg-bg/50 p-3">
-              <p className="text-xs text-onsurface-variant">Cambi Headunit (ultimi 365 giorni)</p>
+              <p className="text-xs text-onsurface-variant">{t("settings.headunitSwapsLabel")}</p>
               <p className="mt-1 font-bold">
-                {sub?.headunitSwaps ?? 0} di {sub?.maxHeadunitSwaps ?? 2} usati
+                {t("settings.swapsCount", { used: sub?.headunitSwaps ?? 0, max: sub?.maxHeadunitSwaps ?? 2 })}
               </p>
             </div>
           </div>
 
           <p className="mt-3 text-xs text-onsurface-variant">
-            💡 <em>Nota: Il ricollegamento di un'Headunit già associata in precedenza non consuma quote di cambio.</em>
+            {t("settings.repairNotice")}
           </p>
 
           {/* RISCATTO CODICE PROMO */}
           <form onSubmit={handleRedeemPromo} className="mt-4 border-t border-surface-border pt-4">
-            <p className="text-xs font-semibold text-onsurface-variant mb-2">Riscatta Codice Promo / Sconto</p>
+            <p className="text-xs font-semibold text-onsurface-variant mb-2">{t("settings.redeemTitle")}</p>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="text"
-                placeholder="Es: PROMO2026"
+                placeholder={t("settings.redeemPlaceholder")}
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
                 className="min-w-0 flex-1 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm uppercase outline-none focus:border-accent"
               />
               <Button type="submit" variant="secondary" size="sm" disabled={redeemingPromo || !promoCode.trim()}>
-                {redeemingPromo ? "Verifica..." : "Riscatta Codice"}
+                {redeemingPromo ? t("settings.redeeming") : t("settings.redeemButton")}
               </Button>
             </div>
             {promoMessage && <p className="mt-2 text-xs font-semibold text-emerald-400">{promoMessage}</p>}
@@ -211,7 +211,7 @@ export default function Settings() {
 
         {/* LINGUA E UNITÀ */}
         <section className="space-y-3 rounded-xl border border-surface-border bg-surface p-5">
-          <h2 className="mb-2 text-base font-semibold">Preferenze Applicazione</h2>
+          <h2 className="mb-2 text-base font-semibold">{t("settings.appPreferences")}</h2>
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">{t("settings.language")}</p>
             <LanguageSwitcher />

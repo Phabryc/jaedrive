@@ -3,6 +3,7 @@ import { AppShell } from "../components/AppShell";
 import { Button } from "../components/Button";
 import { api, type Profile } from "../lib/api";
 import { IconCopy } from "../components/icons";
+import { useLanguage } from "../lib/i18n/LanguageContext";
 
 interface AdminStats {
   totalUsers: number;
@@ -34,6 +35,7 @@ function generateRandomCode(): string {
 }
 
 export default function AdminDashboard() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<"users" | "codes" | "stats">("users");
 
   // Users state
