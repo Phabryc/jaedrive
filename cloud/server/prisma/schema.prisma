@@ -48,8 +48,8 @@ model User {
   deviceHistory    DeviceHistory[]
 
   role                  String    @default("USER")
-  subscriptionStatus    String    @default("FREE")
-  subscriptionTier      String    @default("STANDARD")
+  subscriptionStatus    String    @default("FREE") @map("subscription_status")
+  subscriptionTier      String    @default("STANDARD") @map("subscription_tier")
   subscriptionExpiresAt DateTime? @map("subscription_expires_at")
   extraDeviceSwaps      Int       @default(0) @map("extra_device_swaps")
 
