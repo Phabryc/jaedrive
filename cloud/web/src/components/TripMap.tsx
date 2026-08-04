@@ -85,38 +85,35 @@ function PointPopupContent({
     point.regenLevel === 0 ? "ALTO" : point.regenLevel === 1 ? "MEDIO" : point.regenLevel === 2 ? "BASSO" : null;
 
   return (
-    <div className="p-1 text-xs text-onsurface space-y-2 min-w-[210px] max-w-[280px]">
-      <div className="font-semibold text-xs text-primary border-b border-surface-border/60 pb-1 flex items-center gap-1">
+    <div className="p-1 text-xs text-slate-100 space-y-2 min-w-[220px] max-w-[280px]">
+      <div className="font-semibold text-xs text-sky-400 border-b border-slate-700 pb-1.5 flex items-center gap-1">
         <span>📍</span>
         <span className="truncate">{address || "Caricamento indirizzo..."}</span>
       </div>
 
-      <div className="text-[11px] text-onsurface-variant space-y-0.5">
-        <div className="font-mono text-[10px]">
+      <div className="text-[11px] text-slate-300 space-y-1">
+        <div className="font-mono text-[10px] text-slate-400">
           {point.lat.toFixed(5)}, {point.lon.toFixed(5)}
           {point.ele != null && ` • ${Math.round(point.ele)}m`}
         </div>
-        <div>
-          Ora: <span className="font-medium text-onsurface">{timeStr}</span>
+        <div className="flex flex-wrap gap-x-2 text-slate-300">
+          <span>Ora: <strong className="text-white">{timeStr}</strong></span>
           {distance != null && (
-            <span>
-              {" "}
-              • Distanza: <span className="font-medium text-onsurface">{distance.toFixed(1)} {distanceUnit}</span>
-            </span>
+            <span>Distanza: <strong className="text-white">{distance.toFixed(1)} {distanceUnit}</strong></span>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 pt-0.5">
+      <div className="flex items-center gap-1.5 py-0.5">
         <span
-          className="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm"
+          className="px-2 py-0.5 rounded text-[11px] font-bold text-white shadow-sm"
           style={{ backgroundColor: BUCKET_COLOR[point.bucket] }}
         >
           {BUCKET_LABEL[point.bucket]}
         </span>
         {point.driveMode != null && (
           <span
-            className="px-2 py-0.5 rounded text-[10px] font-medium text-white opacity-90"
+            className="px-2 py-0.5 rounded text-[11px] font-semibold text-white shadow-sm"
             style={{ backgroundColor: DRIVE_MODE_COLOR[String(point.driveMode) as keyof typeof DRIVE_MODE_COLOR] }}
           >
             {DRIVE_MODE_LABEL[String(point.driveMode) as keyof typeof DRIVE_MODE_LABEL]}
@@ -124,19 +121,23 @@ function PointPopupContent({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1 text-[11px] pt-1.5 border-t border-surface-border/60">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px] pt-1.5 border-t border-slate-700">
         <div>
-          Velocità: <span className="font-semibold text-white">{speedVal} {sUnit}</span>
+          <span className="text-slate-400">Velocità:</span>{" "}
+          <strong className="text-white font-bold">{speedVal} {sUnit}</strong>
         </div>
         <div>
-          SOC Batt.: <span className="font-semibold text-white">{point.batteryPct != null ? `${point.batteryPct}%` : "–"}</span>
+          <span className="text-slate-400">SOC Batt.:</span>{" "}
+          <strong className="text-white font-bold">{point.batteryPct != null ? `${point.batteryPct}%` : "–"}</strong>
         </div>
         <div>
-          Carburante: <span className="font-semibold text-white">{point.fuelPct != null ? `${point.fuelPct}%` : "–"}</span>
+          <span className="text-slate-400">Carburante:</span>{" "}
+          <strong className="text-white font-bold">{point.fuelPct != null ? `${point.fuelPct}%` : "–"}</strong>
         </div>
         {regenStr && (
           <div>
-            Rigeneraz.: <span className="font-semibold text-white">{regenStr}</span>
+            <span className="text-slate-400">Rigeneraz.:</span>{" "}
+            <strong className="text-white font-bold">{regenStr}</strong>
           </div>
         )}
       </div>
