@@ -31,7 +31,44 @@ export async function adminRoutes(app: FastifyInstance) {
     if (status) where.subscriptionStatus = status;
 
     const users = await prisma.user.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 });
-    return reply.send(users);
+    const mappedUsers = await Promise.all(
+      users.map(async (u) => {
+        const activeVehiclesCount = await prisma.vehicle.count({ where: { userId: u.id } });
+        const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+        let headunitSwaps = 0;
+        try {
+          const history = await (prisma as any).deviceHistory?.findMany({
+            where: { userId: u.id, firstPairedAt: { gte: oneYearAgo } },
+            select: { headunitId: true },
+            distinct: ['headunitId'],
+          });
+          if (history) headunitSwaps = history.length;
+        } catch {}
+
+        const subscriptionTier = u.subscriptionTier ?? "STANDARD";
+        const maxVehicles = subscriptionTier === "GARAGE" ? 3 : 1;
+        const baseSwaps = subscriptionTier === "GARAGE" ? 5 : 2;
+        const maxHeadunitSwaps = baseSwaps + (u.extraDeviceSwaps ?? 0);
+
+        return {
+          ...u,
+          subscriptionStatus: u.subscriptionStatus ?? "FREE",
+          subscriptionTier,
+          subscriptionExpiresAt: u.subscriptionExpiresAt,
+          subscription: {
+            status: u.subscriptionStatus ?? "FREE",
+            tier: subscriptionTier,
+            expiresAt: u.subscriptionExpiresAt ? u.subscriptionExpiresAt.toISOString() : null,
+            activeVehicles: activeVehiclesCount,
+            activeVehiclesCount,
+            maxVehicles,
+            headunitSwaps,
+            maxHeadunitSwaps,
+          },
+        };
+      })
+    );
+    return reply.send(mappedUsers);
   });
 
   app.post("/users/:userId/subscription", async (req, reply) => {
