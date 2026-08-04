@@ -142,7 +142,7 @@ export default function AdminDashboard() {
       setSelectedUser(null);
       await loadUsers();
     } catch (err) {
-      alert("Errore nell'aggiornamento dell'abbonamento");
+      alert(t("admin.errUpdateSub"));
     } finally {
       setUpdatingSub(false);
     }
@@ -152,20 +152,20 @@ export default function AdminDashboard() {
     try {
       await api.adminAddExtraSwap(userId);
       await loadUsers();
-      alert("Concesso +1 cambio Headunit straordinario!");
+      alert(t("admin.grantedExtraSwap"));
     } catch {
-      alert("Errore nell'aggiunta del cambio extra");
+      alert(t("admin.errAddSwap"));
     }
   }
 
   async function handleToggleRole(u: Profile) {
     const newRole = u.role === "ADMIN" ? "USER" : "ADMIN";
-    if (!confirm(`Sei sicuro di voler impostare il ruolo di ${u.email} a ${newRole}?`)) return;
+    if (!confirm(t("admin.confirmChangeRole", { email: u.email ?? "", role: newRole }))) return;
     try {
       await api.adminUpdateRole(u.id, newRole);
       await loadUsers();
     } catch {
-      alert("Errore nell'aggiornamento del ruolo");
+      alert(t("admin.errUpdateRole"));
     }
   }
 
@@ -187,19 +187,19 @@ export default function AdminDashboard() {
       setNewMaxUses("");
       await loadCodes();
     } catch {
-      alert("Errore nella creazione del codice sconto");
+      alert(t("admin.errCreateCode"));
     } finally {
       setCreatingCode(false);
     }
   }
 
   async function handleDeleteCode(id: string) {
-    if (!confirm("Eliminare questo codice sconto?")) return;
+    if (!confirm(t("admin.confirmDeleteCode"))) return;
     try {
       await api.adminDeleteDiscountCode(id);
       await loadCodes();
     } catch {
-      alert("Errore nella cancellazione del codice");
+      alert(t("admin.errDeleteCode"));
     }
   }
 
@@ -310,10 +310,10 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-3 text-xs">
                             <div>
-                              Posti: {u.subscription?.activeVehicles ?? 0} / {u.subscription?.maxVehicles ?? 1}
+                              {t("admin.seatsCount", { active: u.subscription?.activeVehicles ?? 0, max: u.subscription?.maxVehicles ?? 1 })}
                             </div>
                             <div className="text-onsurface-variant">
-                              Cambi: {u.subscription?.headunitSwaps ?? 0} / {u.subscription?.maxHeadunitSwaps ?? 2}
+                              {t("admin.swapsCount", { used: u.subscription?.headunitSwaps ?? 0, max: u.subscription?.maxHeadunitSwaps ?? 2 })}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right space-x-2">
@@ -346,7 +346,7 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
-                    placeholder="Es: X7K9P2M4"
+                    placeholder={t("admin.codePlaceholder")}
                     value={newCode}
                     onChange={(e) => setNewCode(e.target.value.toUpperCase())}
                     className="w-36 rounded-lg border border-surface-border bg-bg px-3 py-1.5 font-mono text-sm uppercase outline-none focus:border-accent"
@@ -363,7 +363,7 @@ export default function AdminDashboard() {
                     <button
                       type="button"
                       onClick={() => copyCode(newCode)}
-                      title="Copia codice"
+                      title={t("admin.copyTitle")}
                       className="rounded-lg border border-surface-border bg-bg p-2 text-onsurface-variant hover:border-accent hover:text-accent transition"
                     >
                       <IconCopy size={16} />
@@ -400,7 +400,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs text-onsurface-variant mb-1">{t("admin.maxUsesLabel")}</label>
                 <input
                   type="number"
-                  placeholder="Es: 100 o vuoto"
+                  placeholder={t("admin.maxUsesPlaceholder")}
                   value={newMaxUses}
                   onChange={(e) => setNewMaxUses(e.target.value)}
                   className="w-32 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs text-onsurface-variant mb-1">{t("admin.assignedEmailLabel")}</label>
                 <input
                   type="email"
-                  placeholder="adpersonam@email.com"
+                  placeholder={t("admin.assignedEmailPlaceholder")}
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   className="w-56 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
@@ -444,7 +444,7 @@ export default function AdminDashboard() {
                             <button
                               type="button"
                               onClick={() => copyCode(c.code)}
-                              title="Copia codice"
+                              title={t("admin.copyTitle")}
                               className="rounded border border-surface-border bg-bg p-1 text-onsurface-variant hover:border-accent hover:text-accent transition"
                             >
                               <IconCopy size={14} />
@@ -454,19 +454,19 @@ export default function AdminDashboard() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-xs">
                           {c.discountType === "PERCENT" && `${c.value}%`}
                           {c.discountType === "FIXED_AMOUNT" && `${c.value} €`}
-                          {c.discountType === "FREE_DAYS" && `${c.value} giorni`}
+                          {c.discountType === "FREE_DAYS" && t("admin.daysCount", { count: c.value })}
                         </td>
                         <td className="px-4 py-3 text-xs">
                           {c.assignedEmail ? (
-                            <span className="text-sky-400">Ad Personam ({c.assignedEmail})</span>
+                            <span className="text-sky-400">{t("admin.adPersonam", { email: c.assignedEmail })}</span>
                           ) : (
-                            <span className="text-emerald-400">Globale</span>
+                            <span className="text-emerald-400">{t("admin.globalTarget")}</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs">{c.usedCount} utilizzi</td>
+                        <td className="px-4 py-3 text-xs">{t("admin.usesCount", { count: c.usedCount })}</td>
                         <td className="px-4 py-3 text-right">
                           <Button variant="danger" size="sm" onClick={() => handleDeleteCode(c.id)}>
                             {t("common.delete")}
@@ -525,8 +525,8 @@ export default function AdminDashboard() {
                   onChange={(e: any) => setModalStatus(e.target.value)}
                   className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
                 >
-                  <option value="FREE">FREE (Nessun Cloud)</option>
-                  <option value="PREMIUM">PREMIUM (Attivo)</option>
+                  <option value="FREE">{t("admin.freeNoCloud")}</option>
+                  <option value="PREMIUM">{t("admin.premiumActive")}</option>
                 </select>
               </div>
 
@@ -537,8 +537,8 @@ export default function AdminDashboard() {
                   onChange={(e: any) => setModalTier(e.target.value)}
                   className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
                 >
-                  <option value="STANDARD">Standard (1 Auto, 2 Cambi/anno)</option>
-                  <option value="GARAGE">Garage (3 Auto, 5 Cambi/anno)</option>
+                  <option value="STANDARD">{t("admin.standardTierDesc")}</option>
+                  <option value="GARAGE">{t("admin.garageTierDesc")}</option>
                 </select>
               </div>
 
@@ -556,7 +556,7 @@ export default function AdminDashboard() {
                 <label className="block text-xs font-medium mb-1">{t("admin.modalNotes")}</label>
                 <input
                   type="text"
-                  placeholder="Es: Pagato via PayPal ref #12345"
+                  placeholder={t("admin.notesPlaceholder")}
                   value={modalNotes}
                   onChange={(e) => setModalNotes(e.target.value)}
                   className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
