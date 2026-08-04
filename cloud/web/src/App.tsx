@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import LegalDocument from "./pages/LegalDocument";
 import ProfilePage from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
+import Plans from "./pages/Plans";
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       {/* Pubblica, nessun ProtectedRoute - deve restare leggibile anche prima del login. */}
       <Route path="/legal/:doc" element={<LegalDocument />} />
+      <Route path="/plans" element={<Plans />} />
       <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/pair" element={<Protected><Pair /></Protected>} />

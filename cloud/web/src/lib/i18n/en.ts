@@ -354,4 +354,5 @@ export const en: Record<keyof typeof it, string> = {
   "admin.tplVehicleDeleted": "🗑️ Car Deleted",
   "admin.tplAccountDeleted": "👋 Account Deleted",
   "admin.tplDiscountCode": "🎁 Promo Code (Personal)",
+  "landing.plansLink": "Plans",
 };

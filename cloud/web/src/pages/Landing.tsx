@@ -115,6 +115,10 @@ export default function Landing() {
           <Link to="/legal/privacy" className="hover:text-onsurface hover:underline">
             {t("legal.privacy")}
           </Link>
+          <span className="mx-2">·</span>
+          <Link to="/plans" className="hover:text-onsurface hover:underline">
+            {t("landing.plansLink")}
+          </Link>
         </p>
         <p className="mt-3">{t("landing.disclaimer")}</p>
       </footer>

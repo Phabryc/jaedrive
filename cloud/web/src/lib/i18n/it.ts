@@ -376,4 +376,5 @@ export const it = {
   "admin.tplVehicleDeleted": "🗑️ Cancellazione Auto",
   "admin.tplAccountDeleted": "👋 Cancellazione Account",
   "admin.tplDiscountCode": "🎁 Codice Sconto (Ad Personam)",
+  "landing.plansLink": "Piani",
 } as const;
