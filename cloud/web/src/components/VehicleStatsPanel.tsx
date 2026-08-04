@@ -65,11 +65,18 @@ export function VehicleStatsPanel({
         ? `${formatDay(rangeFrom)} → ${formatDay(rangeTo)}`
         : formatDay(rangeFrom);
 
+  const calendarNode = (
+    <CalendarHeatmap
+      className="order-1 col-span-12 xl:order-none xl:col-span-4 xl:self-stretch"
+      vehicleId={vehicleId}
+      rangeFrom={rangeFrom}
+      rangeTo={rangeTo}
+      onRangeChange={onRangeChange}
+    />
+  );
+
   return (
     <>
-      {/* Ben visibile in cima, non solo dentro il calendario piu' sotto (che puo' essere
-          collassato, o fuori schermo) - il periodo si applica a TUTto quello che segue,
-          KPI/grafici/donut compresi, non solo alla lista viaggi. */}
       {rangeLabel && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn bg-warn/10 px-4 py-2 text-sm text-warn">
           <span>{t("stats.rangeActive", { range: rangeLabel })}</span>
@@ -82,41 +89,28 @@ export function VehicleStatsPanel({
         </div>
       )}
       <div className={`mb-6 ${STATS_GRID_CLASS}`}>
-        {/* BUG TROVATO 2026-08-01: prima c'era un "return" anticipato qui sopra quando
-            stats===null (durante il refetch dopo ogni cambio di periodo), che smontava
-            l'intero pannello - CalendarHeatmap compreso. Il suo stato locale (modalita'
-            "Periodo", giorno di inizio in attesa del secondo click) veniva perso ad ogni
-            singolo click, cosi' il secondo click non completava mai il periodo. Ora
-            CalendarHeatmap resta sempre montato: solo il posto di StatsBody mostra un
-            placeholder di caricamento mentre i nuovi dati arrivano. */}
         {stats ? (
-          <StatsBody stats={stats} showElectric={showElectric} />
+          <StatsBody stats={stats} showElectric={showElectric} calendar={calendarNode} />
         ) : (
-          <p className="col-span-12 text-sm text-onsurface-variant">{t("stats.loading")}</p>
+          <>
+            <p className="col-span-12 text-sm text-onsurface-variant">{t("stats.loading")}</p>
+            {calendarNode}
+          </>
         )}
-        <CalendarHeatmap
-          className="order-1 col-span-12 xl:order-none xl:col-span-4"
-          vehicleId={vehicleId}
-          rangeFrom={rangeFrom}
-          rangeTo={rangeTo}
-          onRangeChange={onRangeChange}
-        />
       </div>
     </>
   );
 }
 
-// Corpo delle statistiche senza il calendario ne' il fetch - estratto (2026-07-26) perche'
-// serve identico anche per un sottoinsieme di trip (percorso preimpostato, o il range di
-// date di un trip manuale - vedi jaedrive_todo #14/#15), dove un calendario annuale non ha
-// senso (il periodo e' gia' arbitrario/ristretto). Il chiamante fa il fetch e passa lo
-// `stats` gia' pronto.
-// Ogni elemento e' ora un item DIRETTO della griglia del chiamante (STATS_GRID_CLASS),
-// niente piu' `<div className="grid ...">` annidati: e' quello che permetteva a un donut
-// collassato di restare comunque alto quanto il suo vicino nella stessa riga (un grid item
-// si "stretch"-a di default all'altezza della riga) - vedi Collapsible.tsx (che risolve il
-// caso base con `items-start` sul contenitore) e la nota sopra STATS_GRID_CLASS.
-export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showElectric: boolean }) {
+export function StatsBody({
+  stats,
+  showElectric,
+  calendar,
+}: {
+  stats: VehicleStats;
+  showElectric: boolean;
+  calendar?: ReactNode;
+}) {
   const { t } = useLanguage();
   const { distanceUnit, consumptionFormat } = useUnits();
   const { totals, energyFlowBreakdown, driveModeBreakdown, evHevKmSplit, consumptionTrend, bestTrip, worstTrip } = stats;
@@ -137,32 +131,36 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
       )}
 
       {hasTrend && (
-        <Collapsible className="order-2 col-span-12 xl:order-none xl:col-span-8" id="consumptionTrend" title={t("stats.consumptionTrend")}>
-          <ReactECharts
-            option={{
-              ...baseGridOptions,
-              xAxis: { type: "category" as const, data: consumptionTrend.map((p) => p.date), axisLine: { lineStyle: { color: CHART_BORDER } }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 10 } },
-              yAxis: { type: "value" as const, name: consumptionUnitLabel(distanceUnit, consumptionFormat), axisLine: { show: false }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 11 }, splitLine: { lineStyle: { color: CHART_BORDER } } },
-              series: [
-                {
-                  type: "line",
-                  showSymbol: consumptionTrend.length < 40,
-                  lineStyle: { width: 2, color: "#00BFFF" },
-                  itemStyle: { color: "#00BFFF" },
-                  areaStyle: { color: "#00BFFF", opacity: 0.1 },
-                  data: consumptionTrend.map((p) => toDisplayConsumption(p.avgConsumption, distanceUnit, consumptionFormat)),
-                },
-              ],
-            }}
-            style={{ height: 220 }}
-            notMerge
-          />
+        <Collapsible className="order-2 col-span-12 xl:order-none xl:col-span-8 xl:self-stretch flex flex-col" id="consumptionTrend" title={t("stats.consumptionTrend")}>
+          <div className="flex-1 min-h-[220px] w-full">
+            <ReactECharts
+              option={{
+                ...baseGridOptions,
+                xAxis: { type: "category" as const, data: consumptionTrend.map((p) => p.date), axisLine: { lineStyle: { color: CHART_BORDER } }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 10 } },
+                yAxis: { type: "value" as const, name: consumptionUnitLabel(distanceUnit, consumptionFormat), axisLine: { show: false }, axisLabel: { color: CHART_TEXT_MUTED, fontSize: 11 }, splitLine: { lineStyle: { color: CHART_BORDER } } },
+                series: [
+                  {
+                    type: "line",
+                    showSymbol: consumptionTrend.length < 40,
+                    lineStyle: { width: 2, color: "#00BFFF" },
+                    itemStyle: { color: "#00BFFF" },
+                    areaStyle: { color: "#00BFFF", opacity: 0.1 },
+                    data: consumptionTrend.map((p) => toDisplayConsumption(p.avgConsumption, distanceUnit, consumptionFormat)),
+                  },
+                ],
+              }}
+              style={{ height: "100%", minHeight: 220 }}
+              notMerge
+            />
+          </div>
         </Collapsible>
       )}
 
+      {calendar}
+
       {showElectric && (
         <Donut
-          className="order-3 col-span-12 sm:col-span-6 xl:order-none"
+          className="order-3 col-span-12 sm:col-span-6 xl:order-none xl:col-span-4 xl:self-stretch flex flex-col"
           id="energyBreakdown"
           title={t("stats.energyBreakdown")}
           noDataLabel={t("stats.noDataYet")}
@@ -172,7 +170,7 @@ export function StatsBody({ stats, showElectric }: { stats: VehicleStats; showEl
         />
       )}
       <Donut
-        className="order-3 col-span-12 sm:col-span-6 xl:order-none"
+        className={`order-3 col-span-12 sm:col-span-6 ${showElectric ? "xl:col-span-4" : "xl:col-span-8"} xl:order-none xl:self-stretch flex flex-col`}
         id="driveModeBreakdown"
         title={t("stats.driveModeBreakdown")}
         noDataLabel={t("stats.noDataYet")}
@@ -241,36 +239,34 @@ function Donut({
 
   return (
     <Collapsible className={className} id={id} title={title}>
-      <ReactECharts
-        option={{
-          backgroundColor: "transparent",
-          textStyle: { color: "#E5E2E1", fontFamily: "Inter, system-ui, sans-serif" },
-          tooltip: {
-            trigger: "item",
-            backgroundColor: CHART_SURFACE,
-            borderColor: CHART_BORDER,
-            textStyle: { color: "#E5E2E1" },
-            formatter: (p: { name: string; value: number }) => `${p.name}: ${p.value.toFixed(0)}%`,
-          },
-          legend: { bottom: 0, textStyle: { color: CHART_TEXT_MUTED, fontSize: 11 } },
-          series: [
-            {
-              type: "pie",
-              radius: ["45%", "70%"],
-              center: ["50%", "42%"],
-              itemStyle: { borderColor: "#0A0A0A", borderWidth: 2 },
-              // Le etichette sulla torta (con linea di richiamo) venivano troncate ("H...")
-              // su contenitori stretti come una card mobile a piena larghezza - la legenda
-              // qui sotto identifica gia' ogni fetta per intero, quindi disattivate invece
-              // di provare a farci stare un testo lungo in poco spazio.
-              label: { show: false },
-              data: entries.map(([key, value]) => ({ name: labelMap?.[key] ?? key, value, itemStyle: { color: colorMap[key] } })),
+      <div className="flex-1 min-h-[200px] w-full">
+        <ReactECharts
+          option={{
+            backgroundColor: "transparent",
+            textStyle: { color: "#E5E2E1", fontFamily: "Inter, system-ui, sans-serif" },
+            tooltip: {
+              trigger: "item",
+              backgroundColor: CHART_SURFACE,
+              borderColor: CHART_BORDER,
+              textStyle: { color: "#E5E2E1" },
+              formatter: (p: { name: string; value: number }) => `${p.name}: ${p.value.toFixed(0)}%`,
             },
-          ],
-        }}
-        style={{ height: 240 }}
-        notMerge
-      />
+            legend: { bottom: 0, textStyle: { color: CHART_TEXT_MUTED, fontSize: 11 } },
+            series: [
+              {
+                type: "pie",
+                radius: ["45%", "70%"],
+                center: ["50%", "42%"],
+                itemStyle: { borderColor: "#0A0A0A", borderWidth: 2 },
+                label: { show: false },
+                data: entries.map(([key, value]) => ({ name: labelMap?.[key] ?? key, value, itemStyle: { color: colorMap[key] } })),
+              },
+            ],
+          }}
+          style={{ height: "100%", minHeight: 200 }}
+          notMerge
+        />
+      </div>
     </Collapsible>
   );
 }

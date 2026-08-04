@@ -43,7 +43,7 @@ export function Collapsible({
   }, [id, collapsed]);
 
   return (
-    <div className={`rounded-lg border border-surface-border bg-surface p-4 ${className}`.trim()}>
+    <div className={`rounded-lg border border-surface-border bg-surface p-4 ${collapsed ? "!self-start !h-auto" : ""} ${className}`.trim()}>
       <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-2 ${collapsed ? "" : "mb-3"}`}>
         <button
           onClick={() => setCollapsed((c) => !c)}
@@ -66,7 +66,7 @@ export function Collapsible({
         </button>
         {headerExtra}
       </div>
-      {!collapsed && children}
+      {!collapsed && <div className="flex-1 min-h-0 flex flex-col">{children}</div>}
     </div>
   );
 }
