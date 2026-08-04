@@ -24,7 +24,7 @@ export async function sendEmail({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "JaeDrive <noreply@jaedrive.com>",
+        from: env.fromEmail,
         to,
         subject,
         html,

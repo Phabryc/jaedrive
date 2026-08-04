@@ -17,5 +17,6 @@ export const env = {
   firebaseServiceAccountJson: required("FIREBASE_SERVICE_ACCOUNT_JSON"),
   nodeEnv: process.env.NODE_ENV ?? "development",
   resendApiKey: process.env.RESEND_API_KEY,
+  fromEmail: process.env.FROM_EMAIL ?? "JaeDrive <noreply@jaedrive.com>",
   adminEmails: process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(",").map(e => e.trim()) : [],
 };
