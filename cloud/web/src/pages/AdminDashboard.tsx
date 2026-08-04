@@ -202,6 +202,20 @@ export default function AdminDashboard() {
     }
   }
 
+  function addMonthsToModalDate(monthsCount: number) {
+    let baseDate: Date;
+    if (modalExpiresAt && !isNaN(Date.parse(modalExpiresAt))) {
+      baseDate = new Date(modalExpiresAt);
+    } else {
+      baseDate = new Date();
+    }
+    baseDate.setMonth(baseDate.getMonth() + monthsCount);
+    const year = baseDate.getFullYear();
+    const month = String(baseDate.getMonth() + 1).padStart(2, "0");
+    const day = String(baseDate.getDate()).padStart(2, "0");
+    setModalExpiresAt(`${year}-${month}-${day}`);
+  }
+
   return (
     <AppShell>
       <div className="mx-auto max-w-7xl space-y-6">
@@ -665,6 +679,29 @@ export default function AdminDashboard() {
                   onChange={(e) => setModalExpiresAt(e.target.value)}
                   className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
                 />
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => addMonthsToModalDate(1)}
+                    className="rounded-md border border-surface-border bg-bg px-3 py-1 text-xs font-medium text-onsurface-variant hover:border-accent hover:text-accent transition"
+                  >
+                    +1m
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addMonthsToModalDate(3)}
+                    className="rounded-md border border-surface-border bg-bg px-3 py-1 text-xs font-medium text-onsurface-variant hover:border-accent hover:text-accent transition"
+                  >
+                    +3m
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addMonthsToModalDate(12)}
+                    className="rounded-md border border-surface-border bg-bg px-3 py-1 text-xs font-medium text-onsurface-variant hover:border-accent hover:text-accent transition"
+                  >
+                    +1y
+                  </button>
+                </div>
               </div>
 
               <div>
