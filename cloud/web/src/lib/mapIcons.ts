@@ -21,3 +21,14 @@ export const END_ICON = L.divIcon({
   iconSize: [28, 28],
   iconAnchor: [5, 28],
 });
+
+export const HIGHLIGHT_ICON = L.divIcon({
+  className: "",
+  html: `<div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
+    <div style="position:absolute;width:24px;height:24px;border-radius:50%;background:#00BFFF;opacity:0.4;animation:ping 1.5s cubic-bezier(0,0,0.2,1) infinite;"></div>
+    <div style="width:14px;height:14px;border-radius:50%;background:#00BFFF;border:2.5px solid #FFFFFF;box-shadow:0 0 8px rgba(0,191,255,0.8);"></div>
+  </div>`,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+});
+

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { GpxPoint } from "../lib/gpx";
 import { BUCKET_COLOR, BUCKET_LABEL } from "../lib/energyFlow";
@@ -17,16 +18,14 @@ interface TooltipParam {
   value: [number, number];
 }
 
-// Batteria e carburante condividono lo stesso asse 0-100% (unita' di misura identica) - le
-// due misure NON vengono mai messe su assi diversi nello stesso grafico, vedi dataviz skill
-// ("one axis", mai un asse Y doppio): velocita' e quota, che hanno scale diverse, hanno
-// ciascuna il proprio grafico piu' sotto in questo stesso file.
-//
-// Integrato con la modalita' energia come fasce di sfondo (markArea) invece di una striscia
-// separata: l'obiettivo (richiesto dall'utente) e' vedere a colpo d'occhio se un
-// attacco/distacco dell'EV coincide con un certo livello di batteria, cosa che due widget
-// separati non mostrerebbero senza dover incrociare manualmente le posizioni sull'asse X.
-export function BatteryFuelChart({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
+export interface TimelineChartProps {
+  points: GpxPoint[];
+  distances: number[];
+  unit: DistanceUnit;
+  onHighlightIndex?: (idx: number | null) => void;
+}
+
+export function BatteryFuelChart({ points, distances, unit, onHighlightIndex }: TimelineChartProps) {
   const { t } = useLanguage();
   const hasBattery = points.some((p) => p.batteryPct != null);
   const hasFuel = points.some((p) => p.fuelPct != null);
@@ -84,18 +83,32 @@ export function BatteryFuelChart({ points, distances, unit }: { points: GpxPoint
         lineStyle: { width: 2, color: CHART_WARN },
         itemStyle: { color: CHART_WARN },
         data: points.map((p, i) => [distances[i], p.fuelPct]),
-        // markArea va su una sola serie (renderebbe due volte altrimenti) - sulla batteria
-        // se presente, altrimenti sul carburante.
         ...(hasBattery ? {} : { markArea }),
       },
     ].filter(Boolean),
   };
 
+  const onEvents = useMemo(
+    () => ({
+      updateAxisPointer: (e: any) => {
+        if (e.dataIndex != null) {
+          onHighlightIndex?.(e.dataIndex);
+        } else if (e.axesInfo && e.axesInfo[0] && e.axesInfo[0].dataIndex != null) {
+          onHighlightIndex?.(e.axesInfo[0].dataIndex);
+        }
+      },
+      globalout: () => {
+        onHighlightIndex?.(null);
+      },
+    }),
+    [onHighlightIndex]
+  );
+
   return (
     <div className={CARD}>
       <p className="mb-1 text-sm font-medium">{t("charts.batteryFuelTitle")}</p>
       <p className="mb-1 text-xs text-onsurface-variant">{t("charts.batteryFuelHint")}</p>
-      <ReactECharts option={option} style={{ height: HEIGHT }} notMerge />
+      <ReactECharts option={option} style={{ height: HEIGHT }} notMerge onEvents={onEvents} />
       {presentBuckets.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-onsurface-variant">
           {presentBuckets.map((b) => (
@@ -110,7 +123,7 @@ export function BatteryFuelChart({ points, distances, unit }: { points: GpxPoint
   );
 }
 
-export function SpeedChart({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
+export function SpeedChart({ points, distances, unit, onHighlightIndex }: TimelineChartProps) {
   const { t } = useLanguage();
   if (!points.some((p) => p.speedKmh != null)) return null;
 
@@ -131,18 +144,31 @@ export function SpeedChart({ points, distances, unit }: { points: GpxPoint[]; di
     ],
   };
 
+  const onEvents = useMemo(
+    () => ({
+      updateAxisPointer: (e: any) => {
+        if (e.dataIndex != null) {
+          onHighlightIndex?.(e.dataIndex);
+        } else if (e.axesInfo && e.axesInfo[0] && e.axesInfo[0].dataIndex != null) {
+          onHighlightIndex?.(e.axesInfo[0].dataIndex);
+        }
+      },
+      globalout: () => {
+        onHighlightIndex?.(null);
+      },
+    }),
+    [onHighlightIndex]
+  );
+
   return (
     <div className={CARD}>
       <p className="mb-1 text-sm font-medium">{t("charts.speed")}</p>
-      <ReactECharts option={option} style={{ height: HEIGHT }} notMerge />
+      <ReactECharts option={option} style={{ height: HEIGHT }} notMerge onEvents={onEvents} />
     </div>
   );
 }
 
-// Sfondo colorato per modalita' di guida (ECO/NORMAL/SPORT), stessa tecnica delle markArea
-// di BatteryFuelChart - l'utente vuole vedere se un tratto in salita/discesa coincide con
-// una certa modalita' di guida.
-export function ElevationChart({ points, distances, unit }: { points: GpxPoint[]; distances: number[]; unit: DistanceUnit }) {
+export function ElevationChart({ points, distances, unit, onHighlightIndex }: TimelineChartProps) {
   const { t } = useLanguage();
   if (!points.some((p) => p.ele != null)) return null;
 
@@ -191,11 +217,27 @@ export function ElevationChart({ points, distances, unit }: { points: GpxPoint[]
     ],
   };
 
+  const onEvents = useMemo(
+    () => ({
+      updateAxisPointer: (e: any) => {
+        if (e.dataIndex != null) {
+          onHighlightIndex?.(e.dataIndex);
+        } else if (e.axesInfo && e.axesInfo[0] && e.axesInfo[0].dataIndex != null) {
+          onHighlightIndex?.(e.axesInfo[0].dataIndex);
+        }
+      },
+      globalout: () => {
+        onHighlightIndex?.(null);
+      },
+    }),
+    [onHighlightIndex]
+  );
+
   return (
     <div className={CARD}>
       <p className="mb-1 text-sm font-medium">{t("charts.elevationTitle")}</p>
       <p className="mb-1 text-xs text-onsurface-variant">{t("charts.elevationHint")}</p>
-      <ReactECharts option={option} style={{ height: HEIGHT }} notMerge />
+      <ReactECharts option={option} style={{ height: HEIGHT }} notMerge onEvents={onEvents} />
       {presentModes.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-onsurface-variant">
           {presentModes.map((m) => (

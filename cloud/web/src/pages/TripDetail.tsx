@@ -32,6 +32,7 @@ export default function TripDetail() {
   const [trip, setTrip] = useState<TripDetailType | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   // Salvataggio come percorso preimpostato (jaedrive_todo #14) - solo per trip AUTO con
   // traccia GPX, vedi routes/user.ts POST .../routes (usa questo trip come "modello" per
@@ -188,7 +189,15 @@ export default function TripDetail() {
         </p>
       )}
 
-      {trip.gpxRaw && <TripMap gpxRaw={trip.gpxRaw} />}
+      {trip.gpxRaw && (
+        <TripMap
+          gpxRaw={trip.gpxRaw}
+          points={points}
+          distances={distances}
+          selectedIndex={selectedIndex}
+          onSelectIndex={setSelectedIndex}
+        />
+      )}
 
       <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-3">
         <Stat icon={<IconRoute size={18} />} label={t("trip.kmTraveled")} value={trip.km != null ? formatDistance(trip.km, distanceUnit) : "–"} />
@@ -228,9 +237,9 @@ export default function TripDetail() {
             colorMap={DRIVE_MODE_COLOR}
             labelMap={DRIVE_MODE_LABEL}
           />
-          <BatteryFuelChart points={points} distances={distances} unit={distanceUnit} />
-          <SpeedChart points={points} distances={distances} unit={distanceUnit} />
-          <ElevationChart points={points} distances={distances} unit={distanceUnit} />
+          <BatteryFuelChart points={points} distances={distances} unit={distanceUnit} onHighlightIndex={setSelectedIndex} />
+          <SpeedChart points={points} distances={distances} unit={distanceUnit} onHighlightIndex={setSelectedIndex} />
+          <ElevationChart points={points} distances={distances} unit={distanceUnit} onHighlightIndex={setSelectedIndex} />
           <ExperimentalTripCharts points={points} distances={distances} unit={distanceUnit} />
         </div>
       )}
