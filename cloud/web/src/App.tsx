@@ -43,7 +43,7 @@ export default function App() {
       <Route path="/vehicles/:vehicleId/routes/:routeId" element={<Protected><RouteDetail /></Protected>} />
       <Route path="/trips/:id" element={<Protected><TripDetail /></Protected>} />
       <Route path="/settings" element={<Protected><Settings /></Protected>} />
-      <Route path="/profile" element={<Protected><ProfilePage /></Protected>} />
+      <Route path="/profile" element={<Navigate to="/settings" replace />} />
       <Route path="/admin" element={<Protected><AdminDashboard /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

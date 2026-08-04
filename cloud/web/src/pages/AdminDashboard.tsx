@@ -1,42 +1,510 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "../components/AppShell";
+import { Button } from "../components/Button";
 import { api, type Profile } from "../lib/api";
+
+interface AdminStats {
+  totalUsers: number;
+  activeSubscriptions: number;
+  headunits: number;
+  totalTrips: number;
+}
+
+interface DiscountCode {
+  id: string;
+  code: string;
+  discountType: string;
+  value: number;
+  maxUses: number | null;
+  usedCount: number;
+  expiresAt: string | null;
+  isGlobal: boolean;
+  assignedEmail: string | null;
+  createdAt: string;
+}
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<"users" | "codes" | "stats">("users");
 
+  // Users state
+  const [users, setUsers] = useState<Profile[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // Selected user for modal
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [modalStatus, setModalStatus] = useState<"FREE" | "PREMIUM">("PREMIUM");
+  const [modalTier, setModalTier] = useState<"STANDARD" | "GARAGE">("STANDARD");
+  const [modalExpiresAt, setModalExpiresAt] = useState<string>("");
+  const [modalNotes, setModalNotes] = useState<string>("");
+  const [updatingSub, setUpdatingSub] = useState(false);
+
+  // Codes state
+  const [codes, setCodes] = useState<DiscountCode[]>([]);
+  const [loadingCodes, setLoadingCodes] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [newType, setNewType] = useState<"PERCENT" | "FIXED_AMOUNT" | "FREE_DAYS">("PERCENT");
+  const [newValue, setNewValue] = useState<number>(20);
+  const [newEmail, setNewEmail] = useState("");
+  const [creatingCode, setCreatingCode] = useState(false);
+
+  // Stats state
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  async function loadUsers(query = searchQuery) {
+    setLoadingUsers(true);
+    try {
+      const u = await api.adminUsers(query);
+      setUsers(u);
+    } catch (err) {
+      console.error("Failed to load admin users", err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }
+
+  async function loadCodes() {
+    setLoadingCodes(true);
+    try {
+      const c = await api.adminDiscountCodes();
+      setCodes(c);
+    } catch (err) {
+      console.error("Failed to load discount codes", err);
+    } finally {
+      setLoadingCodes(false);
+    }
+  }
+
+  async function loadStats() {
+    setLoadingStats(true);
+    try {
+      const s = await api.adminStats();
+      setStats(s);
+    } catch (err) {
+      console.error("Failed to load admin stats", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "codes") loadCodes();
+    if (activeTab === "stats") loadStats();
+  }, [activeTab]);
+
+  function openSubModal(u: Profile) {
+    setSelectedUser(u);
+    setModalStatus(u.subscription?.status ?? "PREMIUM");
+    setModalTier(u.subscription?.tier ?? "STANDARD");
+    // Default 1 year from now if empty
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    setModalExpiresAt(u.subscription?.expiresAt ? new Date(u.subscription.expiresAt).toISOString().slice(0, 10) : nextYear.toISOString().slice(0, 10));
+    setModalNotes("");
+  }
+
+  async function handleSaveSub() {
+    if (!selectedUser) return;
+    setUpdatingSub(true);
+    try {
+      await api.adminUpdateSubscription(selectedUser.id, {
+        status: modalStatus,
+        tier: modalTier,
+        expiresAt: modalExpiresAt ? new Date(modalExpiresAt).toISOString() : null,
+        notes: modalNotes,
+      });
+      setSelectedUser(null);
+      await loadUsers();
+    } catch (err) {
+      alert("Errore nell'aggiornamento dell'abbonamento");
+    } finally {
+      setUpdatingSub(false);
+    }
+  }
+
+  async function handleAddExtraSwap(userId: string) {
+    try {
+      await api.adminAddExtraSwap(userId);
+      await loadUsers();
+      alert("Concesso +1 cambio Headunit straordinario!");
+    } catch {
+      alert("Errore nell'aggiunta del cambio extra");
+    }
+  }
+
+  async function handleToggleRole(u: Profile) {
+    const newRole = u.role === "ADMIN" ? "USER" : "ADMIN";
+    if (!confirm(`Sei sicuro di voler impostare il ruolo di ${u.email} a ${newRole}?`)) return;
+    try {
+      await api.adminUpdateRole(u.id, newRole);
+      await loadUsers();
+    } catch {
+      alert("Errore nell'aggiornamento del ruolo");
+    }
+  }
+
+  async function handleCreateCode(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newCode.trim()) return;
+    setCreatingCode(true);
+    try {
+      await api.adminCreateDiscountCode({
+        code: newCode.trim().toUpperCase(),
+        discountType: newType,
+        value: Number(newValue),
+        isGlobal: !newEmail.trim(),
+        assignedEmail: newEmail.trim() || null,
+      });
+      setNewCode("");
+      setNewEmail("");
+      await loadCodes();
+    } catch {
+      alert("Errore nella creazione del codice sconto");
+    } finally {
+      setCreatingCode(false);
+    }
+  }
+
+  async function handleDeleteCode(id: string) {
+    if (!confirm("Eliminare questo codice sconto?")) return;
+    try {
+      await api.adminDeleteDiscountCode(id);
+      await loadCodes();
+    } catch {
+      alert("Errore nella cancellazione del codice");
+    }
+  }
+
   return (
     <AppShell>
       <div className="mx-auto max-w-5xl">
-        <h1 className="mb-6 text-2xl font-bold">Pannello Admin</h1>
-        <div className="mb-6 flex gap-4 border-b border-surface-border pb-2">
-          <button onClick={() => setActiveTab("users")} className={`font-medium ${activeTab === 'users' ? 'text-accent' : 'text-onsurface-variant'}`}>Utenti & Abbonamenti</button>
-          <button onClick={() => setActiveTab("codes")} className={`font-medium ${activeTab === 'codes' ? 'text-accent' : 'text-onsurface-variant'}`}>Codici Sconto</button>
-          <button onClick={() => setActiveTab("stats")} className={`font-medium ${activeTab === 'stats' ? 'text-accent' : 'text-onsurface-variant'}`}>Statistiche Sistema</button>
+        <h1 className="mb-6 text-2xl font-bold">Pannello Amministratore</h1>
+
+        <div className="mb-6 flex border-b border-surface-border">
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`px-4 py-2 font-medium border-b-2 transition ${
+              activeTab === "users"
+                ? "border-accent text-accent"
+                : "border-transparent text-onsurface-variant hover:text-onsurface"
+            }`}
+          >
+            Utenti & Abbonamenti
+          </button>
+          <button
+            onClick={() => setActiveTab("codes")}
+            className={`px-4 py-2 font-medium border-b-2 transition ${
+              activeTab === "codes"
+                ? "border-accent text-accent"
+                : "border-transparent text-onsurface-variant hover:text-onsurface"
+            }`}
+          >
+            Codici Sconto
+          </button>
+          <button
+            onClick={() => setActiveTab("stats")}
+            className={`px-4 py-2 font-medium border-b-2 transition ${
+              activeTab === "stats"
+                ? "border-accent text-accent"
+                : "border-transparent text-onsurface-variant hover:text-onsurface"
+            }`}
+          >
+            Statistiche Sistema
+          </button>
         </div>
-        
+
+        {/* TAB 1: UTENTI */}
         {activeTab === "users" && (
           <div>
-            <h2 className="mb-4 text-xl">Gestione Utenti</h2>
-            <p className="text-onsurface-variant">Ricerca utenti, gestione abbonamenti, swap e ruoli...</p>
-            {/* Real implementation would have lists and modals here */}
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <input
+                type="text"
+                placeholder="Cerca per email o nome..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  loadUsers(e.target.value);
+                }}
+                className="w-72 rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+              />
+              <Button variant="secondary" size="sm" onClick={() => loadUsers()}>
+                Aggiorna Listato
+              </Button>
+            </div>
+
+            {loadingUsers ? (
+              <p className="text-sm text-onsurface-variant">Caricamento utenti...</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border bg-surface">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-surface-border bg-bg/50 text-xs uppercase text-onsurface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Utente</th>
+                      <th className="px-4 py-3">Stato Sub</th>
+                      <th className="px-4 py-3">Piano</th>
+                      <th className="px-4 py-3">Scadenza</th>
+                      <th className="px-4 py-3">Garage / Cambi</th>
+                      <th className="px-4 py-3 text-right">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {users.map((u) => {
+                      const isSubActive = u.subscription?.status === "PREMIUM";
+                      return (
+                        <tr key={u.id} className="hover:bg-bg/40">
+                          <td className="px-4 py-3">
+                            <div className="font-medium">{u.firstName} {u.lastName}</div>
+                            <div className="text-xs text-onsurface-variant">{u.email}</div>
+                            {u.role === "ADMIN" && (
+                              <span className="mt-1 inline-block rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-bold text-sky-400">
+                                ADMIN
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                isSubActive
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : "bg-surface-border text-onsurface-variant"
+                              }`}
+                            >
+                              {u.subscription?.status ?? "FREE"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-mono">
+                            {u.subscription?.tier ?? "STANDARD"}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            {u.subscription?.expiresAt
+                              ? new Date(u.subscription.expiresAt).toLocaleDateString("it-IT")
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            <div>
+                              Posti: {u.subscription?.activeVehicles ?? 0} / {u.subscription?.maxVehicles ?? 1}
+                            </div>
+                            <div className="text-onsurface-variant">
+                              Cambi: {u.subscription?.headunitSwaps ?? 0} / {u.subscription?.maxHeadunitSwaps ?? 2}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right space-x-2">
+                            <Button variant="secondary" size="sm" onClick={() => openSubModal(u)}>
+                              Gestisci Sub
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => handleAddExtraSwap(u.id)}>
+                              +1 Cambio
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => handleToggleRole(u)}>
+                              {u.role === "ADMIN" ? "Revoca Admin" : "Fai Admin"}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
+        {/* TAB 2: CODICI SCONTO */}
         {activeTab === "codes" && (
           <div>
-            <h2 className="mb-4 text-xl">Codici Sconto</h2>
-            <p className="text-onsurface-variant">Creazione e lista codici globali / ad personam...</p>
+            <form onSubmit={handleCreateCode} className="mb-6 rounded-xl border border-surface-border bg-surface p-4 flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs text-onsurface-variant mb-1">Codice</label>
+                <input
+                  type="text"
+                  placeholder="Es: PROMO50"
+                  value={newCode}
+                  onChange={(e) => setNewCode(e.target.value)}
+                  className="rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none uppercase focus:border-accent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-onsurface-variant mb-1">Tipo Sconto</label>
+                <select
+                  value={newType}
+                  onChange={(e: any) => setNewType(e.target.value)}
+                  className="rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                >
+                  <option value="PERCENT">Percentuale (%)</option>
+                  <option value="FIXED_AMOUNT">Fisso (€)</option>
+                  <option value="FREE_DAYS">Giorni Gratis</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-onsurface-variant mb-1">Valore</label>
+                <input
+                  type="number"
+                  value={newValue}
+                  onChange={(e) => setNewValue(Number(e.target.value))}
+                  className="w-24 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-onsurface-variant mb-1">Email Riservata (Opzionale)</label>
+                <input
+                  type="email"
+                  placeholder="adpersonam@email.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-56 rounded-lg border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
+                />
+              </div>
+              <Button type="submit" disabled={creatingCode}>
+                Crea Codice
+              </Button>
+            </form>
+
+            {loadingCodes ? (
+              <p className="text-sm text-onsurface-variant">Caricamento codici...</p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-surface-border bg-surface">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-surface-border bg-bg/50 text-xs uppercase text-onsurface-variant">
+                    <tr>
+                      <th className="px-4 py-3">Codice</th>
+                      <th className="px-4 py-3">Sconto</th>
+                      <th className="px-4 py-3">Target</th>
+                      <th className="px-4 py-3">Utilizzi</th>
+                      <th className="px-4 py-3 text-right">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {codes.map((c) => (
+                      <tr key={c.id}>
+                        <td className="px-4 py-3 font-mono font-bold">{c.code}</td>
+                        <td className="px-4 py-3">
+                          {c.discountType === "PERCENT" && `${c.value}%`}
+                          {c.discountType === "FIXED_AMOUNT" && `${c.value} €`}
+                          {c.discountType === "FREE_DAYS" && `${c.value} giorni`}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {c.assignedEmail ? (
+                            <span className="text-sky-400">Ad Personam ({c.assignedEmail})</span>
+                          ) : (
+                            <span className="text-emerald-400">Globale</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs">{c.usedCount} utilizzi</td>
+                        <td className="px-4 py-3 text-right">
+                          <Button variant="danger" size="sm" onClick={() => handleDeleteCode(c.id)}>
+                            Elimina
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
+        {/* TAB 3: STATISTICHE SISTEMA */}
         {activeTab === "stats" && (
           <div>
-            <h2 className="mb-4 text-xl">Statistiche Sistema</h2>
-            <p className="text-onsurface-variant">Metriche generali del sistema...</p>
+            {loadingStats || !stats ? (
+              <p className="text-sm text-onsurface-variant">Caricamento metriche...</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl border border-surface-border bg-surface p-5">
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Utenti Totali</p>
+                  <p className="mt-2 text-3xl font-bold">{stats.totalUsers}</p>
+                </div>
+                <div className="rounded-xl border border-surface-border bg-surface p-5">
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Abbonamenti Attivi</p>
+                  <p className="mt-2 text-3xl font-bold text-emerald-400">{stats.activeSubscriptions}</p>
+                </div>
+                <div className="rounded-xl border border-surface-border bg-surface p-5">
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Headunit Collegate</p>
+                  <p className="mt-2 text-3xl font-bold text-sky-400">{stats.headunits}</p>
+                </div>
+                <div className="rounded-xl border border-surface-border bg-surface p-5">
+                  <p className="text-xs text-onsurface-variant uppercase font-semibold">Viaggi Sincronizzati</p>
+                  <p className="mt-2 text-3xl font-bold text-amber-400">{stats.totalTrips}</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* MODAL GESTIONE ABBONAMENTO */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface p-6 shadow-2xl">
+            <h3 className="text-lg font-bold">Gestisci Abbonamento</h3>
+            <p className="text-xs text-onsurface-variant mb-4">{selectedUser.email}</p>
+
+            <div className="space-y-4 text-sm">
+              <div>
+                <label className="block text-xs font-medium mb-1">Stato Abbonamento</label>
+                <select
+                  value={modalStatus}
+                  onChange={(e: any) => setModalStatus(e.target.value)}
+                  className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
+                >
+                  <option value="FREE">FREE (Nessun Cloud)</option>
+                  <option value="PREMIUM">PREMIUM (Attivo)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1">Piano Abbonamento</label>
+                <select
+                  value={modalTier}
+                  onChange={(e: any) => setModalTier(e.target.value)}
+                  className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
+                >
+                  <option value="STANDARD">Standard (1 Auto, 2 Cambi/anno)</option>
+                  <option value="GARAGE">Garage (3 Auto, 5 Cambi/anno)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1">Data Scadenza</label>
+                <input
+                  type="date"
+                  value={modalExpiresAt}
+                  onChange={(e) => setModalExpiresAt(e.target.value)}
+                  className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium mb-1">Note Pagamento / Riferimento</label>
+                <input
+                  type="text"
+                  placeholder="Es: Pagato via PayPal ref #12345"
+                  value={modalNotes}
+                  onChange={(e) => setModalNotes(e.target.value)}
+                  className="w-full rounded-lg border border-surface-border bg-bg px-3 py-2 outline-none focus:border-accent"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setSelectedUser(null)}>
+                Annulla
+              </Button>
+              <Button onClick={handleSaveSub} disabled={updatingSub}>
+                Salva Abbonamento
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

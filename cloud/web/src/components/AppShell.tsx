@@ -43,13 +43,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Link>
               )}
               <Link
-                to="/profile"
-                aria-label="Profilo"
-                className={buttonVariants({ variant: "secondary", size: "sm", className: "px-2.5" })}
-              >
-                <IconSettings size={16} /> {/* Can use IconUser later */}
-              </Link>
-              <Link
                 to="/settings"
                 aria-label={t("appShell.settings")}
                 className={buttonVariants({ variant: "secondary", size: "sm", className: "px-2.5" })}
@@ -75,11 +68,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Link to="/dashboard" className="whitespace-nowrap hover:text-onsurface">
               {t("appShell.myVehicles")}
             </Link>
-            <Link to="/profile" className="whitespace-nowrap hover:text-onsurface">
-              Profilo
-            </Link>
             <Link to="/settings" className="whitespace-nowrap hover:text-onsurface">
-              {t("appShell.settings")}
+              Profilo ed Impostazioni
             </Link>
             <span className="whitespace-nowrap">{user?.email}</span>
             <LanguageSwitcher />

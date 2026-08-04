@@ -20,10 +20,7 @@ export default function Settings() {
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
-  // Manutenzione per veicolo (spostata qui da Trips.tsx su richiesta 2026-08-01: sono
-  // operazioni di ricalcolo/riparazione dati, non filtri della vista viaggi) - stato tenuto
-  // per id veicolo come "editing" qui sopra, cosi' piu' auto non si pestano i piedi a
-  // vicenda se l'utente ne ha piu' di una.
+
   const [backfillBusy, setBackfillBusy] = useState<Record<string, boolean>>({});
   const [backfillStatus, setBackfillStatus] = useState<Record<string, string | null>>({});
   const [energyBackfillBusy, setEnergyBackfillBusy] = useState<Record<string, boolean>>({});
@@ -42,9 +39,6 @@ export default function Settings() {
     reload();
   }
 
-  // Recupero indirizzi mancanti (vedi routes/user.ts) - i trip caricati prima del fallback
-  // di geocoding lato server restano "Percorso GPS" per sempre senza questo, anche se la
-  // traccia GPX ce l'hanno gia'. Un batch alla volta: se ne restano, l'utente puo' ricliccare.
   async function handleBackfillAddresses(vehicleId: string) {
     setBackfillBusy((s) => ({ ...s, [vehicleId]: true }));
     setBackfillStatus((s) => ({ ...s, [vehicleId]: null }));
@@ -62,10 +56,6 @@ export default function Settings() {
     }
   }
 
-  // Ricalcola km EV/HEV per i trip AUTO gia' caricati (vedi routes/user.ts) - serve solo una
-  // volta per lo storico esistente da prima del fix (2026-08-01, i segnali VDB precedenti
-  // sono confermati inaffidabili), i nuovi upload sono gia' corretti senza bisogno di questo.
-  // Un solo giro basta (nessun servizio esterno rate-limitato di mezzo), niente "remaining".
   async function handleBackfillEnergyKm(vehicleId: string) {
     setEnergyBackfillBusy((s) => ({ ...s, [vehicleId]: true }));
     setEnergyBackfillStatus((s) => ({ ...s, [vehicleId]: null }));
@@ -88,10 +78,6 @@ export default function Settings() {
     reload();
   }
 
-  // Cancellazione account completa (jaedrive_todo #1) - a differenza di deleteVehicle()
-  // sopra, dopo la chiamata al server l'utente non ha piu' un'identita' valida: bisogna
-  // anche fare signOut() locale (il token gia' emesso da Firebase resterebbe altrimenti in
-  // memoria/localStorage finche' non scade da solo) e portarlo fuori dall'app autenticata.
   async function deleteAccount() {
     if (!confirm(t("settings.deleteAccountConfirm"))) return;
     setDeletingAccount(true);
@@ -106,101 +92,155 @@ export default function Settings() {
     }
   }
 
+  const sub = profile?.subscription;
+  const badgeLabel = sub?.status === "PREMIUM" ? `PREMIUM ${sub.tier}` : "FREE";
+
   return (
     <AppShell>
-      {/* Pagina di impostazioni: form/liste corte, non una dashboard - restano leggibili
-          con una larghezza contenuta anche ora che AppShell si e' allargata per le pagine
-          che invece SONO dashboard (Trips.tsx). */}
-      <div className="mx-auto max-w-2xl">
-      <h1 className="mb-6 text-xl font-semibold">{t("settings.title")}</h1>
+      <div className="mx-auto max-w-2xl space-y-6">
+        <h1 className="text-xl font-semibold">Profilo ed Impostazioni</h1>
 
-      <section className="mb-8 flex items-center gap-4 rounded-lg border border-surface-border bg-surface p-4">
-        {profile?.photoUrl ? (
-          <img src={profile.photoUrl} alt="" className="h-12 w-12 rounded-full object-cover" />
-        ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-border text-sm font-medium text-onsurface-variant">
-            {(profile?.firstName?.[0] ?? "") + (profile?.lastName?.[0] ?? "")}
-          </div>
-        )}
-        <div>
-          <p className="text-sm font-medium">
-            {profile?.firstName} {profile?.lastName}
-          </p>
-          <p className="text-sm text-onsurface-variant">{profile?.email}</p>
-        </div>
-      </section>
-
-      <section className="mb-8 flex items-center justify-between rounded-lg border border-surface-border bg-surface p-4">
-        <p className="text-sm font-medium">{t("settings.language")}</p>
-        <LanguageSwitcher />
-      </section>
-
-      <section className="mb-8 flex flex-col gap-3 rounded-lg border border-surface-border bg-surface p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">{t("settings.unitsDistance")}</p>
-          <DistanceUnitSwitcher />
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">{t("settings.unitsConsumption")}</p>
-          <ConsumptionFormatSwitcher />
-        </div>
-      </section>
-
-      <section className="mb-8">
-        <p className="mb-3 text-sm font-medium">{t("appShell.myVehicles")}</p>
-        <div className="flex flex-col gap-3">
-          {vehicles.map((v) => (
-            <div key={v.id} className="rounded-lg border border-surface-border bg-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-medium">{v.nickname}</p>
-                  <p className="font-mono text-xs text-onsurface-variant">{v.vin}</p>
-                </div>
-                <Button variant="danger" size="sm" onClick={() => deleteVehicle(v.id, v.nickname)}>
-                  {t("settings.deleteVehicle")}
-                </Button>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <input
-                  placeholder={t("settings.newNamePlaceholder")}
-                  value={editing[v.id] ?? ""}
-                  onChange={(e) => setEditing((s) => ({ ...s, [v.id]: e.target.value }))}
-                  className="min-w-0 flex-1 rounded-md border border-surface-border bg-bg px-3 py-1.5 text-sm outline-none focus:border-accent"
-                />
-                <Button variant="secondary" size="sm" onClick={() => saveNickname(v.id)}>
-                  {t("settings.rename")}
-                </Button>
-              </div>
-
-              <div className="mt-3 flex flex-col gap-2 border-t border-surface-border pt-3">
-                <div className="flex flex-wrap items-center gap-3 text-xs">
-                  <Button variant="secondary" size="sm" onClick={() => handleBackfillAddresses(v.id)} disabled={backfillBusy[v.id]}>
-                    {backfillBusy[v.id] ? t("settings.backfillBusy") : t("settings.backfillButton")}
-                  </Button>
-                  {backfillStatus[v.id] && <span className="text-onsurface-variant">{backfillStatus[v.id]}</span>}
-                </div>
-                {hasElectricData(v.powertrain) && (
-                  <div className="flex flex-wrap items-center gap-3 text-xs">
-                    <Button variant="secondary" size="sm" onClick={() => handleBackfillEnergyKm(v.id)} disabled={energyBackfillBusy[v.id]}>
-                      {energyBackfillBusy[v.id] ? t("settings.energyBackfillBusy") : t("settings.energyBackfillButton")}
-                    </Button>
-                    {energyBackfillStatus[v.id] && <span className="text-onsurface-variant">{energyBackfillStatus[v.id]}</span>}
-                  </div>
-                )}
-              </div>
+        {/* PROFILO UTENTE */}
+        <section className="flex items-center gap-4 rounded-xl border border-surface-border bg-surface p-5">
+          {profile?.photoUrl ? (
+            <img src={profile.photoUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-border text-base font-semibold text-onsurface-variant">
+              {(profile?.firstName?.[0] ?? "") + (profile?.lastName?.[0] ?? "")}
             </div>
-          ))}
-        </div>
-      </section>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-base font-semibold">
+                {profile?.firstName} {profile?.lastName}
+              </p>
+              {profile?.role === "ADMIN" && (
+                <span className="rounded bg-sky-500/20 px-2 py-0.5 text-[10px] font-bold text-sky-400">
+                  ADMIN
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-onsurface-variant">{profile?.email}</p>
+          </div>
+        </section>
 
-      <section className="rounded-lg border border-bad/40 bg-bad/5 p-4">
-        <p className="mb-1 text-sm font-medium text-bad">{t("settings.dangerZoneTitle")}</p>
-        <p className="mb-3 text-sm text-onsurface-variant">{t("settings.deleteAccountDescription")}</p>
-        {deleteAccountError && <p className="mb-3 text-sm text-bad">{deleteAccountError}</p>}
-        <Button variant="danger" onClick={deleteAccount} disabled={deletingAccount}>
-          {t("settings.deleteAccount")}
-        </Button>
-      </section>
+        {/* ABBONAMENTO E GARAGE */}
+        <section className="rounded-xl border border-surface-border bg-surface p-5">
+          <h2 className="mb-4 text-base font-semibold">Abbonamento e Posti Garage</h2>
+
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                sub?.status === "PREMIUM"
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : "bg-surface-border text-onsurface-variant"
+              }`}
+            >
+              {badgeLabel}
+            </span>
+            {sub?.expiresAt ? (
+              <span className="text-xs text-onsurface-variant">
+                Scadenza: <strong>{new Date(sub.expiresAt).toLocaleDateString("it-IT")}</strong>
+              </span>
+            ) : (
+              <span className="text-xs text-onsurface-variant">Nessuna data di scadenza (Piano Free)</span>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 text-sm">
+            <div className="rounded-lg border border-surface-border bg-bg/50 p-3">
+              <p className="text-xs text-onsurface-variant">Posti Garage occupati</p>
+              <p className="mt-1 font-bold">
+                {sub?.activeVehicles ?? 0} di {sub?.maxVehicles ?? 1} veicoli
+              </p>
+            </div>
+            <div className="rounded-lg border border-surface-border bg-bg/50 p-3">
+              <p className="text-xs text-onsurface-variant">Cambi Headunit (ultimi 365 giorni)</p>
+              <p className="mt-1 font-bold">
+                {sub?.headunitSwaps ?? 0} di {sub?.maxHeadunitSwaps ?? 2} usati
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-3 text-xs text-onsurface-variant">
+            💡 <em>Nota: Il ricollegamento di un'Headunit già associata in precedenza non consuma quote di cambio.</em>
+          </p>
+        </section>
+
+        {/* LINGUA E UNITÀ */}
+        <section className="space-y-3 rounded-xl border border-surface-border bg-surface p-5">
+          <h2 className="mb-2 text-base font-semibold">Preferenze Applicazione</h2>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">{t("settings.language")}</p>
+            <LanguageSwitcher />
+          </div>
+          <div className="flex items-center justify-between border-t border-surface-border pt-3">
+            <p className="text-sm font-medium">{t("settings.unitsDistance")}</p>
+            <DistanceUnitSwitcher />
+          </div>
+          <div className="flex items-center justify-between border-t border-surface-border pt-3">
+            <p className="text-sm font-medium">{t("settings.unitsConsumption")}</p>
+            <ConsumptionFormatSwitcher />
+          </div>
+        </section>
+
+        {/* I MIEI VEICOLI */}
+        <section className="rounded-xl border border-surface-border bg-surface p-5">
+          <p className="mb-3 text-base font-semibold">{t("appShell.myVehicles")}</p>
+          <div className="flex flex-col gap-3">
+            {vehicles.map((v) => (
+              <div key={v.id} className="rounded-lg border border-surface-border bg-bg/50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium">{v.nickname}</p>
+                    <p className="font-mono text-xs text-onsurface-variant">{v.vin}</p>
+                  </div>
+                  <Button variant="danger" size="sm" onClick={() => deleteVehicle(v.id, v.nickname)}>
+                    {t("settings.deleteVehicle")}
+                  </Button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <input
+                    placeholder={t("settings.newNamePlaceholder")}
+                    value={editing[v.id] ?? ""}
+                    onChange={(e) => setEditing((s) => ({ ...s, [v.id]: e.target.value }))}
+                    className="min-w-0 flex-1 rounded-md border border-surface-border bg-surface px-3 py-1.5 text-sm outline-none focus:border-accent"
+                  />
+                  <Button variant="secondary" size="sm" onClick={() => saveNickname(v.id)}>
+                    {t("settings.rename")}
+                  </Button>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2 border-t border-surface-border pt-3">
+                  <div className="flex flex-wrap items-center gap-3 text-xs">
+                    <Button variant="secondary" size="sm" onClick={() => handleBackfillAddresses(v.id)} disabled={backfillBusy[v.id]}>
+                      {backfillBusy[v.id] ? t("settings.backfillBusy") : t("settings.backfillButton")}
+                    </Button>
+                    {backfillStatus[v.id] && <span className="text-onsurface-variant">{backfillStatus[v.id]}</span>}
+                  </div>
+                  {hasElectricData(v.powertrain) && (
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <Button variant="secondary" size="sm" onClick={() => handleBackfillEnergyKm(v.id)} disabled={energyBackfillBusy[v.id]}>
+                        {energyBackfillBusy[v.id] ? t("settings.energyBackfillBusy") : t("settings.energyBackfillButton")}
+                      </Button>
+                      {energyBackfillStatus[v.id] && <span className="text-onsurface-variant">{energyBackfillStatus[v.id]}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ZONA DI PERICOLO */}
+        <section className="rounded-xl border border-bad/40 bg-bad/5 p-5">
+          <p className="mb-1 text-sm font-medium text-bad">{t("settings.dangerZoneTitle")}</p>
+          <p className="mb-3 text-sm text-onsurface-variant">{t("settings.deleteAccountDescription")}</p>
+          {deleteAccountError && <p className="mb-3 text-sm text-bad">{deleteAccountError}</p>}
+          <Button variant="danger" onClick={deleteAccount} disabled={deletingAccount}>
+            {t("settings.deleteAccount")}
+          </Button>
+        </section>
       </div>
     </AppShell>
   );
