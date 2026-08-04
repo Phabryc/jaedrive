@@ -73,6 +73,12 @@ export function CalendarHeatmap({
   const isSingleDay = rangeFrom != null && rangeFrom === rangeTo;
   const isRealRange = rangeFrom != null && rangeTo != null && rangeFrom !== rangeTo;
 
+  useEffect(() => {
+    if (rangeFrom === null && rangeTo === null) {
+      setPendingStart(null);
+    }
+  }, [rangeFrom, rangeTo]);
+
   function togglePeriodMode() {
     setPeriodMode((m) => !m);
     setPendingStart(null);
@@ -91,12 +97,9 @@ export function CalendarHeatmap({
     }
     if (pendingStart == null) {
       setPendingStart(date);
-      onRangeChange(date, date); // feedback immediato mentre si attende il secondo click
     } else if (pendingStart === date) {
-      // Ri-click sullo stesso giorno di inizio: annulla invece di creare un periodo di un
-      // solo giorno "per sbaglio" - per quello c'e' gia' la modalita' normale.
+      // Ri-click sullo stesso giorno di inizio: annulla la selezione in corso
       setPendingStart(null);
-      onRangeChange(null, null);
     } else {
       const [start, end] = pendingStart < date ? [pendingStart, date] : [date, pendingStart];
       onRangeChange(start, end);

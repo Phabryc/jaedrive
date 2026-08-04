@@ -65,16 +65,6 @@ export function VehicleStatsPanel({
         ? `${formatDay(rangeFrom)} → ${formatDay(rangeTo)}`
         : formatDay(rangeFrom);
 
-  const calendarNode = (
-    <CalendarHeatmap
-      className="order-1 col-span-12 xl:order-none xl:col-span-4 xl:self-stretch"
-      vehicleId={vehicleId}
-      rangeFrom={rangeFrom}
-      rangeTo={rangeTo}
-      onRangeChange={onRangeChange}
-    />
-  );
-
   return (
     <>
       {rangeLabel && (
@@ -90,13 +80,17 @@ export function VehicleStatsPanel({
       )}
       <div className={`mb-6 ${STATS_GRID_CLASS}`}>
         {stats ? (
-          <StatsBody stats={stats} showElectric={showElectric} calendar={calendarNode} />
+          <StatsBody stats={stats} showElectric={showElectric} />
         ) : (
-          <>
-            <p className="col-span-12 text-sm text-onsurface-variant">{t("stats.loading")}</p>
-            {calendarNode}
-          </>
+          <p className="order-2 col-span-12 xl:order-none xl:col-span-8 text-sm text-onsurface-variant">{t("stats.loading")}</p>
         )}
+        <CalendarHeatmap
+          className="order-1 col-span-12 xl:order-none xl:col-span-4 xl:self-stretch"
+          vehicleId={vehicleId}
+          rangeFrom={rangeFrom}
+          rangeTo={rangeTo}
+          onRangeChange={onRangeChange}
+        />
       </div>
     </>
   );
@@ -105,11 +99,9 @@ export function VehicleStatsPanel({
 export function StatsBody({
   stats,
   showElectric,
-  calendar,
 }: {
   stats: VehicleStats;
   showElectric: boolean;
-  calendar?: ReactNode;
 }) {
   const { t } = useLanguage();
   const { distanceUnit, consumptionFormat } = useUnits();
@@ -155,8 +147,6 @@ export function StatsBody({
           </div>
         </Collapsible>
       )}
-
-      {calendar}
 
       {showElectric && (
         <Donut
