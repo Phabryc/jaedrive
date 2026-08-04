@@ -200,6 +200,20 @@ export const api = {
   adminCreateDiscountCode: (data: any) => adminRequest<any>("/discount-codes", { method: "POST", body: JSON.stringify(data) }),
   adminDeleteDiscountCode: (id: string) => adminRequest<void>(`/discount-codes/${id}`, { method: "DELETE" }),
   adminStats: () => adminRequest<any>("/stats"),
+  adminSendTestEmail: (data: {
+    type: string;
+    to: string;
+    lang?: string;
+    name?: string;
+    tier?: string;
+    expiresAt?: string;
+    daysLeft?: number;
+    vehicleName?: string;
+    vin?: string;
+    code?: string;
+    discountType?: string;
+    value?: number;
+  }) => adminRequest<{ ok: boolean; subject: string }>("/test-email", { method: "POST", body: JSON.stringify(data) }),
 };
 
 export { ApiError };

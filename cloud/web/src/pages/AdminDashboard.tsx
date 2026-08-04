@@ -36,12 +36,19 @@ function generateRandomCode(): string {
 
 export default function AdminDashboard() {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"users" | "codes" | "stats">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "codes" | "stats" | "test-email">("users");
 
   // Users state
   const [users, setUsers] = useState<Profile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // Test Email state
+  const [testType, setTestType] = useState<string>("SUBSCRIPTION_ACTIVATED");
+  const [testTo, setTestTo] = useState<string>("");
+  const [testLang, setTestLang] = useState<"it" | "en">("it");
+  const [testSending, setTestSending] = useState(false);
+  const [testStatusMsg, setTestStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Selected user for modal
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
@@ -216,6 +223,31 @@ export default function AdminDashboard() {
     setModalExpiresAt(`${year}-${month}-${day}`);
   }
 
+  async function handleSendTestEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!testTo.trim()) return;
+    setTestSending(true);
+    setTestStatusMsg(null);
+    try {
+      await api.adminSendTestEmail({
+        type: testType,
+        to: testTo.trim(),
+        lang: testLang,
+      });
+      setTestStatusMsg({
+        type: "success",
+        text: t("admin.testEmailSuccess", { email: testTo.trim() }),
+      });
+    } catch (err: any) {
+      setTestStatusMsg({
+        type: "error",
+        text: err?.message || t("admin.testEmailError"),
+      });
+    } finally {
+      setTestSending(false);
+    }
+  }
+
   return (
     <AppShell>
       <div className="mx-auto max-w-7xl space-y-6">
@@ -252,6 +284,16 @@ export default function AdminDashboard() {
             }`}
           >
             {t("admin.tabStats")}
+          </button>
+          <button
+            onClick={() => setActiveTab("test-email")}
+            className={`whitespace-nowrap px-4 py-2 font-medium border-b-2 text-sm transition ${
+              activeTab === "test-email"
+                ? "border-accent text-accent"
+                : "border-transparent text-onsurface-variant hover:text-onsurface"
+            }`}
+          >
+            ✉️ {t("admin.tabTestEmail")}
           </button>
         </div>
 
@@ -647,6 +689,82 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: TEST EMAIL */}
+        {activeTab === "test-email" && (
+          <div className="space-y-6 max-w-2xl">
+            <div className="rounded-xl border border-surface-border bg-surface p-5 sm:p-6 space-y-4">
+              <div>
+                <h2 className="text-lg font-bold">{t("admin.testEmailTitle")}</h2>
+                <p className="text-xs text-onsurface-variant mt-1">{t("admin.testEmailDesc")}</p>
+              </div>
+
+              {testStatusMsg && (
+                <div
+                  className={`p-3.5 rounded-lg text-xs font-semibold border ${
+                    testStatusMsg.type === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                      : "bg-red-500/10 border-red-500/30 text-red-400"
+                  }`}
+                >
+                  {testStatusMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={handleSendTestEmail} className="space-y-4 text-sm">
+                <div>
+                  <label className="block text-xs font-medium mb-1.5">{t("admin.testEmailTemplate")}</label>
+                  <select
+                    value={testType}
+                    onChange={(e) => setTestType(e.target.value)}
+                    className="w-full rounded-lg border border-surface-border bg-bg px-3.5 py-2.5 outline-none focus:border-accent font-medium text-sm"
+                  >
+                    <option value="SUBSCRIPTION_ACTIVATED">{t("admin.tplSubActivated")}</option>
+                    <option value="SUBSCRIPTION_RENEWED">{t("admin.tplSubRenewed")}</option>
+                    <option value="SUBSCRIPTION_EXPIRING">{t("admin.tplSubExpiring")}</option>
+                    <option value="SUBSCRIPTION_EXPIRED">{t("admin.tplSubExpired")}</option>
+                    <option value="PAIRING_NEW_VEHICLE">{t("admin.tplNewPairing")}</option>
+                    <option value="VEHICLE_DELETED">{t("admin.tplVehicleDeleted")}</option>
+                    <option value="ACCOUNT_DELETED">{t("admin.tplAccountDeleted")}</option>
+                    <option value="DISCOUNT_CODE_ASSIGNED">{t("admin.tplDiscountCode")}</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5">{t("admin.testEmailRecipient")}</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="email@example.com"
+                      value={testTo}
+                      onChange={(e) => setTestTo(e.target.value)}
+                      className="w-full rounded-lg border border-surface-border bg-bg px-3.5 py-2.5 outline-none focus:border-accent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5">{t("admin.testEmailLang")}</label>
+                    <select
+                      value={testLang}
+                      onChange={(e: any) => setTestLang(e.target.value)}
+                      className="w-full rounded-lg border border-surface-border bg-bg px-3.5 py-2.5 outline-none focus:border-accent"
+                    >
+                      <option value="it">🇮🇹 Italiano (IT)</option>
+                      <option value="en">🇬🇧 English (EN)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button type="submit" variant="primary" className="w-full sm:w-auto px-6" disabled={testSending}>
+                    {testSending ? t("admin.testEmailSending") : t("admin.testEmailSend")}
+                  </Button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@ import { computeVehicleStats } from "../lib/stats.js";
 import { computeKmByBucket, computeFlowBreakdownForRange } from "../lib/gpxEnergy.js";
 import { haversineMeters } from "../lib/geo.js";
 import { deleteFirebaseUser } from "../auth/firebase.js";
+import { sendTransactionalEmail } from "../lib/email.js";
 
 const ROUTE_TRIP_SELECT = {
   id: true,
@@ -212,6 +213,17 @@ export async function userRoutes(app: FastifyInstance) {
         },
       });
 
+      if (dbUser?.email) {
+        const name = dbUser.firstName ?? dbUser.displayName ?? null;
+        const tier = dbUser.subscriptionTier ?? "STANDARD";
+        const wasPremium = dbUser.subscriptionStatus === "PREMIUM";
+        await sendTransactionalEmail(wasPremium ? "SUBSCRIPTION_RENEWED" : "SUBSCRIPTION_ACTIVATED", dbUser.email, {
+          name,
+          tier,
+          expiresAt: newExpiry.toISOString(),
+        });
+      }
+
       return reply.send({
         success: true,
         message: `Codice promo riscattato con successo! Il tuo abbonamento Premium è attivo.`,
@@ -265,6 +277,10 @@ export async function userRoutes(app: FastifyInstance) {
   // Vehicle - Cascade - e i suoi stessi figli).
   app.delete("/me", async (req, reply) => {
     const u = req.authUser!;
+    if (u.email) {
+      const name = u.firstName ?? u.displayName ?? null;
+      await sendTransactionalEmail("ACCOUNT_DELETED", u.email, { name });
+    }
     await deleteFirebaseUser(u.firebaseUid);
     await prisma.user.delete({ where: { id: u.id } });
     return reply.code(204).send();
@@ -309,6 +325,13 @@ export async function userRoutes(app: FastifyInstance) {
     // Cascades to devices (vehicle_id set null) and trips (deleted) per the Prisma schema's
     // onDelete rules - satisfies "right to erasure" for this vehicle's data, see DESIGN.md §6.
     await prisma.vehicle.delete({ where: { id } });
+
+    if (req.authUser!.email) {
+      const name = req.authUser!.firstName ?? req.authUser!.displayName ?? null;
+      const vehicleName = owned.nickname || owned.model || owned.vin || "Vehicle";
+      await sendTransactionalEmail("VEHICLE_DELETED", req.authUser!.email, { name, vehicleName, vin: owned.vin });
+    }
+
     return reply.code(204).send();
   });
 
@@ -402,6 +425,12 @@ export async function userRoutes(app: FastifyInstance) {
         where: { id: pairing.id },
         data: { status: "claimed", deviceId: device.id, claimedBy: userId, plaintextToken: rawToken },
       });
+
+      if (user.email) {
+        const name = user.firstName ?? user.displayName ?? null;
+        const vehicleName = vehicle.nickname || vehicle.model || vehicle.vin || "Jaecoo / Omoda";
+        await sendTransactionalEmail("PAIRING_NEW_VEHICLE", user.email, { name, vehicleName, vin: vehicle.vin });
+      }
 
       return reply.send({ vehicleId: vehicle.id });
     },

@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth/requireUser.js";
 import { env } from "../env.js";
-import { sendEmail } from "../lib/email.js";
+import { sendTransactionalEmail, type EmailTemplateType } from "../lib/email.js";
+import type { Language } from "../lib/emailTemplates.js";
 
 async function requireAdmin(req: any, reply: any) {
   const user = req.authUser!;
@@ -80,6 +81,7 @@ export async function adminRoutes(app: FastifyInstance) {
       notes?: string;
     };
 
+    const prevUser = await prisma.user.findUnique({ where: { id: userId } });
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -101,11 +103,15 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     if (updatedUser.email) {
-      await sendEmail({
-        to: updatedUser.email,
-        subject: "Your JaeDrive Subscription has been updated",
-        html: `<p>Your subscription is now <strong>${status}</strong> (${tier}).</p>`,
-      });
+      const name = updatedUser.firstName ?? updatedUser.displayName ?? null;
+      const dateStr = expiresAt ? new Date(expiresAt).toISOString() : null;
+      if (status === "PREMIUM" && prevUser?.subscriptionStatus !== "PREMIUM") {
+        await sendTransactionalEmail("SUBSCRIPTION_ACTIVATED", updatedUser.email, { name, tier, expiresAt: dateStr });
+      } else if (status === "PREMIUM") {
+        await sendTransactionalEmail("SUBSCRIPTION_RENEWED", updatedUser.email, { name, tier, expiresAt: dateStr });
+      } else {
+        await sendTransactionalEmail("SUBSCRIPTION_EXPIRED", updatedUser.email, { name });
+      }
     }
 
     return reply.send(updatedUser);
@@ -158,6 +164,15 @@ export async function adminRoutes(app: FastifyInstance) {
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
       }
     });
+
+    if (code.assignedEmail) {
+      await sendTransactionalEmail("DISCOUNT_CODE_ASSIGNED", code.assignedEmail, {
+        code: code.code,
+        discountType: code.discountType,
+        value: code.value,
+      });
+    }
+
     return reply.send(code);
   });
 
@@ -165,6 +180,42 @@ export async function adminRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     await prisma.discountCode.delete({ where: { id } });
     return reply.code(204).send();
+  });
+
+  app.post("/test-email", async (req, reply) => {
+    const { type, to, lang, name, tier, expiresAt, daysLeft, vehicleName, vin, code, discountType, value } = req.body as {
+      type: EmailTemplateType;
+      to: string;
+      lang?: Language;
+      name?: string;
+      tier?: string;
+      expiresAt?: string;
+      daysLeft?: number;
+      vehicleName?: string;
+      vin?: string;
+      code?: string;
+      discountType?: string;
+      value?: number;
+    };
+
+    if (!type || !to) {
+      return reply.code(400).send({ error: "Missing type or to parameters" });
+    }
+
+    const res = await sendTransactionalEmail(type, to, {
+      lang: lang ?? "it",
+      name: name || "Test User",
+      tier: tier || "STANDARD",
+      expiresAt: expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      daysLeft: daysLeft ? Number(daysLeft) : 10,
+      vehicleName: vehicleName || "Jaecoo 7 PHEV",
+      vin: vin || "LVVDB21A5MD123456",
+      code: code || "TESTPROMO8",
+      discountType: discountType || "FREE_DAYS",
+      value: value ? Number(value) : 30,
+    });
+
+    return reply.send({ ok: true, subject: res.subject });
   });
 
   app.get("/stats", async (req, reply) => {
