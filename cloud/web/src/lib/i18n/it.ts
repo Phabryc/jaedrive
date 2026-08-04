@@ -59,7 +59,7 @@ export const it = {
     "Ogni tragitto viene tracciato via GPS in automatico, con mappa ed elenco EV/ibrido/motore. Salva i tuoi percorsi ricorrenti e vedi le statistiche aggregarsi da sole.",
   "landing.feature3Title": "Consumi sotto controllo",
   "landing.feature3Body":
-    "Andamento del consumo nel tempo, confronto tra viaggi, stima CO₂: calcolati sui dati reali della tua auto, non su medie generiche di listino.",
+    "Andamento del consumo nel tempo, confronto tra viaggi e analisi per modalità di guida: calcolati sui dati reali della tua auto, non su medie generiche di listino.",
   "landing.feature4Title": "Sempre sincronizzato",
   "landing.feature4Body":
     "Associa l'auto al tuo account con un codice o un QR dallo schermo di bordo: i viaggi arrivano da soli su jaedrive.com, consultabili da qualunque dispositivo.",
@@ -377,4 +377,9 @@ export const it = {
   "admin.tplAccountDeleted": "👋 Cancellazione Account",
   "admin.tplDiscountCode": "🎁 Codice Sconto (Ad Personam)",
   "landing.plansLink": "Piani",
+  "landing.featuresLink": "Funzionalità",
+  "landing.featuresMoreLink": "Tutte le funzionalità",
+  "landing.plansBannerTitle": "App gratuita. Cloud Premium.",
+  "landing.plansBannerBody": "Scopri cosa sblocca un abbonamento Premium — piani Standard e Garage disponibili.",
+  "landing.plansBannerCta": "Vedi i piani",
 } as const;

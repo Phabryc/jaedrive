@@ -52,7 +52,7 @@ export const en: Record<keyof typeof it, string> = {
     "Every drive is tracked via GPS automatically, with a map and an EV/hybrid/engine breakdown. Save your recurring routes and watch the stats aggregate on their own.",
   "landing.feature3Title": "Consumption under control",
   "landing.feature3Body":
-    "Consumption trend over time, trip comparisons, a CO₂ estimate: all computed from your car's real data, not generic brochure averages.",
+    "Consumption trend over time, trip comparisons, and drive-mode efficiency analysis: all computed from your car's real data, not generic brochure averages.",
   "landing.feature4Title": "Always in sync",
   "landing.feature4Body":
     "Pair your car to your account with a code or a QR code from the dashboard screen: trips show up on jaedrive.com on their own, from any device.",
@@ -355,4 +355,9 @@ export const en: Record<keyof typeof it, string> = {
   "admin.tplAccountDeleted": "👋 Account Deleted",
   "admin.tplDiscountCode": "🎁 Promo Code (Personal)",
   "landing.plansLink": "Plans",
+  "landing.featuresLink": "Features",
+  "landing.featuresMoreLink": "All features",
+  "landing.plansBannerTitle": "Free app. Premium cloud.",
+  "landing.plansBannerBody": "See what a Premium subscription unlocks — Standard and Garage plans available.",
+  "landing.plansBannerCta": "View plans",
 };

@@ -7,9 +7,6 @@ import jdLogo from "../assets/jd_logo.png";
 import { IconGauge, IconFuel, IconCloud, IconRoute } from "../components/icons";
 import { vehicleImageFor } from "../lib/vehicleCatalog";
 
-// Stesse chiavi brand/model di VehicleCatalog.java (Android) - vehicleImageFor() e' la
-// stessa funzione usata da Dashboard.tsx, cosi' le sei silhouette restano un'unica fonte
-// invece di duplicare i percorsi dei file qui.
 const MODELS: { brand: string; model: string; label: string }[] = [
   { brand: "JAECOO", model: "5", label: "Jaecoo 5" },
   { brand: "JAECOO", model: "7", label: "Jaecoo 7" },
@@ -29,37 +26,54 @@ const FEATURES: { icon: typeof IconGauge; titleKey: TranslationKey; bodyKey: Tra
 export default function Landing() {
   const { user, loading } = useAuth();
   const { t } = useLanguage();
-  // Chi ha gia' una sessione attiva salta la pagina marketing e va dritto in app - stesso
-  // pattern di Login.tsx (li' pero' e' l'utente ad aver cercato /login esplicitamente).
   if (!loading && user) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="min-h-screen bg-bg text-onsurface">
+      {/* ── Header ── */}
       <header className="border-b border-surface-border">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
-          <div className="flex items-center gap-3">
+          {/* Logo → home */}
+          <Link to="/" aria-label="JaeDrive home">
+            <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
+          </Link>
+
+          <nav className="flex items-center gap-3">
             <LanguageSwitcher />
+            {/* Piani — link testuale evidente */}
+            <Link
+              to="/plans"
+              className="hidden text-sm font-medium text-accent underline-offset-4 hover:underline sm:inline"
+            >
+              {t("landing.plansLink")}
+            </Link>
+            {/* Features */}
+            <Link
+              to="/features"
+              className="hidden text-sm font-medium text-onsurface-variant underline-offset-4 hover:text-onsurface hover:underline sm:inline"
+            >
+              {t("landing.featuresLink")}
+            </Link>
             <Link to="/login" className={buttonVariants({ variant: "secondary", size: "sm" })}>
               {t("common.login")}
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
       <main>
-        {/* Hero: nessun gradiente/hero gigante fuori luogo - il tono e' quello di uno
-            strumento tecnico per un pubblico che gia' sa cosa vuole (proprietari
-            Jaecoo/Omoda che cercano dati reali), non una landing SaaS generica. */}
-        <section className="mx-auto max-w-3xl px-4 pb-16 pt-20 text-center sm:pt-28">
+        {/* ── Hero ── */}
+        <section className="mx-auto max-w-3xl px-4 pb-10 pt-20 text-center sm:pt-28">
           <p className="mb-4 text-xs font-medium uppercase tracking-[0.2em] text-accent">{t("landing.eyebrow")}</p>
           <h1 className="text-balance text-3xl font-semibold leading-tight sm:text-5xl">
             {t("landing.heroTitleLine1")}
             <br />
             {t("landing.heroTitleLine2")}
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-balance text-base text-onsurface-variant sm:text-lg">{t("landing.heroSubtitle")}</p>
-          <div className="mt-8 flex items-center justify-center gap-3">
+          <p className="mx-auto mt-5 max-w-xl text-balance text-base text-onsurface-variant sm:text-lg">
+            {t("landing.heroSubtitle")}
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link to="/login" className={buttonVariants({ variant: "primary" })}>
               {t("common.login")}
             </Link>
@@ -69,6 +83,27 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* ── Banner Piani sotto la hero ── */}
+        <section className="mx-auto mb-10 max-w-3xl px-4">
+          <div className="flex flex-col items-center justify-between gap-4 rounded-2xl border border-accent/30 bg-accent/5 px-6 py-5 sm:flex-row">
+            <div>
+              <p className="font-semibold">
+                {t("landing.plansBannerTitle")}
+              </p>
+              <p className="mt-0.5 text-sm text-onsurface-variant">
+                {t("landing.plansBannerBody")}
+              </p>
+            </div>
+            <Link
+              to="/plans"
+              className={buttonVariants({ variant: "primary", size: "sm", className: "shrink-0" })}
+            >
+              {t("landing.plansBannerCta")} →
+            </Link>
+          </div>
+        </section>
+
+        {/* ── Features grid ── */}
         <section id="funzionalita" className="mx-auto max-w-5xl px-4 pb-20">
           <div className="grid gap-4 sm:grid-cols-2">
             {FEATURES.map(({ icon: Icon, titleKey, bodyKey }) => (
@@ -81,12 +116,20 @@ export default function Landing() {
               </div>
             ))}
           </div>
+          <div className="mt-6 text-center">
+            <Link to="/features" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              {t("landing.featuresMoreLink")} →
+            </Link>
+          </div>
         </section>
 
+        {/* ── Modelli ── */}
         <section className="border-t border-surface-border bg-surface/40 py-16">
           <div className="mx-auto max-w-5xl px-4">
             <h2 className="text-center text-xl font-semibold">{t("landing.modelsTitle")}</h2>
-            <p className="mx-auto mt-2 max-w-md text-center text-sm text-onsurface-variant">{t("landing.modelsSubtitle")}</p>
+            <p className="mx-auto mt-2 max-w-md text-center text-sm text-onsurface-variant">
+              {t("landing.modelsSubtitle")}
+            </p>
             <div className="mt-10 grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-6">
               {MODELS.map((m) => (
                 <div key={m.label} className="flex flex-col items-center gap-2">
@@ -98,14 +141,21 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* ── CTA finale ── */}
         <section className="mx-auto max-w-2xl px-4 py-20 text-center">
           <h2 className="text-2xl font-semibold">{t("landing.finalCtaTitle")}</h2>
-          <Link to="/login" className={buttonVariants({ variant: "primary", className: "mt-6 inline-flex" })}>
-            {t("landing.finalCtaButton")}
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link to="/login" className={buttonVariants({ variant: "primary" })}>
+              {t("landing.finalCtaButton")}
+            </Link>
+            <Link to="/plans" className={buttonVariants({ variant: "secondary" })}>
+              {t("landing.plansLink")}
+            </Link>
+          </div>
         </section>
       </main>
 
+      {/* ── Footer ── */}
       <footer className="border-t border-surface-border px-4 py-6 text-center text-xs text-onsurface-variant">
         <p>
           <Link to="/legal/eula" className="hover:text-onsurface hover:underline">
@@ -118,6 +168,10 @@ export default function Landing() {
           <span className="mx-2">·</span>
           <Link to="/plans" className="hover:text-onsurface hover:underline">
             {t("landing.plansLink")}
+          </Link>
+          <span className="mx-2">·</span>
+          <Link to="/features" className="hover:text-onsurface hover:underline">
+            {t("landing.featuresLink")}
           </Link>
         </p>
         <p className="mt-3">{t("landing.disclaimer")}</p>
