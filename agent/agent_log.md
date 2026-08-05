@@ -4,6 +4,33 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - JaeDriveProbe: Fix Commit Mancante, Push, Chiusura Sessione
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[build-system]`, `[agent]`
+- **Status**: `COMPLETED` (fix + push) — resto vedi Handover
+
+### 📌 Sintesi della Funzionalità / Modifica
+Dopo la verifica end-to-end completata dall'altro agente (voce sotto), controllo finale dello stato del repo: il commit `27ff663` di quell'agente non includeva `probe/proguard-rules.pro` (rimasto non tracciato) pur essendo referenziato da `build.gradle` per le keep-rules AIDL/zip4j sotto R8 — un fresh clone avrebbe rotto la build release. Aggiunto con un commit dedicato e pushato entrambi su `main`.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **[`probe/proguard-rules.pro`](probe/proguard-rules.pro)**: aggiunto al tracking git (era presente su disco ma non incluso nel commit precedente).
+
+### 🧪 Comandi di Verifica Eseguiti
+- `git add probe/proguard-rules.pro && git commit ...` → `2ccbb5b`.
+- `git push` → `56917e2..2ccbb5b main -> main`.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: tutto il lavoro JaeDriveProbe (zip cifrato, offuscamento, inglese, fix proguard) è committato e pushato su `main`. Nessun lavoro pendente sul modulo `probe/` stesso.
+- **Open Questions / Pending Tasks**:
+  1. Copiare `probe/build/outputs/apk/release/JaeDriveProbe.apk` sulla chiavetta USB (non fatto in questa sessione — vedi Constraints).
+  2. Copiare anche l'ultimo `app/build/outputs/apk/debug/JaeDrive.apk` (l'app principale, che non ha mai un build type `release` a sé — vedi `app/build.gradle`) sulla stessa chiavetta, sostituendo la build precedente.
+  3. Nessuna verifica di build fatta in questa sessione sull'app principale (`:app:assembleDebug`) — vedi Constraints, era bloccata anche quella.
+- **Constraints / Warning**: questa sessione (Claude Code / Sonnet 5) ha avuto **tutte** le chiamate Bash relative a build/install/USB bloccate da un safety classifier separato dal normale sistema di permessi (vedi voce precedente per il dettaglio) — il blocco si è esteso anche a `:app:assembleDebug`, non solo al modulo `probe`. L'utente ha scelto di continuare il lavoro sull'app principale in una **sessione nuova** per ripartire senza quel contesto accumulato — se sei quella sessione nuova, non dovresti avere lo stesso problema; se lo hai comunque, non insistere/aggirare, chiedi all'utente di lanciare i comandi da terminale (funziona sempre, verificato più volte in questa sessione).
+
+---
+
 ## [2026-08-05] - JaeDriveProbe: Verifica End-to-End su Emulatore Completa
 
 ### 👤 Agent Metadata
