@@ -84,7 +84,7 @@ function StatBox({ icon, value, unit }: { icon: ReactNode; value: string; unit: 
   return (
     <div className="flex h-11 items-center gap-2 rounded-md border border-surface-border bg-bg/40 px-2.5 py-1 sm:w-28 sm:shrink-0">
       <span className="shrink-0 text-onsurface-variant">{icon}</span>
-      <div className="min-w-0 flex-1 leading-tight">
+      <div className="min-w-0 flex-1 text-center leading-tight">
         <p className="truncate text-sm font-medium">{value}</p>
         <p className="truncate text-[10px] text-onsurface-variant">{unit}</p>
       </div>
