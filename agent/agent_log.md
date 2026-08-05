@@ -4,6 +4,31 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Nuovo Modulo: JaeDriveProbe (Strumento Diagnostico Standalone per Altri Modelli Chery-Group)
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`, `[build-system]`
+- **Status**: `COMPLETED` (codice, build verificata, testato dal vivo su emulatore) — `REQUIRES_USER_TEST` su una vettura Chery-group diversa dalla Jaecoo 7 dell'utente (l'intero scopo dello strumento)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Nato da una domanda dell'utente sulla confidenza delle implementazioni JaeDrive per le altre motorizzazioni/modelli della gamma Chery-group (Jaecoo 5/7/8, Omoda 5/7/9) - la risposta onesta e' che tutte le tabelle di decodifica del bus VDB Desay (flusso energia, drive mode, formule SOC/carburante) sono state reverse-engineered su UNA sola vettura fisica (la Jaecoo 7 SHS-H dell'utente) e non sono mai state verificate su nessun'altra. In particolare `EnergyFlowUtil.java` documenta gia' nei suoi stessi commenti che esiste una tabella "four_wheel_" alternativa per i modelli 4WD, mai usata dal codice (che applica sempre e solo la tabella 2WD a qualunque motorizzazione). Creato un nuovo modulo/APK completamente indipendente da JaeDrive, pensato per essere installato su una vettura diversa (di un altro proprietario, o presso un concessionario) per raccogliere in un colpo solo tutte le informazioni utili a colmare questo buco di conoscenza, senza bisogno di adb/USB debugging sull'altra vettura.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **Nuovo modulo Gradle `probe/`** (`settings.gradle` aggiornato con `include ':probe'`) - APK separato `com.phabryc.jaedriveprobe` ("JaeDriveProbe"), nessuna dipendenza da account/cloud/pairing/internet, solo i permessi Car API + storage necessari al dump.
+- **[`probe/src/main/java/com/phabryc/jaedriveprobe/MainActivity.java`](probe/src/main/java/com/phabryc/jaedriveprobe/MainActivity.java)**: un solo pulsante "AVVIA SCANSIONE" che raccoglie in sequenza: risoluzione/densita'/bucket schermo reali (stessa tecnica che ha scoperto il mismatch 240-vs-160dpi dell'emulatore), `getprop` completo via shell (nessun root necessario), enumerazione di TUTTE le `CarPropertyConfig` di `android.car` con relativo valore (stesso approccio gia' verificato in `MainActivity.discoverAllProperties()` di JaeDrive), scansione a tappeto modulo×cmdId (0x00-0xFF) del bus VDB Desay su tutti e 5 i moduli noti (inclusi CAR_SETTING/CAR_COMPUTER, mai sondati prima), e - permessi permettendo - copia grezza di qualunque APK di sistema desaysv/desay/vds installato (per poterli decompilare offline come gia' fatto per la Jaecoo 7). Tutto scritto in un unico file di testo esportato su USB con lo stesso meccanismo MANAGE_EXTERNAL_STORAGE/StorageVolume gia' verificato sul campo in JaeDrive.
+- Riusa file esistenti copiati identici da `app/`: AIDL `IVDBus`/`IVDBusNotify`/`IVDBusCallback`/`VDEvent`, e l'implementazione Java a mano di `VDEvent.java` (il file `.aidl` da solo dichiara il tipo ma non lo implementa - bug di build scoperto e risolto durante la creazione di questo modulo).
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew :probe:assembleDebug` e poi build completa (`assembleDebug assembleRelease` su tutto il progetto) → **BUILD SUCCESSFUL**, nessun impatto sul modulo `app/`.
+- Test dal vivo sull'emulatore Automotive: scansione completa senza crash - dump `android.car` corretto (28 property trovate coi valori), rilevamento pulito dell'assenza del bus VDB Desay su questo dispositivo generico (nessun crash, messaggio chiaro), dump APK correttamente vuoto (0 pacchetti Desay installati qui), export USB fallito con messaggio d'errore chiaro (permesso mancante + Settings screen assente su questo ROM generico) invece di crashare.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Open Questions / Pending Tasks**: l'intero scopo dello strumento e' essere provato su una vettura Chery-group DIVERSA dalla Jaecoo 7 - finche' non succede, resta uno strumento pronto ma inutilizzato. Se/quando arriva un dump da un'altra vettura, confrontarlo con `VDInfoClient.java`/`EnergyFlowUtil.java` per capire se le tabelle attuali vanno estese con un ramo per-modello o per-trazione (2WD/4WD).
+- **Constraints / Warning**: e' uno strumento diagnostico "usa e getta", non pensato per essere distribuito/mantenuto come JaeDrive stessa - nessun aggiornamento del catalogo `VehicleCatalog`/nessuna logica di business qui dentro, solo raccolta dati grezzi.
+
+---
+
 ## [2026-08-05] - Fix Pagine Statiche Cloud: Allineamento Feature/Freemium a Implementazione Reale
 
 ### 👤 Agent Metadata
