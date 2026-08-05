@@ -6,6 +6,7 @@ import org.xmlpull.v1.XmlPullParser;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,11 +32,15 @@ public class GpxReader {
             boolean inSpeedKmh = false;
             boolean inInstConsumption = false;
             boolean inRegenLevel = false;
+            boolean inTime = false;
+            boolean inPauseEndTime = false;
             double lat = 0, lon = 0;
             int energyFlow = -1;
             float batteryPct = -1f, fuelPct = -1f;
             int driveMode = -1, regenLevel = -1;
             float speedKmh = -1f, instConsumption = -1f;
+            long timeMillis = 0;
+            Long pauseEndMillis = null;
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 switch (eventType) {
@@ -50,8 +55,14 @@ public class GpxReader {
                             regenLevel = -1;
                             speedKmh = -1f;
                             instConsumption = -1f;
+                            timeMillis = 0;
+                            pauseEndMillis = null;
                             lat = parseOrZero(parser.getAttributeValue(null, "lat"));
                             lon = parseOrZero(parser.getAttributeValue(null, "lon"));
+                        } else if (inTrkpt && "time".equals(name)) {
+                            inTime = true;
+                        } else if (inTrkpt && isExtensionTag(name, "pauseEndTime")) {
+                            inPauseEndTime = true;
                         } else if (inTrkpt && isExtensionTag(name, "energyFlow")) {
                             inEnergyFlow = true;
                         } else if (inTrkpt && isExtensionTag(name, "batteryPct")) {
@@ -70,7 +81,17 @@ public class GpxReader {
                         break;
                     }
                     case XmlPullParser.TEXT: {
-                        if (inEnergyFlow) {
+                        if (inTime) {
+                            try {
+                                timeMillis = Instant.parse(parser.getText().trim()).toEpochMilli();
+                            } catch (Exception ignored) {
+                            }
+                        } else if (inPauseEndTime) {
+                            try {
+                                pauseEndMillis = Instant.parse(parser.getText().trim()).toEpochMilli();
+                            } catch (Exception ignored) {
+                            }
+                        } else if (inEnergyFlow) {
                             try {
                                 energyFlow = Integer.parseInt(parser.getText().trim());
                             } catch (Exception ignored) {
@@ -110,7 +131,11 @@ public class GpxReader {
                     }
                     case XmlPullParser.END_TAG: {
                         String name = parser.getName();
-                        if (isExtensionTag(name, "energyFlow")) {
+                        if ("time".equals(name)) {
+                            inTime = false;
+                        } else if (isExtensionTag(name, "pauseEndTime")) {
+                            inPauseEndTime = false;
+                        } else if (isExtensionTag(name, "energyFlow")) {
                             inEnergyFlow = false;
                         } else if (isExtensionTag(name, "batteryPct")) {
                             inBatteryPct = false;
@@ -126,7 +151,7 @@ public class GpxReader {
                             inRegenLevel = false;
                         } else if ("trkpt".equals(name) && inTrkpt) {
                             points.add(new TripPoint(lat, lon, energyFlow, batteryPct, fuelPct,
-                                driveMode, speedKmh, instConsumption, regenLevel));
+                                driveMode, speedKmh, instConsumption, regenLevel, timeMillis, pauseEndMillis));
                             inTrkpt = false;
                         }
                         break;

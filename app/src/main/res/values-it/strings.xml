@@ -65,6 +65,15 @@
     <string name="btn_delete">ELIMINA</string>
     <string name="dialog_delete_trips_title">Eliminare i viaggi selezionati?</string>
     <string name="dialog_delete_trips_message">Questa azione non puo\' essere annullata.</string>
+    <string name="btn_merge_trips">UNISCI</string>
+    <string name="dialog_merge_trips_title">Unire %1$d viaggi in uno solo?</string>
+    <string name="dialog_merge_trips_message">I viaggi selezionati verranno sostituiti da un unico viaggio con statistiche unite e una sola traccia GPS (con un indicatore di pausa tra una tratta e l\'altra). Questa azione non puo\' essere annullata.</string>
+    <string name="toast_merge_min_two">Seleziona almeno 2 viaggi da unire</string>
+    <string name="toast_merge_only_auto">Si possono unire solo viaggi automatici (GPS)</string>
+    <string name="toast_merge_not_adjacent">I viaggi selezionati non sono consecutivi - c\'e\' un altro viaggio in mezzo</string>
+    <string name="toast_merge_success">%1$d viaggi uniti</string>
+    <string name="label_pause_marker_title">Pausa</string>
+    <string name="label_pause_marker_duration">%1$s – %2$s</string>
     <string name="dialog_reset_trip_title">Azzerare %1$s?</string>
     <string name="dialog_reset_trip_message">Il viaggio attuale viene chiuso e salvato nello Storico, poi ne parte uno nuovo da zero.</string>
 

@@ -103,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
     // avvenuta. currentTripsById e' popolata ad ogni refreshTrackList() per risalire ai
     // path gpx/log dei trip selezionati al momento della cancellazione (solo i record
     // AUTO/MANUAL veri, mai i due record "ongoing" virtuali - id negativo, non selezionabili).
-    private View btnEnterSelection, btnCancelSelection, btnDeleteSelected;
+    private View btnEnterSelection, btnCancelSelection, btnDeleteSelected, btnMergeSelected;
     private LinearLayout selectionBar;
     private TextView tvSelectionCount;
     private boolean selectionMode = false;
@@ -286,6 +286,7 @@ public class MainActivity extends AppCompatActivity {
         tvSelectionCount = findViewById(R.id.tv_selection_count);
         btnCancelSelection = findViewById(R.id.btn_cancel_selection);
         btnDeleteSelected = findViewById(R.id.btn_delete_selected);
+        btnMergeSelected = findViewById(R.id.btn_merge_selected);
 
         // Pannello di dettaglio viaggio: un'unica istanza inflata una volta, ri-agganciata
         // sotto la riga espansa (vedi attachDetailPanelTo()). La MapView invece NON e'
@@ -396,6 +397,7 @@ public class MainActivity extends AppCompatActivity {
         });
         btnCancelSelection.setOnClickListener(v -> exitSelectionMode());
         btnDeleteSelected.setOnClickListener(v -> confirmDeleteSelectedTrips());
+        btnMergeSelected.setOnClickListener(v -> confirmMergeSelectedTrips());
         updateLogTabVisibility();
         showSection(0);
         setupImpostazioni();
@@ -1179,6 +1181,113 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Unione di 2+ viaggi AUTO consecutivi in uno solo (richiesta esplicita utente
+    // 2026-08-05, vedi TripMerger per il calcolo): utile per un viaggio interrotto da una
+    // pausa, registrato come piu' viaggi separati perche' il gear e' tornato in PARK.
+    // Validazione PRIMA del dialogo di conferma, cosi' un errore (tipo misto, non
+    // consecutivi) si vede subito invece che dopo aver gia' confermato.
+    private void confirmMergeSelectedTrips() {
+        List<TripRecord> selected = new ArrayList<>();
+        for (Long id : selectedTripIds) {
+            TripRecord r = currentTripsById.get(id);
+            if (r != null) selected.add(r);
+        }
+        if (selected.size() < 2) {
+            Toast.makeText(this, getString(R.string.toast_merge_min_two), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        for (TripRecord r : selected) {
+            if (!TripRecord.TYPE_AUTO.equals(r.type)) {
+                Toast.makeText(this, getString(R.string.toast_merge_only_auto), Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+        selected.sort((a, b) -> Long.compare(a.startTime, b.startTime));
+
+        // Adiacenza: nessun ALTRO viaggio AUTO (non selezionato) puo' avere un inizio
+        // compreso tra la fine di uno selezionato e l'inizio del successivo - altrimenti
+        // il viaggio unito "salterebbe" una tratta di mezzo, senza senso per l'utente.
+        java.util.Set<Long> selectedIds = new java.util.HashSet<>();
+        for (TripRecord r : selected) selectedIds.add(r.id);
+        List<TripRecord> allAuto = TripDatabase.getInstance(this).getTrips(TripRecord.TYPE_AUTO);
+        for (int i = 0; i < selected.size() - 1; i++) {
+            long endA = selected.get(i).endTime;
+            long startB = selected.get(i + 1).startTime;
+            for (TripRecord other : allAuto) {
+                if (selectedIds.contains(other.id)) continue;
+                if (other.startTime > endA && other.startTime < startB) {
+                    Toast.makeText(this, getString(R.string.toast_merge_not_adjacent), Toast.LENGTH_LONG).show();
+                    return;
+                }
+            }
+        }
+
+        showConfirmDialog(
+            getString(R.string.dialog_merge_trips_title, selected.size()),
+            getString(R.string.dialog_merge_trips_message),
+            getString(R.string.btn_merge_trips),
+            false,
+            () -> mergeSelectedTrips(selected));
+    }
+
+    private void mergeSelectedTrips(List<TripRecord> sortedTrips) {
+        String mergedFileName = "Percorso_" + DateFormat.format("yyyyMMdd_HHmmss", sortedTrips.get(0).startTime) + ".gpx";
+        File mergedGpxFile = new File(getFilesDir(), mergedFileName);
+        try (java.io.OutputStreamWriter w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(mergedGpxFile))) {
+            w.write(TripMerger.buildMergedGpx(sortedTrips, mergedFileName));
+        } catch (Exception e) {
+            appendLog("Errore scrittura GPX unito: " + e);
+            Toast.makeText(this, e.toString(), Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        TripRecord merged = TripMerger.buildMergedRecord(sortedTrips, mergedGpxFile.getAbsolutePath());
+        TripDatabase.getInstance(this).insertTrip(merged);
+
+        // Stessa pulizia file/riga DB del flusso di cancellazione (deleteSelectedTrips) -
+        // ma qui i viaggi gia' caricati sul cloud vanno tolti anche li' SUBITO e senza
+        // chiedere conferma separata (richiesta esplicita utente: "deve aggiornare il
+        // cloud"), a differenza della cancellazione manuale dove resta una scelta
+        // dell'utente - qui l'alternativa sarebbe un doppione permanente online (i viaggi
+        // originali E il nuovo viaggio unito), non un'opzione ragionevole.
+        List<Long> originalIds = new ArrayList<>();
+        List<String> cloudIdsToDelete = new ArrayList<>();
+        for (TripRecord r : sortedTrips) {
+            originalIds.add(r.id);
+            if (r.cloudTripId != null) cloudIdsToDelete.add(r.cloudTripId);
+            if (r.gpxPath != null) {
+                File f = new File(r.gpxPath);
+                if (f.exists()) f.delete();
+            }
+            if (r.logPath != null) {
+                File f = new File(r.logPath);
+                if (f.exists()) f.delete();
+            }
+        }
+        TripDatabase.getInstance(this).deleteTrips(originalIds);
+        appendLog(sortedTrips.size() + " viaggi uniti in un solo viaggio (" + mergedFileName + ")");
+        exitSelectionMode();
+        Toast.makeText(this, getString(R.string.toast_merge_success, sortedTrips.size()), Toast.LENGTH_SHORT).show();
+
+        // Il viaggio unito parte "non caricato" (uploaded=0 di default, vedi
+        // TripDatabase.insertTrip()) - SyncScheduler lo carica da solo al prossimo giro,
+        // stesso percorso di un viaggio normale appena chiuso.
+        SyncScheduler.enqueueSync(this);
+        if (!cloudIdsToDelete.isEmpty() && Prefs.isCloudPaired(this)) {
+            String token = Prefs.getCloudDeviceToken(this);
+            new Thread(() -> {
+                for (String cloudId : cloudIdsToDelete) {
+                    try {
+                        CloudApiClient.deleteTrip(token, cloudId);
+                    } catch (Exception e) {
+                        appendLog("[Cloud] Errore eliminazione trip " + cloudId + " dal cloud (post-merge): " + e);
+                    }
+                }
+                appendLog("[Cloud] " + cloudIdsToDelete.size() + " viaggi originali eliminati dal cloud dopo il merge");
+            }, "JaeDrive-MergeCloudCleanup").start();
+        }
+    }
+
     // Record "virtuale" (non persistito) per il periodo ancora aperto di uno slot
     // manuale, dall'ultimo reset ad ora - vedi refreshTrackList(). id e' un sentinel
     // negativo (-1/-2), mai in conflitto con gli id reali di TripDatabase (AUTOINCREMENT
@@ -1517,11 +1626,18 @@ public class MainActivity extends AppCompatActivity {
 
         List<TripPoint> points = r.gpxPath != null ? GpxReader.readPoints(new File(r.gpxPath)) : new ArrayList<>();
         boolean online = NetUtils.hasInternet(this);
+        // Nessuna traccia valida (es. un viaggio unito il cui GPX di partenza era vuoto,
+        // o un viaggio mai geolocalizzato) - la mappa online reale non avrebbe comunque
+        // nulla da disegnare, mostrerebbe solo il mappamondo di default: si usa SEMPRE la
+        // vista schematica offline anche con internet disponibile, che gia' da sola
+        // disegna "Nessuna traccia GPS salvata" per una lista vuota (vedi TripTraceView).
+        boolean hasTrack = points.size() >= 2;
+        boolean showRealMap = online && hasTrack;
         tvMapOfflineLabel.setVisibility(online ? View.GONE : View.VISIBLE);
-        mapContainer.setVisibility(online ? View.VISIBLE : View.GONE);
-        tripTraceView.setVisibility(online ? View.GONE : View.VISIBLE);
+        mapContainer.setVisibility(showRealMap ? View.VISIBLE : View.GONE);
+        tripTraceView.setVisibility(showRealMap ? View.GONE : View.VISIBLE);
 
-        if (online) {
+        if (showRealMap) {
             showMapForTrip(points);
         } else {
             destroyMapView();
@@ -1590,6 +1706,15 @@ public class MainActivity extends AppCompatActivity {
         // cosi' mappa e testo raccontano la stessa cosa con lo stesso linguaggio visivo.
         mapView.getOverlays().add(buildTripMarker(geoPoints.get(0), R.drawable.ic_location, true));
         mapView.getOverlays().add(buildTripMarker(geoPoints.get(geoPoints.size() - 1), R.drawable.ic_flag_checkered, false));
+
+        // Marker di pausa (2026-08-05, viaggi uniti - vedi TripMerger): un pallino rosso per
+        // ogni punto sintetico inserito tra due tratte, con titolo/orari mostrati al tocco.
+        for (int i = 0; i < points.size(); i++) {
+            TripPoint p = points.get(i);
+            if (p.pauseEndMillis != null) {
+                mapView.getOverlays().add(buildPauseMarker(geoPoints.get(i), p.timeMillis, p.pauseEndMillis));
+            }
+        }
         mapView.invalidate();
 
         BoundingBox box = BoundingBox.fromGeoPoints(geoPoints);
@@ -1615,6 +1740,27 @@ public class MainActivity extends AppCompatActivity {
         }
         marker.setAnchor(isStart ? 0.5f : 0.2f, 1.0f);
         marker.setInfoWindow(null);
+        return marker;
+    }
+
+    // Marker di pausa per un viaggio unito (vedi TripMerger) - a differenza di
+    // buildTripMarker() usa l'InfoWindow di default di osmdroid (non null) apposta, cosi'
+    // toccandolo compaiono titolo e durata invece di essere solo un puntino muto sulla mappa.
+    private Marker buildPauseMarker(GeoPoint point, long pauseStartMillis, long pauseEndMillis) {
+        Marker marker = new Marker(mapView);
+        marker.setPosition(point);
+        android.graphics.drawable.Drawable icon = ContextCompat.getDrawable(this, R.drawable.ic_pause_marker);
+        if (icon != null) {
+            icon = icon.mutate();
+            int sizePx = (int) dp(16);
+            icon.setBounds(0, 0, sizePx, sizePx);
+            marker.setIcon(icon);
+        }
+        marker.setAnchor(0.5f, 0.5f);
+        marker.setTitle(getString(R.string.label_pause_marker_title));
+        java.text.DateFormat timeFmt = android.text.format.DateFormat.getTimeFormat(this);
+        marker.setSnippet(getString(R.string.label_pause_marker_duration,
+            timeFmt.format(new java.util.Date(pauseStartMillis)), timeFmt.format(new java.util.Date(pauseEndMillis))));
         return marker;
     }
 

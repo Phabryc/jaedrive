@@ -62,6 +62,15 @@
     <string name="btn_delete">DELETE</string>
     <string name="dialog_delete_trips_title">Delete selected trips?</string>
     <string name="dialog_delete_trips_message">This action cannot be undone.</string>
+    <string name="btn_merge_trips">MERGE</string>
+    <string name="dialog_merge_trips_title">Merge %1$d trips into one?</string>
+    <string name="dialog_merge_trips_message">The selected trips will be replaced by a single trip with combined stats and one GPS track (with a pause marker between each leg). This cannot be undone.</string>
+    <string name="toast_merge_min_two">Select at least 2 trips to merge</string>
+    <string name="toast_merge_only_auto">Only automatic (GPS) trips can be merged</string>
+    <string name="toast_merge_not_adjacent">Selected trips aren\'t consecutive - another trip is in between</string>
+    <string name="toast_merge_success">%1$d trips merged</string>
+    <string name="label_pause_marker_title">Pause</string>
+    <string name="label_pause_marker_duration">%1$s – %2$s</string>
     <string name="dialog_reset_trip_title">Reset %1$s?</string>
     <string name="dialog_reset_trip_message">This closes the current trip and saves it to History, then starts a new one from zero.</string>
 

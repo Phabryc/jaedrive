@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Indicatore di pausa sulla mappa dettaglio viaggio (2026-08-05, viaggi uniti - vedi
+     TripMerger/MainActivity.showOnMap()) - pallino rosso pieno con bordo bianco sottile
+     per risaltare sopra la traccia colorata e i tile della mappa. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/error"/>
+    <stroke android:width="2dp" android:color="#FFFFFFFF"/>
+</shape>
