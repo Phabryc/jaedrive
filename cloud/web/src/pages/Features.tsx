@@ -77,15 +77,16 @@ const FEATURES: Feature[] = [
     itTitle: "Registrazione automatica dei viaggi",
     enTitle: "Automatic trip recording",
     itBody:
-      "Ogni volta che metti in moto la tua auto JaeDrive inizia a registrare — automaticamente, senza dover aprire l'app. Al termine del viaggio trova tutto sul cloud, già categorizzato.",
+      "Ogni volta che metti in moto la tua auto JaeDrive inizia a registrare — automaticamente, senza dover aprire l'app. I dati vengono salvati sull'headunit; con un piano Premium arrivano automaticamente sul cloud, consultabili da qualsiasi dispositivo.",
     enBody:
-      "Every time you start your car JaeDrive begins recording — automatically, without opening the app. When the trip is done, everything is already on the cloud, categorised.",
+      "Every time you start your car JaeDrive begins recording — automatically, without opening the app. Data is saved on the headunit; with a Premium plan, trips land automatically in the cloud and are accessible from any device.",
     itDetails: [
       "Traccia GPS completa con mappa interattiva del percorso",
       "Suddivisione km in modalità EV / ibrida / termica",
       "Consumi reali per tratto di percorso",
       "Livello carburante e SOC a inizio e fine viaggio",
       "Rilevamento automatico stop intermedi",
+      "Unione di viaggi consecutivi (più soste, un unico percorso combinato)",
     ],
     enDetails: [
       "Full GPS track with interactive route map",
@@ -93,6 +94,7 @@ const FEATURES: Feature[] = [
       "Real consumption per road segment",
       "Fuel level and SOC at trip start and end",
       "Automatic intermediate stop detection",
+      "Merge consecutive trips (multiple stops, one combined journey)",
     ],
   },
   {
@@ -176,25 +178,25 @@ const FEATURES: Feature[] = [
     id: "gpx",
     icon: icons.gpx,
     color: "text-orange-400 bg-orange-500/10",
-    itTitle: "Export GPX completo + CSV + PDF",
-    enTitle: "Full GPX + CSV + PDF export",
+    itTitle: "Export GPX completo (+ CSV e PDF 🔜)",
+    enTitle: "Full GPX export (+ CSV & PDF 🔜)",
     premium: true,
     premiumTier: "STANDARD",
     itBody:
-      "Esporta i tuoi dati nel formato che preferisci. L'export GPX Premium include tutte le estensioni JaeDrive con dati energetici e di guida non disponibili in nessun altro formato.",
+      "Esporta i tuoi viaggi in formato aperto. L'export GPX Premium include tutte le estensioni JaeDrive con dati energetici e di guida. CSV e PDF sono in sviluppo e saranno disponibili in una versione futura.",
     enBody:
-      "Export your data in the format you prefer. The Premium GPX export includes all JaeDrive extensions with energy and driving data not available in any other format.",
+      "Export your trips in an open format. The Premium GPX export includes all JaeDrive extensions with energy and driving data. CSV and PDF are in development and will be available in a future release.",
     itDetails: [
       "GPX 1.1 standard con lat/lon/ele/time (disponibile gratis)",
       "Estensioni GPX JaeDrive: flusso energia, SOC, livello carburante, modalità guida, velocità, consumo istantaneo, livello regen (Premium)",
-      "Export CSV con tutti i dati di telemetria per analisi esterne",
-      "Report PDF formattato con mappa del percorso e statistiche",
+      "Export CSV con dati di telemetria completi 🔜 in arrivo",
+      "Report PDF con mappa del percorso e statistiche 🔜 in arrivo",
     ],
     enDetails: [
       "Standard GPX 1.1 with lat/lon/ele/time (free)",
       "JaeDrive GPX extensions: energy flow, SOC, fuel level, drive mode, speed, instant consumption, regen level (Premium)",
-      "CSV export with all telemetry data for external analysis",
-      "Formatted PDF report with route map and stats",
+      "CSV export with full telemetry data 🔜 coming soon",
+      "Formatted PDF report with route map and stats 🔜 coming soon",
     ],
   },
   {
@@ -212,13 +214,13 @@ const FEATURES: Feature[] = [
     itDetails: [
       "Modalità di guida attiva in tempo reale",
       "SOC e indicatore di flusso energetico",
-      "Sempre visibile sopra qualsiasi altra app dell'infotainment",
+      "Sempre visibile sopra le app dell'infotainment",
       "Attivabile/disattivabile dalle impostazioni",
     ],
     enDetails: [
       "Active drive mode in real time",
       "SOC and energy flow indicator",
-      "Always visible above any other infotainment app",
+      "Always visible above other infotainment apps",
       "Toggle on/off from settings",
     ],
   },
@@ -256,9 +258,9 @@ const FEATURES: Feature[] = [
     premium: true,
     premiumTier: "STANDARD",
     itBody:
-      "Il piano Free conserva gli ultimi 7 giorni di viaggi sull'headunit. Con Premium lo storico è illimitato nel cloud — ogni viaggio registrato è lì per sempre.",
+      "Il piano Free mostra gli ultimi 7 giorni di viaggi — quelli più vecchi continuano ad essere registrati localmente, ma diventano consultabili solo con Premium. Con il cloud lo storico è illimitato: ogni viaggio registrato è accessibile per sempre da qualsiasi dispositivo.",
     enBody:
-      "The Free plan keeps the last 7 days of trips on the headunit. With Premium, history is unlimited in the cloud — every recorded trip is there forever.",
+      "The Free plan shows the last 7 days of trips — older ones keep being recorded locally but become viewable only with Premium. With the cloud, history is unlimited: every recorded trip is accessible forever from any device.",
     itDetails: [
       "Nessun limite di tempo o numero di viaggi",
       "Ricerca e filtro per data, percorso, modalità",

@@ -4,6 +4,82 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Fix Pagine Statiche Cloud: Allineamento Feature/Freemium a Implementazione Reale
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop AG (Antigravity / Claude Sonnet 4.6 Thinking)
+- **Scope / Subsystem**: `[cloud]`
+- **Status**: `COMPLETED` (TypeScript check OK, `npx tsc --noEmit` → exit 0)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Analisi sistematica delle tre pagine statiche pubbliche (`Landing.tsx`, `Plans.tsx`, `Features.tsx`) rispetto alla verità tecnica documentata in `FREEMIUM_STRATEGY.md` e `agent_log.md`. Trovate e corrette **9 discrepanze** tra comunicazione marketing e implementazione reale.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+
+**[`Plans.tsx`](file:///home/phabryc/Desktop/Desktop/JaeDrive/cloud/web/src/pages/Plans.tsx)**:
+- Riga tabella "Export CSV e PDF": `standard: true, garage: true` → `standard: "🔜 In arrivo", garage: "🔜 In arrivo"` (CSV/PDF non ancora implementati).
+- Riga tabella "Re-pairing senza penalità": `free: false` → `free: "N/A"` (i Free non fanno pairing, non hanno penalità da gestire — ❌ era fuorviante).
+- Sezione Free — lista feature: aggiunta "Unione di viaggi consecutivi (soste intermedie, un unico percorso)" (IT+EN) — feature reale e funzionante dal `TripMerger.java`, mai documentata nelle pagine statiche.
+- Card Standard: "Export GPX completo + CSV + PDF" → "Export GPX completo con estensioni (CSV e PDF 🔜 in arrivo)" (IT+EN).
+
+**[`Features.tsx`](file:///home/phabryc/Desktop/Desktop/JaeDrive/cloud/web/src/pages/Features.tsx)**:
+- Card "Registrazione automatica dei viaggi": body riscritto per non implicare che il cloud sia incluso per i Free (era "trova tutto sul cloud" — falso per chi non ha un piano). Aggiunto merge trips nelle `itDetails`/`enDetails`.
+- Card "Export GPX": titolo da "...+ CSV + PDF" a "...(+ CSV e PDF 🔜)" (IT+EN); body aggiornato a spiegare che CSV/PDF sono in sviluppo; le due righe nei dettagli marcate "🔜 in arrivo" / "🔜 coming soon".
+- Card "Overlay status bar": "Sempre visibile sopra qualsiasi altra app" → "Sempre visibile sopra le app dell'infotainment" (meno assoluto, più accurato rispetto al comportamento documentato su ROM diverse).
+- Card "Storico viaggi illimitato": body riscritto — prima diceva "conserva gli ultimi 7 giorni" (implicando cancellazione), ora chiarisce che i dati più vecchi di 7gg *continuano ad essere registrati localmente* ma diventano consultabili solo con Premium.
+
+**[`Landing.tsx`](file:///home/phabryc/Desktop/Desktop/JaeDrive/cloud/web/src/pages/Landing.tsx)**:
+- Tipo `FEATURES` ampliato con campo opzionale `premium?: boolean`; flag `premium: true` aggiunto alla 4ª card (sincronizzazione cloud).
+- Aggiunto `lang` alla destructure di `useLanguage()`; aggiunta costante `isIt`.
+- Render delle 4 card aggiornato: ora ogni card mostra un mini-badge inline "🟢 Gratis" (IT: "Gratis", EN: "Free") per le prime 3 feature e "👑 Premium" per la 4ª — rendendo immediatamente visibile la distinzione Free/Premium già nella sezione hero.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `npx tsc --noEmit` (da `cloud/web/`) → **exit 0**, nessun errore TypeScript.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: modifiche nel working tree Linux, non ancora committate.
+- **Open Questions / Pending Tasks**: CSV e PDF restano in tabella come "🔜 In arrivo" — quando verranno implementati, rimuovere il badge e ripristinare `true` nelle righe della tabella + aggiornare titoli/body nelle card Features/Plans.
+- **Constraints / Warning**: il `FREEMIUM_STRATEGY.md` §1 è la fonte di verità ufficiale per la tabella comparativa Free/Standard/Garage — qualunque futura modifica alle pagine statiche deve essere verificata contro quello.
+
+---
+
+
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop AG (Antigravity / Claude Sonnet 4.6 Thinking)
+- **Scope / Subsystem**: `[agent]`
+- **Status**: `IN_PROGRESS` — lettura contesto completata, in attesa di istruzioni operative
+
+### 📌 Sintesi della Funzionalità / Modifica
+Primo accesso alla cartella `agent/` come richiesto dal protocollo. Ho letto:
+- `README.md` → regole del protocollo multi-agente (formato log, regole di condotta, cosa documentare).
+- `agent_log.md` → storia completa: 7 voci dal 2026-08-04 ad oggi. L'ultimo agente attivo è stato **Laptop Claude (Sonnet 5)** con lavoro intensivo il 2026-08-05.
+- `SIMULATOR.md` → architettura mock debug/release, configurazione AVD `JaeDrive_Automotive` (1440×1770, **160dpi** — confermato da dump reale `ro.sf.lcd_density=160`), sistema operativo Linux con KVM, immagine `android-33;android-automotive;x86_64`.
+
+### 🛠️ Riepilogo Stato Attuale Repository
+- **Build**: `assembleDebug assembleRelease` → **BUILD SUCCESSFUL** verificata nell'ultima sessione.
+- **Emulatore**: AVD `JaeDrive_Automotive` configurato a 1440×1770, 160dpi (corretto), immagine `android-automotive` (NON `google_apis` — genera crash su `android.car`).
+- **Feature recenti completate** (tutte `REQUIRES_USER_TEST` su auto reale):
+  - Merge viaggi consecutivi (`TripMerger.java`) con marker pausa su mappa.
+  - Fix riquadro mappa vuoto quando `points.size() < 2`.
+  - Freemium gating completo (status bar, popup, storico 7gg, GPX ridotto, popup scadenza 10gg).
+  - Fix bug istanza duplicata `TrackingService` (FileLock).
+  - Backup/ripristino switch PREMIUM alla scadenza/riattivazione abbonamento.
+  - Fix scappatoia PREMIUM su disassociazione (clearCloudPairing ora forza switch a false).
+  - Fix densità AVD 240→160dpi + centratura icona status bar.
+- **Modifiche uncommitted**: tutto il lavoro del 2026-08-05 è nel working tree Linux, **non committato/pushato**.
+- **Emulatore associato al cloud di produzione reale** (usato per test nella sessione precedente) — attenzione se si fa pairing/unpairing.
+
+### 🧪 Comandi di Verifica Eseguiti
+Nessuno in questa sessione — solo lettura del contesto.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: pronti per ricevere istruzioni operative dall'utente.
+- **Open Questions / Pending Tasks**: tutti i `REQUIRES_USER_TEST` della sessione precedente restano aperti — in particolare: marker pausa su mappa (richiede auto reale con GPS vero), scappatoia PREMIUM chiusa (da validare con disassociazione reale), bug istanza duplicata (da replicare con chiusura forzata + riapertura).
+- **Constraints / Warning**: `hw.lcd.density=160` sempre (mai 240); immagine AVD sempre `android-automotive` (mai `google_apis`); i permessi su emulatore generico vanno riconcessi dopo ogni cold boot; `Prefs.setSubscriptionSnapshot()` è l'unico punto di scrittura per lo stato subscription — non duplicare.
+
+---
+
 ## [2026-08-05] - Nuova Funzione: Merge Viaggi Consecutivi + Fix Riquadro Mappa Senza Traccia
 
 ### 👤 Agent Metadata

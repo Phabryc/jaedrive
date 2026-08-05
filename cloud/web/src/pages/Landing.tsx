@@ -16,16 +16,17 @@ const MODELS: { brand: string; model: string; label: string }[] = [
   { brand: "OMODA", model: "9", label: "Omoda 9" },
 ];
 
-const FEATURES: { icon: typeof IconGauge; titleKey: TranslationKey; bodyKey: TranslationKey }[] = [
+const FEATURES: { icon: typeof IconGauge; titleKey: TranslationKey; bodyKey: TranslationKey; premium?: boolean }[] = [
   { icon: IconGauge, titleKey: "landing.feature1Title", bodyKey: "landing.feature1Body" },
   { icon: IconRoute, titleKey: "landing.feature2Title", bodyKey: "landing.feature2Body" },
   { icon: IconFuel, titleKey: "landing.feature3Title", bodyKey: "landing.feature3Body" },
-  { icon: IconCloud, titleKey: "landing.feature4Title", bodyKey: "landing.feature4Body" },
+  { icon: IconCloud, titleKey: "landing.feature4Title", bodyKey: "landing.feature4Body", premium: true },
 ];
 
 export default function Landing() {
   const { user, loading } = useAuth();
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
+  const isIt = lang === "it";
 
   // Redirect automatico alla dashboard solo quando l'utente arriva da fuori (prima visita della sessione).
   if (!loading && user && !hasEnteredAppSession()) {
@@ -82,12 +83,23 @@ export default function Landing() {
         {/* ── Features grid ── */}
         <section id="funzionalita" className="mx-auto max-w-5xl px-4 pb-20">
           <div className="grid gap-4 sm:grid-cols-2">
-            {FEATURES.map(({ icon: Icon, titleKey, bodyKey }) => (
+            {FEATURES.map(({ icon: Icon, titleKey, bodyKey, premium }) => (
               <div key={titleKey} className="rounded-xl border border-surface-border bg-surface p-6">
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
                   <Icon size={22} />
                 </div>
-                <h3 className="text-base font-semibold">{t(titleKey)}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold">{t(titleKey)}</h3>
+                  {premium ? (
+                    <span className="inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                      👑 Premium
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full border border-green-700/40 bg-green-900/20 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+                      🟢 {isIt ? "Gratis" : "Free"}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-2 text-sm leading-relaxed text-onsurface-variant">{t(bodyKey)}</p>
               </div>
             ))}
