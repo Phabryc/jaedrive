@@ -59,7 +59,7 @@ export function TripRow({ trip }: { trip: TripSummary }) {
           )}
         </p>
       </div>
-      <div className="flex gap-2 text-sm tabular-nums sm:shrink-0">
+      <div className="grid grid-cols-3 gap-2 text-sm tabular-nums sm:flex sm:shrink-0">
         <StatBox
           icon={<IconRoute size={14} />}
           value={trip.km != null ? toDisplayDistance(trip.km, distanceUnit).toFixed(1) : "–"}
@@ -82,11 +82,11 @@ export function TripRow({ trip }: { trip: TripSummary }) {
 
 function StatBox({ icon, value, unit }: { icon: ReactNode; value: string; unit: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-md border border-surface-border px-2 py-1">
+    <div className="flex h-11 items-center gap-2 rounded-md border border-surface-border bg-bg/40 px-2.5 py-1 sm:w-28 sm:shrink-0">
       <span className="shrink-0 text-onsurface-variant">{icon}</span>
-      <div className="leading-tight">
-        <p className="font-medium">{value}</p>
-        <p className="text-[10px] text-onsurface-variant">{unit}</p>
+      <div className="min-w-0 flex-1 leading-tight">
+        <p className="truncate text-sm font-medium">{value}</p>
+        <p className="truncate text-[10px] text-onsurface-variant">{unit}</p>
       </div>
     </div>
   );
