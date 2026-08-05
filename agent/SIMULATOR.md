@@ -2,7 +2,7 @@
 
 Questo documento fornisce le istruzioni tecniche complete per configurare l'ambiente di compilazione, l'emulatore Android e il sistema di mock telemetria per **JaeDrive** (app per Jaecoo 7 SHS-H).
 
-La guida è strutturata per consentire sia agli sviluppatori che ad **agenti AI (coding agents)** di replicare l'ambiente in modo totalmente automatizzato su macchine **Windows** e **Linux**.
+La guida è strutturata per consentire sia agli sviluppatori che ad **agenti AI (coding agents)** di replicare l'ambiente in modo totalmente automatizzato su qualsiasi macchina **Windows** o **Linux**.
 
 ---
 
@@ -29,7 +29,14 @@ Per evitare che codice di test o dati sintetici finiscano nella build distribuib
 
 ---
 
-## 2. Prerequisiti dell'Ambiente di Sviluppo
+## 2. Requisiti di Sistema & Prerequisiti
+
+> [!IMPORTANT]
+> **Requisito Spazio Disco (Pre-Check)**:
+> La configurazione completa (JDK 17 + Android SDK + Piattaforma 33 + Immagine di Sistema decompressa + Partizione AVD) richiede **almeno 8 GB (8000 MB)** di spazio libero sul disco di destinazione.
+>
+> **Dinamicita dei Percorsi**:
+> Non utilizzare lettere di unità o percorsi hardcodati nei comandi. Verificare sempre lo spazio disponibile sull'unità desiderata ed impostare le variabili d'ambiente `$env:ANDROID_HOME` ed `$env:ANDROID_AVD_HOME` sul percorso idoneo.
 
 1. **JDK 17** (raccomandato Eclipse Temurin 17).
 2. **Android SDK Command Line Tools** (versione recente).
@@ -40,47 +47,57 @@ Per evitare che codice di test o dati sintetici finiscano nella build distribuib
 
 ## 3. Guida alla Configurazione: Windows
 
-> [!IMPORTANT]
-> **Gestione Spazio Disco e Unità Secondaria (`D:\`)**
-> L'estrazione delle immagini di sistema Android (`system.img` decompressa ~3.5 GB) e dei dati AVD richiede spazio su disco. Se l'unità `C:\` ha spazio limitato, **si raccomanda di reindirizzare `ANDROID_HOME` ed `ANDROID_AVD_HOME` sul disco `D:\`** (es. `D:\.android-sdk` e `D:\.android\avd`).
+### 3.1 Pre-Check Spazio Disco e Setup SDK (PowerShell)
 
-### 3.1 Download e Setup Automatizzato SDK (PowerShell)
-
-Eseguire i seguenti comandi in PowerShell per configurare JDK 17, Android SDK ed accettare le licenze:
+Eseguire i seguenti comandi in PowerShell per verificare lo spazio, configurare JDK 17, Android SDK ed accettare le licenze:
 
 ```powershell
-# 1. Download e installazione JDK 17 portatile
-$jdkUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.10_7.zip"
-curl.exe -L -o "$env:TEMP\jdk17.zip" $jdkUrl
-Expand-Archive -Path "$env:TEMP\jdk17.zip" -DestinationPath "$env:TEMP\jdk17_temp" -Force
-$extractedJdk = Get-ChildItem "$env:TEMP\jdk17_temp" | Select-Object -First 1
-Move-Item -Path $extractedJdk.FullName -Destination "$env:USERPROFILE\.jdk-17" -Force
-Remove-Item "$env:TEMP\jdk17.zip", "$env:TEMP\jdk17_temp" -Recurse -Force
+# 1. Pre-Check Spazio Disco Disponibile (minimo 8 GB richiesti)
+$targetDrive = (Get-Item $env:USERPROFILE).PSDrive.Name
+$freeSpaceGB = [math]::Round((Get-PSDrive $targetDrive).Free / 1GB, 2)
+Write-Host "Spazio libero su unità $targetDrive`: $freeSpaceGB GB"
 
-# 2. Reindirizzamento SDK ed AVD su disco D:\ (consigliato per evitare problemi di spazio su C:\)
-New-Item -ItemType Directory -Path "D:\.android-sdk\cmdline-tools" -Force | Out-Null
-New-Item -ItemType Directory -Path "D:\.android\avd" -Force | Out-Null
+if ($freeSpaceGB -lt 8) {
+    Write-Warning "Spazio insufficiente su $targetDrive`: ($freeSpaceGB GB disponibili, 8 GB richiesti)."
+    Write-Warning "Impostare ANDROID_HOME ed ANDROID_AVD_HOME su un'unità con almeno 8 GB liberi prima di proseguire."
+}
 
-$cmdlineUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
-curl.exe -L -o "$env:TEMP\cmdline.zip" $cmdlineUrl
-Expand-Archive -Path "$env:TEMP\cmdline.zip" -DestinationPath "$env:TEMP\cmdline_temp" -Force
-Move-Item -Path "$env:TEMP\cmdline_temp\cmdline-tools" -Destination "D:\.android-sdk\cmdline-tools\latest" -Force
-Remove-Item "$env:TEMP\cmdline.zip", "$env:TEMP\cmdline_temp" -Recurse -Force
+# 2. Impostazione Dinamica Percorsi (modificare i percorsi se si usa un'unità secondaria con più spazio)
+$env:JAVA_HOME = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { "$env:USERPROFILE\.jdk-17" }
+$env:ANDROID_HOME = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { "$env:USERPROFILE\.android-sdk" }
+$env:ANDROID_AVD_HOME = if ($env:ANDROID_AVD_HOME) { $env:ANDROID_AVD_HOME } else { "$env:USERPROFILE\.android\avd" }
 
-# 3. Variabili d'ambiente per la sessione
-$env:JAVA_HOME = "$env:USERPROFILE\.jdk-17"
-$env:ANDROID_HOME = "D:\.android-sdk"
-$env:ANDROID_AVD_HOME = "D:\.android\avd"
+# 3. Download e installazione JDK 17 portatile (se non presente)
+if (-not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
+    $jdkUrl = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%2B7/OpenJDK17U-jdk_x64_windows_hotspot_17.0.10_7.zip"
+    curl.exe -L -o "$env:TEMP\jdk17.zip" $jdkUrl
+    Expand-Archive -Path "$env:TEMP\jdk17.zip" -DestinationPath "$env:TEMP\jdk17_temp" -Force
+    $extractedJdk = Get-ChildItem "$env:TEMP\jdk17_temp" | Select-Object -First 1
+    Move-Item -Path $extractedJdk.FullName -Destination $env:JAVA_HOME -Force
+    Remove-Item "$env:TEMP\jdk17.zip", "$env:TEMP\jdk17_temp" -Recurse -Force
+}
+
+# 4. Download Command Line Tools (se non presente)
+if (-not (Test-Path "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat")) {
+    $cmdlineUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
+    curl.exe -L -o "$env:TEMP\cmdline.zip" $cmdlineUrl
+    New-Item -ItemType Directory -Path "$env:ANDROID_HOME\cmdline-tools" -Force | Out-Null
+    Expand-Archive -Path "$env:TEMP\cmdline.zip" -DestinationPath "$env:TEMP\cmdline_temp" -Force
+    Move-Item -Path "$env:TEMP\cmdline_temp\cmdline-tools" -Destination "$env:ANDROID_HOME\cmdline-tools\latest" -Force
+    Remove-Item "$env:TEMP\cmdline.zip", "$env:TEMP\cmdline_temp" -Recurse -Force
+}
+
+# 5. Esportazione PATH per la sessione
 $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:ANDROID_HOME\emulator;$env:ANDROID_HOME\platform-tools;$env:PATH"
 
-# 4. Installazione Piattaforma 33, Emulator ed Immagini di Sistema
+# 6. Installazione Piattaforma 33, Emulator ed Immagine di Sistema
 # NOTA: Per accelerazione hardware x86_64 usare system-images;android-33;google_apis;x86_64.
-# Se l'hypervisor x86 (AEHD/WHPX) non è disponibile senza riavvio, usare l'immagine ARM64 (system-images;android-33;google_apis;arm64-v8a).
-cmd.exe /c "echo y | D:\.android-sdk\cmdline-tools\latest\bin\sdkmanager.bat --sdk_root=D:\.android-sdk ""platforms;android-33"" ""build-tools;33.0.2"" ""platform-tools"" ""emulator"" ""system-images;android-33;google_apis;arm64-v8a"""
+# Se l'hypervisor x86 (AEHD/WHPX) non è attivo senza riavvio, usare l'immagine ARM64 (system-images;android-33;google_apis;arm64-v8a).
+cmd.exe /c "echo y | ""$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"" --sdk_root=""$env:ANDROID_HOME"" ""platforms;android-33"" ""build-tools;33.0.2"" ""platform-tools"" ""emulator"" ""system-images;android-33;google_apis;arm64-v8a"""
 
-# 5. Copia del jar android.car.jar nella cartella app/libs del progetto
+# 7. Copia del jar android.car.jar nella cartella app/libs del progetto
 New-Item -ItemType Directory -Path "app\libs" -Force | Out-Null
-Copy-Item "D:\.android-sdk\platforms\android-33\optional\android.car.jar" -Destination "app\libs\android.car.jar" -Force
+Copy-Item "$env:ANDROID_HOME\platforms\android-33\optional\android.car.jar" -Destination "app\libs\android.car.jar" -Force
 ```
 
 ### 3.2 Creazione e Personalizzazione AVD (1440 × 1770)
@@ -88,23 +105,24 @@ Copy-Item "D:\.android-sdk\platforms\android-33\optional\android.car.jar" -Desti
 L'head unit del veicolo Jaecoo 7 SHS-H ha un display verticale con risoluzione **1440 × 1770**.
 
 ```powershell
-# Creazione dell'AVD su D:\.android\avd
+# Creazione dell'AVD nel percorso configurato da ANDROID_AVD_HOME
+New-Item -ItemType Directory -Path $env:ANDROID_AVD_HOME -Force | Out-Null
 echo "no" | & "$env:ANDROID_HOME\cmdline-tools\latest\bin\avdmanager.bat" create avd -n JaeDrive_Emulator -k "system-images;android-33;google_apis;arm64-v8a" --force
 
 # Configurazione della risoluzione 1440x1770 e parametri RAM/Disco nel config.ini dell'AVD
-$configPath = "D:\.android\avd\JaeDrive_Emulator.avd\config.ini"
-Add-Content -Path $configPath -Value "hw.lcd.width=1440"
-Add-Content -Path $configPath -Value "hw.lcd.height=1770"
-Add-Content -Path $configPath -Value "hw.lcd.density=240"
-Add-Content -Path $configPath -Value "hw.ramSize=2048M"
-Add-Content -Path $configPath -Value "disk.dataPartition.size=2147483648"
+$configPath = "$env:ANDROID_AVD_HOME\JaeDrive_Emulator.avd\config.ini"
+if (Test-Path $configPath) {
+    Add-Content -Path $configPath -Value "hw.lcd.width=1440"
+    Add-Content -Path $configPath -Value "hw.lcd.height=1770"
+    Add-Content -Path $configPath -Value "hw.lcd.density=240"
+    Add-Content -Path $configPath -Value "hw.ramSize=2048M"
+    Add-Content -Path $configPath -Value "disk.dataPartition.size=2147483648"
+}
 ```
 
 ### 3.3 Avvio dell'Emulatore
 
 ```powershell
-$env:ANDROID_HOME = "D:\.android-sdk"
-$env:ANDROID_AVD_HOME = "D:\.android\avd"
 & "$env:ANDROID_HOME\emulator\emulator.exe" -avd JaeDrive_Emulator -gpu host
 ```
 *(Nota per agenti AI/Headless: aggiungere `-no-window` se viene eseguito su server privo di display GUI).*
@@ -113,40 +131,49 @@ $env:ANDROID_AVD_HOME = "D:\.android\avd"
 
 ## 4. Guida alla Configurazione: Linux
 
-### 4.1 Download e Setup Automatizzato SDK (Bash)
+### 4.1 Pre-Check Spazio Disco e Setup SDK (Bash)
 
-Su Linux (Ubuntu/Debian) verificare la presenza di KVM per l'accelerazione hardware:
-```bash
-sudo apt update && sudo apt install -y cpu-checker qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils
-sudo usermod -aG kvm $USER
-```
-
-Eseguire lo script di installazione environment:
+Su Linux verificare che la directory target abbia almeno **8 GB liberi**:
 
 ```bash
 #!/usr/bin/env bash
 set -e
 
-# 1. Download JDK 17
-mkdir -p ~/.jdk-17
-curl -fsSL "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%2B7/OpenJDK17U-jdk_x64_linux_hotspot_17.0.10_7.tar.gz" | tar -xz -C ~/.jdk-17 --strip-components=1
+# 1. Pre-Check Spazio Disco
+FREE_SPACE_GB=$(df -BG "$HOME" | awk 'NR==2 {print $4}' | sed 's/G//')
+echo "Spazio libero su Home: ${FREE_SPACE_GB} GB"
+if [ "$FREE_SPACE_GB" -lt 8 ]; then
+    echo "WARNING: Spazio insufficiente su Home ($FREE_SPACE_GB GB disponibili, 8 GB richiesti)."
+    echo "Impostare ANDROID_HOME ed ANDROID_AVD_HOME su una partizione idonea."
+fi
 
-# 2. Download Android Command Line Tools
-mkdir -p ~/.android-sdk/cmdline-tools
-curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o /tmp/cmdline.zip
-unzip -q /tmp/cmdline.zip -d /tmp/cmdline_temp
-mv /tmp/cmdline_temp/cmdline-tools ~/.android-sdk/cmdline-tools/latest
-rm -rf /tmp/cmdline.zip /tmp/cmdline_temp
+# 2. Impostazione Dinamica Percorsi
+export JAVA_HOME="${JAVA_HOME:-$HOME/.jdk-17}"
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/.android-sdk}"
+export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
 
-# 3. Esportazione Variabili d'Ambiente
-export JAVA_HOME="$HOME/.jdk-17"
-export ANDROID_HOME="$HOME/.android-sdk"
+# 3. Download JDK 17
+if [ ! -f "$JAVA_HOME/bin/java" ]; then
+    mkdir -p "$JAVA_HOME"
+    curl -fsSL "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.10%2B7/OpenJDK17U-jdk_x64_linux_hotspot_17.0.10_7.tar.gz" | tar -xz -C "$JAVA_HOME" --strip-components=1
+fi
+
+# 4. Download Command Line Tools
+if [ ! -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+    mkdir -p "$ANDROID_HOME/cmdline-tools"
+    curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" -o /tmp/cmdline.zip
+    unzip -q /tmp/cmdline.zip -d /tmp/cmdline_temp
+    mv /tmp/cmdline_temp/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+    rm -rf /tmp/cmdline.zip /tmp/cmdline_temp
+fi
+
+# 5. Esportazione PATH
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
 
-# 4. Installazione Pacchetti Android SDK
+# 6. Installazione Pacchetti Android SDK
 yes | sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-33" "build-tools;33.0.2" "platform-tools" "emulator" "system-images;android-33;google_apis;x86_64"
 
-# 5. Copia android.car.jar
+# 7. Copia android.car.jar
 mkdir -p app/libs
 cp "$ANDROID_HOME/platforms/android-33/optional/android.car.jar" app/libs/android.car.jar
 ```
@@ -155,13 +182,16 @@ cp "$ANDROID_HOME/platforms/android-33/optional/android.car.jar" app/libs/androi
 
 ```bash
 # Creazione AVD
+mkdir -p "$ANDROID_AVD_HOME"
 echo "no" | avdmanager create avd -n JaeDrive_Emulator -k "system-images;android-33;google_apis;x86_64" --force
 
 # Configurazione Risoluzione 1440x1770
-CONFIG_FILE="$HOME/.android/avd/JaeDrive_Emulator.avd/config.ini"
+CONFIG_FILE="$ANDROID_AVD_HOME/JaeDrive_Emulator.avd/config.ini"
 echo "hw.lcd.width=1440" >> "$CONFIG_FILE"
 echo "hw.lcd.height=1770" >> "$CONFIG_FILE"
 echo "hw.lcd.density=240" >> "$CONFIG_FILE"
+echo "hw.ramSize=2048M" >> "$CONFIG_FILE"
+echo "disk.dataPartition.size=2147483648" >> "$CONFIG_FILE"
 ```
 
 ### 4.3 Avvio dell'Emulatore (Linux)
@@ -195,7 +225,7 @@ L'interfaccia utente mostrerà i dati di telemetria fittizi aggiornati dinamicam
 
 ## 6. Risoluzione Problemi Note e Best Practices per Agenti AI
 
-1. **Spazio Disco Insufficiente**: Se la partizione `C:\` ha spazio limitato, spostare sempre `ANDROID_HOME` ed `ANDROID_AVD_HOME` su `D:\` dove ci sono più di 600 GB disponibili.
+1. **Pre-Check Spazio Disco (8 GB)**: Verificare sempre la quota disco prima del download. In caso di spazio scarso sul drive principale, configurare `$env:ANDROID_HOME` ed `$env:ANDROID_AVD_HOME` su un'unità capiente senza usare lettere fisse o hardcodate nel codice.
 2. **Accelerazione CPU su Windows**: Le immagini x86_64 richiedono l'installazione del driver `Android_Emulator_Hypervisor_Driver` (AEHD) via `silent_install.bat` con permessi elevati (UAC), oppure l'uso dell'immagine **ARM64** (`system-images;android-33;google_apis;arm64-v8a`).
-3. **Piped Accept License**: In PowerShell usare sempre `cmd.exe /c "echo y | sdkmanager.bat ..."` per assicurarsi che l'accettazione della licenza non resti bloccata in attesa di input da console.
+3. **Piped Accept License**: In PowerShell usare sempre `cmd.exe /c "echo y | ...\sdkmanager.bat ..."` per assicurarsi che l'accettazione della licenza non resti bloccata in attesa di input da console.
 4. **Variante Release Pulita**: Per verificare che la versione di produzione sia priva di simulazioni e mock, eseguire `./gradlew assembleRelease`.

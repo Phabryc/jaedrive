@@ -28,7 +28,7 @@ Installato e configurato l'ambiente di compilazione automatizzato (JDK 17 + Andr
 3. **Cartella Centralizzata Agenti (`agent/`) & Troubleshooting Emulazione**
    - **[`agent/README.md`](file:///d:/P/JaeDrive/agent/README.md)**: Definizione delle regole della cartella e del protocollo standard di comunicazione tra agenti AI.
    - **[`agent/agent_log.md`](file:///d:/P/JaeDrive/agent/agent_log.md)**: Spostato registro storico nella cartella centralizzata.
-   - **[`agent/SIMULATOR.md`](file:///d:/P/JaeDrive/agent/SIMULATOR.md)**: Aggiornata la guida con la migrazione dell'SDK e dell'AVD su disco **`D:\.android-sdk`** ed **`D:\.android\avd`** (per superare il limite di spazio su `C:\`), le istruzioni per le immagini ARM64 (`system-images;android-33;google_apis;arm64-v8a`) e l'accettazione automatizzata delle licenze SDK.
+   - **[`agent/SIMULATOR.md`](file:///d:/P/JaeDrive/agent/SIMULATOR.md)**: Aggiornata la guida eliminando qualsiasi percorso hardcodato ed introducendo il **Pre-Check automatico di 8 GB di spazio libero** sul disco prima di iniziare l'installazione, oltre all'uso dinamico di `$env:ANDROID_HOME` ed `$env:ANDROID_AVD_HOME`.
 
 ### 🧪 Comandi di Verifica Eseguiti
 - `.\gradlew.bat assembleDebug assembleRelease` -> **BUILD SUCCESSFUL** (Esito: Debug APK 10.7 MB con mock; Release APK 8.96 MB privo di mock).
