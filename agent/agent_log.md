@@ -34,8 +34,16 @@ Installato e configurato l'ambiente di compilazione automatizzato (JDK 17 + Andr
 - `.\gradlew.bat assembleDebug assembleRelease` -> **BUILD SUCCESSFUL** (Esito: Debug APK 10.7 MB con mock; Release APK 8.96 MB privo di mock).
 
 ### 📋 Handover & Passaggio Consegne per l'Agente Successivo
-- **Stato Attuale**: Repository perfettamente compilabile per entrambe le varianti.
-- **Risoluzione AVD**: Configurare `hw.lcd.width=1440` e `hw.lcd.height=1770` nell'AVD.
+- **Immagine SDK Pronta**: L'immagine `system-images;android-33;google_apis;x86_64` è scaricata e scompattata al 100% su `D:\.android-sdk`.
+- **AVD Configurato**: L'AVD `JaeDrive_Emulator` è configurato su `D:\.android\avd` con risoluzione **1440 × 1770** pixel.
+- **Attivazione Hypervisor Driver (AEHD)**: Su Windows occorre eseguire una volta sola da PowerShell con privilegi di Amministratore lo script `D:\.android-sdk\extras\google\Android_Emulator_Hypervisor_Driver\silent_install.bat` per registrare il servizio kernel `aehd.sys`.
+- **Avvio Emulatore**:
+  ```powershell
+  $env:JAVA_HOME = "C:\Users\Cucci\.jdk-17"
+  $env:ANDROID_HOME = "D:\.android-sdk"
+  $env:ANDROID_AVD_HOME = "D:\.android\avd"
+  & "$env:ANDROID_HOME\emulator\emulator.exe" -avd JaeDrive_Emulator -gpu host
+  ```
 - **Constraints**: Non importare mai `com.phabryc.jaedrive.mock.VehicleSimulator` in `src/main`, ma passare sempre per l'interfaccia/bridge `VehicleMockBridge` per preservare il pulito nelle build di produzione.
 
 ---
