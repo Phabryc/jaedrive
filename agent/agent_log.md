@@ -4,6 +4,74 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Fix Densità Emulatore (240→160dpi, confermata da dump reale) + Centratura Icona/Freccia Status Bar
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`, `[agent]`
+- **Status**: `COMPLETED`
+
+### 📌 Sintesi della Funzionalità / Modifica
+Due fix, entrambi verificati visivamente sull'emulatore:
+
+1. **Densità AVD sbagliata**: la voce di log precedente (stesso giorno) aveva configurato l'AVD `JaeDrive_Automotive` a `hw.lcd.density=240`, un valore preso senza verifica dal suggerimento (anch'esso mai verificato) in `agent/SIMULATOR.md`. L'utente ha segnalato che la UI "sembrava troppo diversa" pur con la risoluzione 1440×1770 corretta. Trovato in `~/Desktop/Desktop/full_getprop.txt` (dump reale pullato dalla vettura in una sessione precedente): **`ro.sf.lcd_density=160`** e **`ro.desay.display.ivi=Chery-DS-14.8-SCREEN`** (schermo fisico 14.8", verificato per coerenza: sqrt(1440²+1770²)/14.8" ≈ 154dpi, vicino a 160). A 240dpi invece di 160, ogni elemento dp-based (tutta la UI di JaeDrive) veniva disegnato ~50% più "zoomato" del reale. Corretto l'AVD a 160dpi - confermato visivamente col confronto prima/dopo (screenshot), risultato molto più compatto/coerente con un vero schermo 14.8" a bassa densità.
+2. **Icona/freccia status bar non centrate**: `android:gravity="center"` sul `FrameLayout` contenitore (`overlay_status_bar_icon.xml`) non veniva onorato a runtime in questa finestra overlay inflata da un Context di Service (stesso genere di comportamento anomalo già documentato altrove in questo file per il contesto "povero" di tema) - la freccia risultava visibilmente ancorata in alto a sinistra invece che centrata, confermato misurando i pixel dello screenshot (centro atteso x≈42px su una finestra di 84px, osservato x≈14px). Fix: spostata l'istruzione di centratura sul FIGLIO (`android:layout_gravity="center"` su entrambi gli `ImageView`, icona e freccia) invece di fare affidamento solo sulla gravità di default del contenitore - verificato di nuovo via misurazione pixel, freccia ora a x≈40-44px, centro corretto.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **AVD `JaeDrive_Automotive`** (`~/.android/avd/JaeDrive_Automotive.avd/config.ini`): `hw.lcd.density` 240→160. Richiede cold boot (non basta `wm density` a runtime) - riavviato l'emulatore per applicare.
+- **[`overlay_status_bar_icon.xml`](app/src/main/res/layout/overlay_status_bar_icon.xml)**: aggiunto `android:layout_gravity="center"` sui due `ImageView` (icona JD e freccia chevron).
+- **`agent/SIMULATOR.md`**: tutte le occorrenze di `hw.lcd.density=240` corrette a `160` (Windows e Linux), tutte le occorrenze di `system-images;...;google_apis;...` corrette a `system-images;...;android-automotive;...` (altro bug trovato in sessione precedente lo stesso giorno: google_apis manca delle classi `android.car` a runtime, crash immediato). Aggiunte due note in "Risoluzione Problemi": permessi da concedere a mano su emulatore generico (CAR_SPEED/SYSTEM_ALERT_WINDOW/ivi.sn, con l'importante dettaglio dello user profile giusto - l'app gira sotto lo user "Driver", non user 0), e il fatto che la UI di sistema (launcher/status bar) di questo emulatore è quella AOSP/AAOS generica, non la vera skin Desay - differenze visive nel chrome di sistema sono attese solo qui.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew assembleDebug` → **BUILD SUCCESSFUL** (solo il fix XML del gravity ha toccato codice; il fix densità è solo config AVD).
+- Confronto screenshot prima/dopo su entrambi i fix, con misurazione pixel diretta (Python/Pillow) per la centratura freccia, non solo ispezione visiva.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Constraints / Warning**: ricordarsi SEMPRE `hw.lcd.density=160` per qualunque nuovo AVD JaeDrive creato in futuro (mai fidarsi ciecamente di un valore scritto in doc senza una fonte verificata come `full_getprop.txt`). I permessi concessi via `pm grant`/`appops set` sull'emulatore si perdono ad ogni cold boot (non a un semplice `am force-stop`) - vanno riconcessi dopo aver riavviato l'emulatore stesso (non l'app).
+
+---
+
+## [2026-08-05] - Setup Emulatore Android Automotive Funzionante + Mock VDB Reale + Fix Critico Scappatoia PREMIUM su Disassociazione
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`, `[agent]`, `[build-system]`
+- **Status**: `COMPLETED` (codice, build verificata, testato dal vivo su emulatore) — `REQUIRES_USER_TEST` sulla vettura reale per la scappatoia PREMIUM
+
+### 📌 Sintesi della Funzionalità / Modifica
+Leo AG (voce di log precedente, stesso giorno) aveva **documentato** un'architettura di mock/emulazione (`agent/SIMULATOR.md`) ma non era mai riuscito a far partire l'app emulata su Windows, e i file `VehicleSimulator.java`/`VehicleMockBridge.java` descritti nel suo log **non esistevano da nessuna parte nel repository** (verificato con `git log --all` su tutta la history, zero commit su nessun branch) - la doc descriveva un piano mai realmente implementato. Ho fatto partire l'emulatore su Linux (KVM disponibile, SDK già presente in `~/Android/Sdk`), trovato e risolto un vero crash (`NoClassDefFoundError` su `android.car.Car` - `android.car.jar` è `compileOnly`, serve una vera immagine **Android Automotive**, non una `google_apis` generica), poi scritto per davvero il mock che mancava, e infine - testando dal vivo - l'utente ha scoperto un bug reale e serio: **le funzioni PREMIUM restavano utilizzabili gratis per sempre dopo una disassociazione dell'auto dal cloud**.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+
+**Ambiente emulatore (nessun file di progetto, solo setup locale)**:
+- SDK trovato in `~/Android/Sdk` (platforms/build-tools/emulator già presenti, mancavano cmdline-tools e immagini di sistema) - scaricati `cmdline-tools`, licenze accettate, immagine `system-images;android-33;android-automotive;x86_64` (NON `google_apis` - quella genera un crash immediato, vedi sotto).
+- AVD `JaeDrive_Automotive` creato a 1440×1770 (risoluzione confermata corretta dall'utente, "è uno schermo 2K" - il documento non era sbagliato).
+- Permessi Android specifici da concedere manualmente su questo emulatore genereico (non servono sulla vettura reale, dove presumibilmente sono già garantiti dalla ROM OEM): `android.car.permission.CAR_SPEED` (dangerous, non privilegiato - concedibile via `pm grant`, ma **per lo user profile giusto**: l'app gira sotto lo user 10 "Driver" di Android Automotive multi-utente, non lo user 0) e l'appop `SYSTEM_ALERT_WINDOW` (via `appops set`, necessario per mostrare popup/status bar overlay con l'app in background - senza, gli overlay restano invisibili). `Settings.Global "ivi.sn"` impostato via `adb shell settings put global` per popolare il numero di serie DMC in Impostazioni.
+- La barra di stato overlay JaeDrive risulta coperta dalla status bar di sistema su questa ROM AAOS generica (z-order) - non è un bug, solo un artefatto dell'ambiente di test (sulla ROM Desay reale ha priorità diversa, già validato sul campo in sessioni precedenti).
+
+**Mock VDB reale (nuovo, mai esistito prima nonostante la doc)**:
+- **[`VehicleSimulator.java`](app/src/debug/java/com/phabryc/jaedrive/mock/VehicleSimulator.java)** (solo `src/debug`): singleton che genera SOC%/carburante%/km trip/litri consumati/autonomia/flusso energia/livello rigenerazione/consumo istantaneo, con le stesse identiche formule di codifica già verificate sul campo in `MainActivity.updateFooterStatus()`/`TrackingService.handleTripKm()`/`handleFuel()` (combine primi-due-byte /100 e /10 per SOC/carburante, combine 4-byte big-endian *0.1 per il trip, ecc. - vedi tabella di decodifica completa in `VDInfoClient.java`).
+- **[`VehicleMockBridge.java`](app/src/debug/java/com/phabryc/jaedrive/mock/VehicleMockBridge.java)** (debug) + variante **No-Op** in `src/release/` (stesso nome pienamente qualificato, mai compresenti) - **[`VDInfoClient.java`](app/src/main/java/com/phabryc/jaedrive/VDInfoClient.java)** chiama `VehicleMockBridge.onBindFailed()` quando il bind verso il vero servizio Desay fallisce. Isolamento verificato byte per byte: `grep` sui `classes*.dex` conferma `VehicleSimulator` presente SOLO nell'APK debug, assente da quello release.
+
+**Bugfix scappatoia PREMIUM (il più importante di questa voce)**:
+- **[`Prefs.java`](app/src/main/java/com/phabryc/jaedrive/Prefs.java)**: `clearCloudPairing()` ora forza sempre i 3 switch (status bar/regen popup/refuel popup) a `false` - prima rimuoveva solo i dati di sottoscrizione, mai gli switch stessi, permettendo di associare→attivare→disassociare in loop ottenendo le funzioni PREMIUM gratis per sempre. Nessun backup/ripristino qui (diverso da `setSubscriptionSnapshot()` per scadenza temporanea) - una disassociazione è un reset deliberato.
+- **[`TrackingService.java`](app/src/main/java/com/phabryc/jaedrive/TrackingService.java)**: i trigger dei popup rigenerazione e rifornimento ora ricontrollano `Prefs.isSubscriptionActive()` DIRETTAMENTE al momento di scattare, non solo lo switch salvato - difesa in profondità (la barra di stato lo faceva già, era l'unica delle 3 al sicuro da questo bug).
+- **[`MainActivity.java`](app/src/main/java/com/phabryc/jaedrive/MainActivity.java)**: scoperto un secondo bug più subdolo investigando il primo - se l'auto viene disassociata dal **sito** (non dal bottone RIMUOVI dell'app), `fetchOwnerProfile()` (unica chiamata di rete regolare ad app aperta e inattiva, ogni 5 minuti) ignorava in silenzio il `409 "Device is not paired to a vehicle"` del server, lasciando lo stato locale (token/abbonamento) valido per sempre - `SyncWorker` gestiva già lo stesso 409 su heartbeat/upload, ma parte solo dopo la chiusura di un viaggio, quindi in pratica non copriva questo scenario. Ora `fetchOwnerProfile()` cattura `CloudApiClient.ApiException`, su 409 chiama `Prefs.clearCloudPairingRemotely()` e mostra subito l'avviso "disassociata da remoto" già esistente (`consumeCloudUnpairedRemotelyFlag()`), invece di aspettare la prossima riapertura dell'app. Anche il flusso locale RIMUOVI ora richiama `refreshPremiumGatedSwitches()`/`refreshTrackList()` subito invece di aspettare il prossimo `onResume()`.
+- **Documentazione**: `cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md` §4.6 e `cloud/FREEMIUM_STRATEGY.md` §4.8 aggiornati con l'analisi completa.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew assembleDebug assembleRelease` → **BUILD SUCCESSFUL** ad ogni giro di modifiche.
+- Verifica isolamento debug/release del mock via grep sui file `.dex` estratti dagli APK.
+- Test dal vivo sull'emulatore: app avviata senza crash, dati mock dinamici confermati a schermo (screenshot), refuel popup in background confermato funzionante dall'utente dopo il fix del permesso `SYSTEM_ALERT_WINDOW`.
+- Fix scappatoia PREMIUM verificato via build; **non** verificato end-to-end con un vero 409 dal vivo (avrebbe richiesto disassociare di nuovo l'account reale dell'utente sul sito - evitato per non toccare ulteriormente dati di produzione senza necessità).
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: modifiche nel working tree Linux dell'utente, non ancora committate/pushate.
+- **Open Questions / Pending Tasks**: validare sul campo (auto reale) che la scappatoia sia davvero chiusa - impostare i 3 switch mentre Premium è attivo, disassociare (sia dal bottone RIMUOVI in app sia, se possibile, dal sito), verificare che gli switch tornino grigi/spenti IMMEDIATAMENTE e che i popup rigenerazione/rifornimento non scattino più. `agent/SIMULATOR.md` resta accurato come descrizione architetturale (ora finalmente vera), nessuna modifica necessaria lì.
+- **Constraints / Warning**: l'emulatore locale di questa sessione risulta attualmente **associato all'account cloud reale dell'utente** (pairing di test fatto per validare il fix) - se un futuro agente riprende questo lavoro sullo stesso emulatore, ricordarsi che non è un ambiente isolato dal cloud di produzione.
+
+---
+
 ## [2026-08-05] - Backup/Ripristino Configurazione Switch PREMIUM alla Scadenza/Riattivazione Abbonamento
 
 ### 👤 Agent Metadata

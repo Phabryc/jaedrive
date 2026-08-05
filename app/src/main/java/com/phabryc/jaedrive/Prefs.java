@@ -132,6 +132,18 @@ public class Prefs {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CLOUD_VEHICLE_ID, null);
     }
 
+    // BUG TROVATO SUL CAMPO (2026-08-05, segnalato dall'utente): questo metodo rimuoveva solo
+    // i dati di sottoscrizione/pairing, MAI i 3 switch PREMIUM (status bar/popup rigenerazione/
+    // popup rifornimento) - un utente poteva associare l'auto una volta con un abbonamento
+    // qualsiasi, accendere i 3 switch, disassociare, e riassociare/disassociare all'infinito
+    // continuando ad avere le funzioni PREMIUM gratis in locale, perche' isSubscriptionActive()
+    // tornava false ma gli switch restavano "true" per sempre (nessuno li rimetteva a false
+    // fuori da setSubscriptionSnapshot(), mai chiamato da qui). A differenza di
+    // setSubscriptionSnapshot() (usato per una scadenza temporanea, con backup/ripristino),
+    // qui la disattivazione e' definitiva e SENZA backup: un'associazione rimossa e' un reset
+    // deliberato, non una sospensione momentanea - un futuro pairing riparte da zero, l'utente
+    // dovra' riaccendere a mano cio' che vuole, niente da "ripristinare" che potrebbe riaprire
+    // la stessa scappatoia.
     public static void clearCloudPairing(Context ctx) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .remove(KEY_CLOUD_DEVICE_TOKEN)
@@ -148,6 +160,9 @@ public class Prefs {
             .remove(KEY_STATUS_BAR_ENABLED_BACKUP)
             .remove(KEY_REGEN_POPUP_ENABLED_BACKUP)
             .remove(KEY_REFUEL_POPUP_ENABLED_BACKUP)
+            .putBoolean(KEY_STATUS_BAR_ENABLED, false)
+            .putBoolean(KEY_REGEN_POPUP_ENABLED, false)
+            .putBoolean(KEY_REFUEL_POPUP_ENABLED, false)
             .apply();
     }
 

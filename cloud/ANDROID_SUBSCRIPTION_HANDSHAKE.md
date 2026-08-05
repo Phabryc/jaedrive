@@ -258,3 +258,37 @@ Either path re-renders the subscription badge, the premium-gated switches/sectio
 new in this fix - the Storico trip list if it's currently on screen (the 7-day lock in §4.3
 depends on the same `isSubscriptionActive()` value, so a stale list could keep showing rows as
 locked/unlocked past their real state otherwise).
+
+### 4.6 Bugfix (2026-08-05): premium features stayed usable forever after unpairing
+Field-tested exploit reported by the user: pair once with any subscription, turn the 3 premium
+switches on, unpair - and the regen-popup/refuel-popup kept firing indefinitely, with zero active
+subscription, forever (repeatable: pair/enable/unpair in a loop = free premium). Root cause:
+`Prefs.clearCloudPairing()` only ever removed the subscription-status keys - it never reset
+`KEY_STATUS_BAR_ENABLED`/`KEY_REGEN_POPUP_ENABLED`/`KEY_REFUEL_POPUP_ENABLED` back to `false`
+the way `setSubscriptionSnapshot(..., isActive=false)` does (§4.2), and the regen/refuel popup
+triggers in `TrackingService` only ever checked the switch itself, never `isSubscriptionActive()`
+directly - so a switch left stuck at `true` had nothing else stopping it.
+
+Investigating this surfaced a second, deeper bug behind it: if the vehicle is unpaired from the
+**website** (not the app's own "unlink" button), the only network call that runs regularly while
+the app is open and idle - `MainActivity.fetchOwnerProfile()`, every 5 minutes (§4.5) - silently
+swallowed the resulting `409 "Device is not paired to a vehicle"` in a blanket `catch (Exception)`.
+`SyncWorker` already handled this same 409 correctly on both its heartbeat and trip-upload calls
+(clearing local pairing via `Prefs.clearCloudPairingRemotely()`), but `SyncWorker` only runs after
+a trip closes - so in practice, idle-but-open, `fetchOwnerProfile()` was the one path that mattered
+and it did nothing, leaving the stale local token/subscription snapshot (and thus
+`isSubscriptionActive()`) valid indefinitely, with no user-facing warning at all.
+
+Fixed on three levels:
+- `Prefs.clearCloudPairing()` now always forces the 3 switches to `false` - deliberately with
+  **no** backup/restore (unlike §4.2's temporary-expiry case): unpairing is a hard reset, not a
+  suspension, so nothing is preserved that a future pair/unpair cycle could exploit again.
+- The regen-popup and refuel-popup trigger conditions in `TrackingService` now also check
+  `Prefs.isSubscriptionActive()` directly at the moment they're about to fire, not just the
+  switch - defense in depth, matching what the status bar already did (the one of the 3 that
+  was never exploitable, precisely because of this live re-check).
+- `fetchOwnerProfile()` now catches `CloudApiClient.ApiException` and, on `httpCode == 409`, calls
+  `Prefs.clearCloudPairingRemotely()` and immediately refreshes the CLOUD card, premium switches,
+  and Storico list, then shows the pre-existing (but until now unreachable from this path)
+  "unpaired remotely" warning dialog - the same one `SyncWorker`'s 409 handling already wired up
+  via `Prefs.consumeCloudUnpairedRemotelyFlag()`, just never triggered from here before.

@@ -11,6 +11,7 @@ import android.os.Looper;
 
 import com.desaysv.ivi.vdb.IVDBus;
 import com.desaysv.ivi.vdb.event.VDEvent;
+import com.phabryc.jaedrive.mock.VehicleMockBridge;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -318,8 +319,16 @@ public class VDInfoClient {
         try {
             boolean ok = context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
             listener.onLog("bindService CAR_INFO: " + (ok ? "avviato" : "FALLITO (bindService=false)"));
+            // Su qualunque dispositivo diverso dalla vettura reale (emulatore, tablet di test)
+            // il pacchetto com.desaysv.ivi.vds.carinfo semplicemente non esiste - bindService()
+            // ritorna false. VehicleMockBridge e' No-Op nelle build di Release (vedi
+            // src/release/java/.../mock/) - qui non cambia nulla per la vettura reale.
+            if (!ok) {
+                VehicleMockBridge.onBindFailed(context, listener);
+            }
         } catch (Exception e) {
             listener.onLog("Errore bindService CAR_INFO: " + e);
+            VehicleMockBridge.onBindFailed(context, listener);
         }
     }
 
@@ -332,6 +341,7 @@ public class VDInfoClient {
             }
             bound = false;
         }
+        VehicleMockBridge.onDisconnect(listener);
     }
 
     private void startPolling() {

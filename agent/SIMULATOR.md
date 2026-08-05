@@ -91,30 +91,42 @@ if (-not (Test-Path "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat")
 $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:ANDROID_HOME\emulator;$env:ANDROID_HOME\platform-tools;$env:PATH"
 
 # 6. Installazione Piattaforma 33, Emulator ed Immagine di Sistema
-# NOTA: Per accelerazione hardware x86_64 usare system-images;android-33;google_apis;x86_64.
-# Se l'hypervisor x86 (AEHD/WHPX) non è attivo senza riavvio, usare l'immagine ARM64 (system-images;android-33;google_apis;arm64-v8a).
-cmd.exe /c "echo y | ""$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"" --sdk_root=""$env:ANDROID_HOME"" ""platforms;android-33"" ""build-tools;33.0.2"" ""platform-tools"" ""emulator"" ""system-images;android-33;google_apis;arm64-v8a"""
+# IMPORTANTE (corretto 2026-08-05 dopo test reale su Linux): usare SEMPRE un'immagine
+# "android-automotive", MAI "google_apis" - quest'ultima e' un'immagine telefono/tablet
+# generica che NON include le classi framework android.car a runtime (android.car.jar e'
+# compileOnly, presente solo in fase di compilazione). JaeDrive crasha immediatamente
+# all'avvio (NoClassDefFoundError su android.car.Car, in MainActivity.connectCar()) su
+# google_apis - serve la variante Automotive per avere il vero framework a runtime.
+# Se l'hypervisor x86 (AEHD/WHPX) non è attivo senza riavvio, usare l'immagine ARM64
+# (system-images;android-33;android-automotive;arm64-v8a).
+cmd.exe /c "echo y | ""$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"" --sdk_root=""$env:ANDROID_HOME"" ""platforms;android-33"" ""build-tools;33.0.2"" ""platform-tools"" ""emulator"" ""system-images;android-33;android-automotive;arm64-v8a"""
 
 # 7. Copia del jar android.car.jar nella cartella app/libs del progetto
 New-Item -ItemType Directory -Path "app\libs" -Force | Out-Null
 Copy-Item "$env:ANDROID_HOME\platforms\android-33\optional\android.car.jar" -Destination "app\libs\android.car.jar" -Force
 ```
 
-### 3.2 Creazione e Personalizzazione AVD (1440 × 1770)
+### 3.2 Creazione e Personalizzazione AVD (1440 × 1770 @ 160dpi)
 
-L'head unit del veicolo Jaecoo 7 SHS-H ha un display verticale con risoluzione **1440 × 1770**.
+L'head unit del veicolo Jaecoo 7 SHS-H ha un display verticale con risoluzione **1440 × 1770**,
+schermo fisico **14.8"** (`ro.desay.display.ivi=Chery-DS-14.8-SCREEN`), densità **160dpi**
+(`ro.sf.lcd_density=160` - confermato dal dump reale `full_getprop.txt` pullato dalla vettura,
+non un valore stimato). **Il valore di densità e' importante quanto la risoluzione**: usarne uno
+sbagliato (es. 240, un errore fatto in un primo tentativo il 2026-08-05) fa apparire tutta la UI
+a schermo circa il 50% più "zoomata" del reale, pur avendo i pixel totali giusti - facilmente
+scambiato per un problema di layout quando è solo un mismatch di densità dell'AVD.
 
 ```powershell
 # Creazione dell'AVD nel percorso configurato da ANDROID_AVD_HOME
 New-Item -ItemType Directory -Path $env:ANDROID_AVD_HOME -Force | Out-Null
-echo "no" | & "$env:ANDROID_HOME\cmdline-tools\latest\bin\avdmanager.bat" create avd -n JaeDrive_Emulator -k "system-images;android-33;google_apis;arm64-v8a" --force
+echo "no" | & "$env:ANDROID_HOME\cmdline-tools\latest\bin\avdmanager.bat" create avd -n JaeDrive_Emulator -k "system-images;android-33;android-automotive;arm64-v8a" --force
 
-# Configurazione della risoluzione 1440x1770 e parametri RAM/Disco nel config.ini dell'AVD
+# Configurazione della risoluzione 1440x1770 @ 160dpi e parametri RAM/Disco nel config.ini dell'AVD
 $configPath = "$env:ANDROID_AVD_HOME\JaeDrive_Emulator.avd\config.ini"
 if (Test-Path $configPath) {
     Add-Content -Path $configPath -Value "hw.lcd.width=1440"
     Add-Content -Path $configPath -Value "hw.lcd.height=1770"
-    Add-Content -Path $configPath -Value "hw.lcd.density=240"
+    Add-Content -Path $configPath -Value "hw.lcd.density=160"
     Add-Content -Path $configPath -Value "hw.ramSize=2048M"
     Add-Content -Path $configPath -Value "disk.dataPartition.size=2147483648"
 }
@@ -171,7 +183,9 @@ fi
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
 
 # 6. Installazione Pacchetti Android SDK
-yes | sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-33" "build-tools;33.0.2" "platform-tools" "emulator" "system-images;android-33;google_apis;x86_64"
+# IMPORTANTE: "android-automotive", non "google_apis" - vedi nota nella sezione Windows sopra
+# (google_apis manca delle classi android.car a runtime, JaeDrive crasha all'avvio).
+yes | sdkmanager --sdk_root="$ANDROID_HOME" "platforms;android-33" "build-tools;33.0.2" "platform-tools" "emulator" "system-images;android-33;android-automotive;x86_64"
 
 # 7. Copia android.car.jar
 mkdir -p app/libs
@@ -183,13 +197,13 @@ cp "$ANDROID_HOME/platforms/android-33/optional/android.car.jar" app/libs/androi
 ```bash
 # Creazione AVD
 mkdir -p "$ANDROID_AVD_HOME"
-echo "no" | avdmanager create avd -n JaeDrive_Emulator -k "system-images;android-33;google_apis;x86_64" --force
+echo "no" | avdmanager create avd -n JaeDrive_Emulator -k "system-images;android-33;android-automotive;x86_64" --force
 
-# Configurazione Risoluzione 1440x1770
+# Configurazione Risoluzione 1440x1770 @ 160dpi (densita' reale confermata - vedi §3.2)
 CONFIG_FILE="$ANDROID_AVD_HOME/JaeDrive_Emulator.avd/config.ini"
 echo "hw.lcd.width=1440" >> "$CONFIG_FILE"
 echo "hw.lcd.height=1770" >> "$CONFIG_FILE"
-echo "hw.lcd.density=240" >> "$CONFIG_FILE"
+echo "hw.lcd.density=160" >> "$CONFIG_FILE"
 echo "hw.ramSize=2048M" >> "$CONFIG_FILE"
 echo "disk.dataPartition.size=2147483648" >> "$CONFIG_FILE"
 ```
@@ -226,7 +240,9 @@ L'interfaccia utente mostrerà i dati di telemetria fittizi aggiornati dinamicam
 ## 6. Risoluzione Problemi Note e Best Practices per Agenti AI
 
 1. **Pre-Check Spazio Disco (8 GB)**: Verificare sempre la quota disco prima del download. In caso di spazio scarso sul drive principale, configurare `$env:ANDROID_HOME` ed `$env:ANDROID_AVD_HOME` su un'unità capiente senza usare lettere fisse o hardcodate nel codice.
-2. **Accelerazione CPU su Windows**: Le immagini x86_64 richiedono l'installazione del driver `Android_Emulator_Hypervisor_Driver` (AEHD) via `silent_install.bat` con permessi elevati (UAC), oppure l'uso dell'immagine **ARM64** (`system-images;android-33;google_apis;arm64-v8a`).
+2. **Accelerazione CPU su Windows**: Le immagini x86_64 richiedono l'installazione del driver `Android_Emulator_Hypervisor_Driver` (AEHD) via `silent_install.bat` con permessi elevati (UAC), oppure l'uso dell'immagine **ARM64** (`system-images;android-33;android-automotive;arm64-v8a`).
 3. **Piped Accept License**: In PowerShell usare sempre `cmd.exe /c "echo y | ...\sdkmanager.bat ..."` per assicurarsi che l'accettazione della licenza non resti bloccata in attesa di input da console.
 4. **Variante Release Pulita**: Per verificare che la versione di produzione sia priva di simulazioni e mock, eseguire `./gradlew assembleRelease`.
 5. **Directory Temporanea ed Home Java (SDKMANAGER_OPTS / TEMP)**: `sdkmanager` è un'applicazione Java avviata da script `.bat` che legge la variabile `SDKMANAGER_OPTS`. Se l'unità `C:\` ha spazio limitato, impostare `$env:SDKMANAGER_OPTS = "-Duser.home=D:\UserHome -Djava.io.tmpdir=D:\Temp"` oltre a `$env:TEMP` e `$env:TMP` per costringere la JVM ad utilizzare l'unità secondaria per le cache e la decompressione temporanea.
+6. **Permessi da concedere a mano su questo emulatore generico** (non servono sulla vettura reale, dove la ROM OEM li garantisce già): `android.car.permission.CAR_SPEED` è `dangerous`, non privilegiata - concedibile con `adb shell pm grant --user <N> com.phabryc.jaedrive android.car.permission.CAR_SPEED`, **ricordandosi lo user profile giusto** (l'app gira sotto lo user "Driver" di Android Automotive multi-utente, tipicamente 10 o 11, non lo user 0 - verificare con `adb shell dumpsys activity activities | grep ResumedActivity`). L'appop `SYSTEM_ALERT_WINDOW` va concesso allo stesso modo (`adb shell appops set --user <N> com.phabryc.jaedrive SYSTEM_ALERT_WINDOW allow`) per vedere popup/status bar overlay con l'app in background. `Settings.Global "ivi.sn"` (S/N DMC) si può popolare con `adb shell settings put global ivi.sn "<valore>"`.
+7. **La UI di sistema (launcher/status bar) di questo emulatore è quella generica AOSP/AAOS di riferimento, non la ROM Desay reale**: card "Assistant"/"Media Player"/mappa placeholder, icone Bluetooth/WiFi/luminosità in alto, barra clima in basso - tutta interfaccia stock Google, sostituita sulla vettura vera dalla skin Desay. Non è replicabile in emulazione (l'immagine di sistema Desay non è pubblicamente disponibile) - alcune differenze visive (es. la status bar overlay di JaeDrive coperta dalla status bar di sistema per lo z-order) sono quindi attese solo qui, non sulla vettura reale.

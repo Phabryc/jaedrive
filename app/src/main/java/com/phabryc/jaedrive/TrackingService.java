@@ -401,8 +401,16 @@ public class TrackingService extends Service {
                     // in tempo reale li' - vedi MainActivity.updateFooterStatus()). Richiesta
                     // dell'utente 2026-08-02: notificare il cambio impostato dal guidatore
                     // (es. da un tasto volante) anche con l'app chiusa/in background.
+                    // isSubscriptionActive() ricontrollato qui DIRETTAMENTE (non solo lo switch)
+                    // - stessa difesa gia' presente in refreshStatusBar(), aggiunta 2026-08-05
+                    // dopo un bug trovato sul campo: Prefs.clearCloudPairing() poteva lasciare
+                    // questo switch a "true" anche ad account disassociato, rendendo la funzione
+                    // PREMIUM gratis per sempre dopo una singola associazione. Ridondante con la
+                    // disattivazione forzata dello switch (difesa in profondita'), cosi' un
+                    // futuro bug simile non riapra la stessa scappatoia.
                     if (lastKnownRegenLevel >= 0 && newLevel != lastKnownRegenLevel && !MainActivity.isForeground
-                            && Prefs.isRegenPopupEnabled(TrackingService.this)) {
+                            && Prefs.isRegenPopupEnabled(TrackingService.this)
+                            && Prefs.isSubscriptionActive(TrackingService.this)) {
                         OverlayPopup.showRegenLevel(TrackingService.this,
                             VDInfoClient.regenLevelLabel(TrackingService.this, newLevel), 4000);
                     }
@@ -499,7 +507,9 @@ public class TrackingService extends Service {
         if (previousPct >= 0 && currentPct - previousPct >= FUEL_REFILL_THRESHOLD_PCT) {
             appendServiceLog(String.format(Locale.ITALY,
                 "Rifornimento rilevato all'accensione: %.1f%% -> %.1f%%", previousPct, currentPct));
-            if (Prefs.isRefuelPopupEnabled(this)) showFuelRefillPopup();
+            // isSubscriptionActive() ricontrollato qui DIRETTAMENTE, stessa difesa in
+            // profondita' spiegata sul popup rigenerazione qui sopra (bug 2026-08-05).
+            if (Prefs.isRefuelPopupEnabled(this) && Prefs.isSubscriptionActive(this)) showFuelRefillPopup();
         }
     }
 

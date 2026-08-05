@@ -32,6 +32,7 @@
         android:gravity="center">
         <ImageView
             android:layout_width="46dp" android:layout_height="46dp"
+            android:layout_gravity="center"
             android:src="@mipmap/ic_launcher_foreground"
             android:contentDescription="@null"/>
     </FrameLayout>
@@ -49,6 +50,7 @@
         android:gravity="center">
         <ImageView android:id="@+id/iv_status_bar_arrow"
             android:layout_width="22dp" android:layout_height="22dp"
+            android:layout_gravity="center"
             android:src="@drawable/ic_chevron_up"
             android:contentDescription="@null"/>
     </FrameLayout>

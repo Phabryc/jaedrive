@@ -1855,6 +1855,11 @@ public class MainActivity extends AppCompatActivity {
                     Prefs.clearCloudPairing(this);
                     ivCloudPhoto.setVisibility(View.GONE);
                     refreshCloudSection();
+                    // I 3 switch PREMIUM sono appena stati forzati a false da
+                    // clearCloudPairing() (bug 2026-08-05) - aggiorna subito la UI invece di
+                    // aspettare il prossimo onResume()/onCreate().
+                    refreshPremiumGatedSwitches();
+                    if (contentStorico.getVisibility() == View.VISIBLE) refreshTrackList();
                     Toast.makeText(this, getString(R.string.toast_cloud_unpaired), Toast.LENGTH_SHORT).show();
 
                     showConfirmDialog(
@@ -2169,6 +2174,34 @@ public class MainActivity extends AppCompatActivity {
                     }
                     if (onDone != null) onDone.run();
                 });
+            } catch (CloudApiClient.ApiException e) {
+                appendLog("[Cloud] Errore lettura profilo account: " + e);
+                // BUG TROVATO SUL CAMPO (2026-08-05): questo catch ignorava completamente un
+                // 409 "Device is not paired to a vehicle" (auto disassociata dal SITO, non dal
+                // bottone RIMUOVI dell'app) - a differenza di SyncWorker (che gestisce lo stesso
+                // 409 sia su heartbeat che su upload trip), qui l'associazione locale restava
+                // "valida" per sempre (token, sub_status/sub_is_active MAI aggiornati), quindi
+                // isSubscriptionActive() continuava a restituire l'ultimo valore noto (spesso
+                // ancora "true") anche con l'auto gia' rimossa dall'account sul sito - stesso
+                // identico effetto pratico del bug sugli switch PREMIUM mai riportati a false,
+                // ma qui a monte: nessuno si accorgeva MAI che l'app non era piu' associata,
+                // dato che questa e' l'unica chiamata di rete che gira regolarmente ad app
+                // aperta e idle (SyncWorker parte solo dopo la chiusura di un viaggio - vedi
+                // SyncScheduler.enqueueSync()).
+                if (e.httpCode == 409) {
+                    runOnUiThread(() -> {
+                        Prefs.clearCloudPairingRemotely(this);
+                        refreshCloudSection();
+                        refreshPremiumGatedSwitches();
+                        if (contentStorico.getVisibility() == View.VISIBLE) refreshTrackList();
+                        if (Prefs.consumeCloudUnpairedRemotelyFlag(this)) {
+                            showInfoDialog(getString(R.string.dialog_unpaired_remotely_title), getString(R.string.dialog_unpaired_remotely_message));
+                        }
+                        if (onDone != null) onDone.run();
+                    });
+                } else if (onDone != null) {
+                    runOnUiThread(onDone);
+                }
             } catch (Exception e) {
                 appendLog("[Cloud] Errore lettura profilo account: " + e);
                 if (onDone != null) runOnUiThread(onDone);
