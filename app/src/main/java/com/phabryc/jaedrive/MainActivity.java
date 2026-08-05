@@ -115,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
     // di essere riusata - osmdroid non riavvia i thread di download tile dopo che una
     // MapView e' stata staccata dalla finestra, solo una nuova istanza garantisce che
     // funzioni ogni volta.
+    private View mapOuterContainer;
     private FrameLayout mapContainer;
     private MapView mapView;
     private TripTraceView tripTraceView;
@@ -293,6 +294,7 @@ public class MainActivity extends AppCompatActivity {
         // condivisa (vedi showMapForTrip()): mapContainer e' solo il contenitore vuoto in
         // cui viene creata/distrutta una MapView nuova ad ogni apertura online.
         tripDetailPanel = getLayoutInflater().inflate(R.layout.view_trip_detail, null);
+        mapOuterContainer = tripDetailPanel.findViewById(R.id.map_outer_container);
         mapContainer = tripDetailPanel.findViewById(R.id.map_container);
         tripTraceView = tripDetailPanel.findViewById(R.id.trip_trace_view);
         tvMapOfflineLabel = tripDetailPanel.findViewById(R.id.tv_map_offline_label);
@@ -1636,6 +1638,12 @@ public class MainActivity extends AppCompatActivity {
         tvMapOfflineLabel.setVisibility(online ? View.GONE : View.VISIBLE);
         mapContainer.setVisibility(showRealMap ? View.VISIBLE : View.GONE);
         tripTraceView.setVisibility(showRealMap ? View.GONE : View.VISIBLE);
+        // Senza nessuna traccia (mappa o schematica) da disegnare, i 560dp pensati per una
+        // vera mappa/traccia sarebbero solo spazio vuoto intorno a una riga di testo -
+        // riquadro ridotto a un'altezza minima, solo per il messaggio.
+        ViewGroup.LayoutParams mapLp = mapOuterContainer.getLayoutParams();
+        mapLp.height = (int) dp(hasTrack ? 560 : 120);
+        mapOuterContainer.setLayoutParams(mapLp);
 
         if (showRealMap) {
             showMapForTrip(points);
