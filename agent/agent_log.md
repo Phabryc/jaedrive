@@ -4,6 +4,42 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Configurazione Ambiente di Compilazione, Mock Veicolo (Debug-Only) e Documentazione Agenti
+
+### 👤 Agent Metadata
+- **Agent / Model**: Antigravity (Gemini 3.6 Flash)
+- **Scope / Subsystem**: `[app]`, `[build-system]`, `[agent]`
+- **Status**: `COMPLETED`
+
+### 📌 Sintesi della Funzionalità
+Installato e configurato l'ambiente di compilazione automatizzato (JDK 17 + Android SDK 33). Risolta la dipendenza mancante `android.car.jar`. Progettata ed implementata l'architettura di emulazione telemetrica del veicolo isolata esclusivamente nelle build di **Debug** (`src/debug`), escludendo totalmente qualsiasi codice o risorsa di mock dalle build di **Release** (`src/release`). Creata la cartella centralizzata `agent/` contenente il protocollo di comunicazione tra agenti AI (`README.md`), il registro evolutivo (`agent_log.md`) e le istruzioni trasparenti di setup dell'emulatore AVD 1440x1770 (`SIMULATOR.md`).
+
+### 🛠️ Dettagli Tecnici & File Modificati
+
+1. **Setup Ambiente & Dipendenza System Framework**
+   - **`app/libs/android.car.jar`**: Copiata la libreria di stub Android Automotive dall'Android SDK (`platforms/android-33/optional/android.car.jar`) per consentire la compilazione offline priva dell'head unit reale.
+
+2. **Isolamento Architetturale Mock Veicolo**
+   - **[`VehicleSimulator.java`](file:///d:/P/JaeDrive/app/src/debug/java/com/phabryc/jaedrive/mock/VehicleSimulator.java)** (solo `src/debug`): Generatore di telemetria dinamica sintetica in background (SOC %, carburante, odometro, trip km, flusso d'energia EV/HEV/Regen, consumo e pressione pneumatici).
+   - **[`VehicleMockBridge.java`](file:///d:/P/JaeDrive/app/src/debug/java/com/phabryc/jaedrive/mock/VehicleMockBridge.java)** (versione `src/debug`): Intercetta i fallimenti di `bindService()` e attiva `VehicleSimulator`.
+   - **[`VehicleMockBridge.java`](file:///d:/P/JaeDrive/app/src/release/java/com/phabryc/jaedrive/mock/VehicleMockBridge.java)** (versione `src/release`): Variante **No-Op** vuota per le build di produzione. Nessuna classe o risorsa mock inclusa nell'APK di Release.
+   - **[`VDInfoClient.java`](file:///d:/P/JaeDrive/app/src/main/java/com/phabryc/jaedrive/VDInfoClient.java)**: Integrata la chiamata condizionale verso `VehicleMockBridge`.
+
+3. **Cartella Centralizzata Agenti (`agent/`)**
+   - **[`agent/README.md`](file:///d:/P/JaeDrive/agent/README.md)**: Definizione delle regole della cartella e del protocollo standard di comunicazione tra agenti AI.
+   - **[`agent/agent_log.md`](file:///d:/P/JaeDrive/agent/agent_log.md)**: Spostato registro storico nella cartella centralizzata.
+   - **[`agent/SIMULATOR.md`](file:///d:/P/JaeDrive/agent/SIMULATOR.md)**: Spostata e formattata la guida per l'allestimento dell'emulatore AVD (1440x1770) sia per Windows che per Linux.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `.\gradlew.bat assembleDebug assembleRelease` -> **BUILD SUCCESSFUL** (Esito: Debug APK 10.7 MB con mock; Release APK 8.96 MB privo di mock).
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: Repository perfettamente compilabile per entrambe le varianti.
+- **Risoluzione AVD**: Configurare `hw.lcd.width=1440` e `hw.lcd.height=1770` nell'AVD.
+- **Constraints**: Non importare mai `com.phabryc.jaedrive.mock.VehicleSimulator` in `src/main`, ma passare sempre per l'interfaccia/bridge `VehicleMockBridge` per preservare il pulito nelle build di produzione.
+
+---
+
 ## [2026-08-04] - Fix Selezione Periodo Calendario e Layout Responsive Grid (Web)
 
 ### 📌 Sintesi della Funzionalità
