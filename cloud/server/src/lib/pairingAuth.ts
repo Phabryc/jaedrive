@@ -18,7 +18,14 @@ export function verifyPairingSignature(vin: string, timestamp: string, signature
   if (!Number.isFinite(ts)) return false;
   if (Math.abs(Date.now() - ts) > MAX_CLOCK_SKEW_MS) return false;
 
-  const expectedHex = createHmac("sha256", env.pairingHmacSecret)
+  // PAIRING_HMAC_SECRET e' la rappresentazione esadecimale dei 32 byte grezzi usati come
+  // chiave HMAC - va decodificata prima dell'uso. Passarla a createHmac() come stringa
+  // (bug della prima versione, trovato testando il pairing dal vivo il 2026-08-05) la
+  // tratterebbe come i suoi 64 byte UTF-8 letterali invece dei 32 byte grezzi che
+  // CloudApiClient.getPairingHmacKey() usa lato Android - stessa chiave "sulla carta",
+  // interpretazioni diverse, firme che non avrebbero mai potuto combaciare.
+  const secretKey = Buffer.from(env.pairingHmacSecret, "hex");
+  const expectedHex = createHmac("sha256", secretKey)
     .update(`${vin}|${timestamp}`)
     .digest("hex");
 

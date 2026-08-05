@@ -4,6 +4,34 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Fix Critico: Chiave HMAC Interpretata Diversamente tra Server e App (Pairing Sempre Fallito)
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[cloud]`
+- **Status**: `COMPLETED` (bug trovato, corretto, verificato via test locale) — `REQUIRES_USER_TEST` (serve un redeploy, vedi Handover)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Test dal vivo richiesto dall'utente ("avvia l'app sull'emulatore e verifica il pairing") della firma HMAC introdotta nella voce di log precedente. Emulatore riavviato dopo spegnimento PC, app avviata, navigato fino a Impostazioni → CLOUD → "ASSOCIA AUTO" → toast generico "Errore di connessione", ma il logcat rivela la causa reale: `CloudApiClient$ApiException: Invalid or expired pairing signature` (401 dal server, non un problema di rete). Verificato che l'orologio emulatore/host sono allineati (non e' un problema di finestra temporale). Isolata la causa reale replicando manualmente lato server (script Node) l'esatta stessa chiave/firma usate lato Android: **bug nell'interpretazione della chiave** - `lib/pairingAuth.ts` passava `env.pairingHmacSecret` (la stringa esadecimale di 64 caratteri) direttamente a `createHmac("sha256", ...)`, che Node tratta come chiave UTF-8 letterale (64 byte) invece di decodificarla come esadecimale (32 byte grezzi) - esattamente quello che fa invece `CloudApiClient.getPairingHmacKey()` lato Android. Stessa chiave "sulla carta", due interpretazioni diverse, firme che non avrebbero MAI potuto combaciare - il pairing sarebbe stato permanentemente rotto per ogni client con qualunque valore di `PAIRING_HMAC_SECRET` fosse stato impostato.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **[`cloud/server/src/lib/pairingAuth.ts`](cloud/server/src/lib/pairingAuth.ts)**: `verifyPairingSignature()` ora decodifica esplicitamente `env.pairingHmacSecret` con `Buffer.from(env.pairingHmacSecret, "hex")` prima di passarlo a `createHmac()`, cosi' la chiave usata e' i 32 byte grezzi - identica a quella ricostruita lato Android da `PAIRING_KEY_OBFUSCATED`/`PAIRING_KEY_XOR`.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `npx tsc --noEmit` → **exit 0**.
+- Script Node locale: calcolata la firma "lato client" (chiave = 32 byte da `Buffer.from(secretHex, "hex")`, stesso codice del client Android), poi la stessa identica firma "vecchio server" (chiave = stringa esadecimale letterale, il bug) e "nuovo server" (chiave decodificata, il fix) - **vecchio server NON combacia** con la firma client (conferma del bug), **nuovo server combacia esattamente** (conferma del fix).
+- Test end-to-end reale sull'emulatore: app avviata (`JaeDrive_Automotive`, riavviato dopo spegnimento PC - snapshot non compatibile, ripartito "from scratch" ma dati utente/app preservati), navigato a Impostazioni → CLOUD → ASSOCIA AUTO, riprodotto l'errore "Invalid or expired pairing signature" **prima** del fix. **Non ancora ripetuto dopo il fix** - serve un redeploy del server (vedi Handover).
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: fix scritto e verificato via script locale, non ancora verificato end-to-end contro il server di produzione (che gira ancora col bug finche' non viene ridistribuito).
+- **Open Questions / Pending Tasks**:
+  1. **Serve un nuovo commit+push+redeploy Portainer** prima che il pairing possa funzionare su qualunque client (emulatore o vettura reale) - il bug e' server-side, nessuna modifica Android necessaria (la chiave/firma lato app erano gia' corrette).
+  2. Dopo il redeploy, ripetere il test end-to-end sull'emulatore (Impostazioni → CLOUD → ASSOCIA AUTO) e verificare che compaia il popup con codice+QR invece dell'errore.
+  3. Se si vuole rigenerare la chiave in futuro, il fix qui non cambia nulla del formato (`PAIRING_HMAC_SECRET` resta sempre la rappresentazione esadecimale dei 32 byte) - solo l'interpretazione lato server era sbagliata, ora corretta.
+- **Constraints / Warning**: nessun altro punto del codice usa `env.pairingHmacSecret` direttamente - `pairingAuth.ts` e' l'unico consumer, quindi il fix e' isolato e non richiede altre modifiche.
+
+---
+
 ## [2026-08-05] - Security Review Cloud + Firma HMAC su Pairing/Start + Rete di Sicurezza Admin
 
 ### 👤 Agent Metadata
