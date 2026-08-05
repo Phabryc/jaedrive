@@ -243,16 +243,18 @@ const FEATURES: Feature[] = [
     enBody:
       "Contextual notifications on the headunit when a significant event is detected: high regen level or completed refuel.",
     itDetails: [
-      "Popup automatico alla fine di una fase di rigenerazione intensa",
-      "Rilevamento automatico del rifornimento (variazione livello carburante)",
-      "Dismissibili con un tap; 'Non mostrare più' ricordato per quella sessione",
-      "Funzionano anche con l'app in background",
+      "Popup regen: si apre ad ogni cambio di livello impostato dal guidatore (es. tasto al volante), con auto-dismiss dopo 4 secondi",
+      "Se il livello cambia di nuovo mentre il popup è aperto, il testo si aggiorna e il timer riparte — nessun popup doppio",
+      "Popup rifornimento: si apre all'accensione del quadro se il carburante è salito di ≥10% rispetto all'ultimo spegnimento; una sola volta per sessione",
+      "Il popup rifornimento ha 3 pulsanti (Trip A / Trip B / No) e resta aperto fino alla scelta; mostrato anche con l'app in primo piano",
+      "Il popup regen non compare se l'app è già in primo piano (la riga 'Rigenerazione' in DATI mostra la stessa info in tempo reale)",
     ],
     enDetails: [
-      "Automatic popup at the end of an intense regen phase",
-      "Automatic refuel detection (fuel level variation)",
-      "Dismissible with a tap; 'Don't remind me' remembered for that session",
-      "Work even with the app in the background",
+      "Regen popup: opens on every driver-set level change (e.g. steering wheel button), auto-dismissed after 4 seconds",
+      "If the level changes again while the popup is visible, the text updates and the timer restarts — no double popup",
+      "Refuel popup: opens at ignition-on if fuel level rose ≥10% since the last shutdown; fires once per session only",
+      "The refuel popup has 3 buttons (Trip A / Trip B / No) and stays open until one is pressed; also shown when the app is in the foreground",
+      "The regen popup is suppressed when the app is already in the foreground (the live 'Regen' row in DATA shows the same info)",
     ],
   },
   {
