@@ -4,6 +4,34 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-06] - Conferma Handshake Pairing Validata sul Campo dall'Utente + TODO: Email Prematura
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[cloud]`, `[agent]`
+- **Status**: `COMPLETED` (validazione) — nuovo `TODO` aperto, non ancora affrontato
+
+### 📌 Sintesi della Funzionalità / Modifica
+Seguito diretto della voce precedente (stesso giorno, "Pairing: Conferma Handshake Obbligatoria..."). Dopo il redeploy Portainer, l'utente ha testato di persona entrambi gli scenari:
+1. **Caso negativo**: chiusura del popup di pairing a meta' associazione (stesso scenario che aveva causato il bug originale "auto associata ma non sincronizzata") - confermato che ora il cron (`pairingCleanup.ts`) ripulisce correttamente `vehicle`/`device` non confermati entro 30s, nessun residuo orfano.
+2. **Caso positivo**: pairing completo senza interruzioni - confermato che l'app mostra "Sincronizzazione dati veicolo...", il sito passa da form a spinner "in attesa dell'app" e naviga da solo ai viaggi solo dopo la conferma, `devices.confirmed_at` valorizzato.
+
+Tutto **funzionante come da design**. Un solo problema residuo segnalato dall'utente durante il test: l'email transazionale `PAIRING_NEW_VEHICLE` (routes/user.ts, dentro `POST /pairing/claim`) parte **al claim**, prima che l'handshake sia confermato - se l'handshake poi fallisce/scade e il cron cancella tutto, l'utente ha gia' ricevuto un'email "auto associata" che si rivela falsa. Non affrontato in questa sessione su richiesta esplicita dell'utente ("aggiungi in todolist" - solo tracciare, non implementare subito).
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **[`cloud/server/src/routes/user.ts`](cloud/server/src/routes/user.ts)**: aggiunto commento `TODO` esplicito subito sopra la chiamata `sendTransactionalEmail("PAIRING_NEW_VEHICLE", ...)` dentro `POST /pairing/claim`, con la spiegazione del problema e il fix da fare (spostare l'invio al checkpoint `Device.confirmedAt`, lo stesso gia' usato da `routes/device.ts` PATCH /vehicle e dal redirect in `cloud/web/src/pages/Pair.tsx`).
+- **Memoria persistente dell'agente** (`~/.claude/projects/.../memory/project_jaedrive_pairing_todo.md` + voce in `MEMORY.md`): stesso TODO salvato anche li', cosi' resta visibile a un agente futuro anche se non rilegge subito questo file di log.
+
+### 🧪 Comandi di Verifica Eseguiti
+- Nessuno in questa sessione (solo commento aggiunto, nessuna modifica funzionale) - la verifica end-to-end vera e' stata quella fatta manualmente dall'utente descritta sopra.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: il meccanismo di conferma handshake (voce precedente) e' confermato funzionante in produzione dall'utente stesso. Nessun lavoro pendente su quella parte.
+- **Open Questions / Pending Tasks — TODO aperto**: spostare l'invio dell'email `PAIRING_NEW_VEHICLE` dal momento del claim (`POST /api/user/pairing/claim`, subito dopo la creazione di `device`) al momento in cui l'handshake si conferma davvero (`Device.confirmedAt` valorizzato in `PATCH /api/device/vehicle`, vedi `routes/device.ts`). Approccio suggerito (da valutare da chi implementa): l'email non puo' partire direttamente dentro la route `PATCH /vehicle` del device (nessun accesso diretto ai dati utente/lingua li' se non gia' caricati) - probabilmente serve controllare `confirmedAt` appena settato e recuperare `vehicle.user` in quello stesso handler (gia' disponibile via `device.vehicleId`), oppure spostare l'invio email nel polling/endpoint che il web usa per rilevare la conferma (`GET /devices/:id/confirm-status`) la prima volta che restituisce `confirmed:true` (rischio: nessuno garantisce che il web resti a pollare fino alla conferma, es. utente chiude la tab - la route `PATCH /vehicle` lato device resta la scelta piu' affidabile perche' e' l'evento stesso che genera la conferma, non un suo effetto osservato altrove).
+- **Constraints / Warning**: nessuna modifica al comportamento attuale in questa voce - solo documentazione. Il TODO e' a bassa urgenza (falso positivo via email, non un bug funzionale) ma da non perdere di vista, dato che degrada la fiducia dell'utente nelle notifiche se capita spesso (es. utenti che abbandonano il pairing a meta' per errore).
+
+---
+
 ## [2026-08-06] - Pairing: Conferma Handshake Obbligatoria Prima di Considerarsi Associato (App+Web+Server) + Rate-Limit con Messaggio Chiaro
 
 ### 👤 Agent Metadata

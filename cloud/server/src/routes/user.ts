@@ -427,6 +427,12 @@ export async function userRoutes(app: FastifyInstance) {
         data: { status: "claimed", deviceId: device.id, claimedBy: userId, plaintextToken: rawToken },
       });
 
+      // TODO (segnalato dall'utente 2026-08-06, testando il flusso di conferma handshake
+      // sopra): questa email parte al claim, PRIMA che l'app abbia confermato l'handshake
+      // (Device.confirmedAt, vedi routes/device.ts + cron/pairingCleanup.ts). Se l'handshake
+      // fallisce/scade, il cron cancella vehicle+device 30s dopo, ma l'utente ha gia'
+      // ricevuto un'email "auto associata" ormai falsa - va spostata a quando l'handshake si
+      // conferma davvero (stesso checkpoint del redirect web in Pair.tsx), non al claim.
       if (user.email) {
         const name = user.firstName ?? user.displayName ?? null;
         const vehicleName = vehicle.nickname || vehicle.model || vehicle.vin || "Jaecoo / Omoda";
