@@ -43,6 +43,14 @@ export default function AdminDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingUsers, setLoadingUsers] = useState(true);
 
+  // VIN tools: recupero manuale per uno scenario "VIN gia' reclamato" (vedi agent_log.md)
+  // - l'admin di solito conosce solo il VIN segnalato dall'utente, non l'id interno.
+  const [vinQuery, setVinQuery] = useState("");
+  const [vinLookupLoading, setVinLookupLoading] = useState(false);
+  const [vinLookupResult, setVinLookupResult] = useState<Awaited<ReturnType<typeof api.adminLookupVehicleByVin>> | null>(null);
+  const [vinLookupError, setVinLookupError] = useState<string | null>(null);
+  const [unlinkingVehicle, setUnlinkingVehicle] = useState(false);
+
   // Test Email state
   const [testType, setTestType] = useState<string>("SUBSCRIPTION_ACTIVATED");
   const [testTo, setTestTo] = useState<string>("");
@@ -161,6 +169,37 @@ export default function AdminDashboard() {
       alert(t("admin.grantedExtraSwap"));
     } catch {
       alert(t("admin.errAddSwap"));
+    }
+  }
+
+  async function handleVinLookup() {
+    if (!vinQuery.trim()) return;
+    setVinLookupLoading(true);
+    setVinLookupError(null);
+    setVinLookupResult(null);
+    try {
+      const result = await api.adminLookupVehicleByVin(vinQuery.trim());
+      setVinLookupResult(result);
+    } catch (err: any) {
+      setVinLookupError(err?.status === 404 ? t("admin.vinNotFound") : t("admin.errVinLookup"));
+    } finally {
+      setVinLookupLoading(false);
+    }
+  }
+
+  async function handleUnlinkVehicle() {
+    if (!vinLookupResult) return;
+    if (!confirm(t("admin.confirmUnlinkVehicle", { vin: vinLookupResult.vin, email: vinLookupResult.owner?.email ?? "" }))) return;
+    setUnlinkingVehicle(true);
+    try {
+      await api.adminUnlinkVehicle(vinLookupResult.id);
+      setVinLookupResult(null);
+      setVinQuery("");
+      alert(t("admin.vehicleUnlinked"));
+    } catch {
+      alert(t("admin.errUnlinkVehicle"));
+    } finally {
+      setUnlinkingVehicle(false);
     }
   }
 
@@ -314,6 +353,41 @@ export default function AdminDashboard() {
               <Button variant="secondary" size="sm" onClick={() => loadUsers()}>
                 {t("admin.refreshList")}
               </Button>
+            </div>
+
+            {/* VIN Tools: recupero manuale per un VIN gia' reclamato da un altro account
+                (vedi agent_log.md) - lookup prima di sganciare, per non farlo alla cieca. */}
+            <div className="rounded-xl border border-surface-border bg-surface p-4 space-y-3">
+              <h3 className="text-sm font-semibold">{t("admin.vinToolsTitle")}</h3>
+              <p className="text-xs text-onsurface-variant">{t("admin.vinToolsHint")}</p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="text"
+                  placeholder={t("admin.vinToolsPlaceholder")}
+                  value={vinQuery}
+                  onChange={(e) => setVinQuery(e.target.value)}
+                  className="w-full sm:w-72 rounded-lg border border-surface-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+                <Button variant="secondary" size="sm" onClick={handleVinLookup} disabled={vinLookupLoading || !vinQuery.trim()}>
+                  {vinLookupLoading ? t("admin.searching") : t("admin.search")}
+                </Button>
+              </div>
+
+              {vinLookupError && <p className="text-xs text-red-400">{vinLookupError}</p>}
+
+              {vinLookupResult && (
+                <div className="rounded-lg border border-surface-border bg-bg/60 p-3 text-sm space-y-1">
+                  <p><span className="text-onsurface-variant">{t("admin.vinFieldVin")}: </span>{vinLookupResult.vin}</p>
+                  <p><span className="text-onsurface-variant">{t("admin.vinFieldNickname")}: </span>{vinLookupResult.nickname}</p>
+                  <p><span className="text-onsurface-variant">{t("admin.vinFieldOwner")}: </span>{vinLookupResult.owner?.email ?? vinLookupResult.owner?.id}</p>
+                  <p><span className="text-onsurface-variant">{t("admin.vinFieldClaimedAt")}: </span>{new Date(vinLookupResult.createdAt).toLocaleString()}</p>
+                  <div className="pt-2">
+                    <Button variant="danger" size="sm" onClick={handleUnlinkVehicle} disabled={unlinkingVehicle}>
+                      {unlinkingVehicle ? t("admin.unlinking") : t("admin.unlinkVehicle")}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {loadingUsers ? (

@@ -4,6 +4,69 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Security Review Cloud + Firma HMAC su Pairing/Start + Rete di Sicurezza Admin
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[cloud]`, `[app]`
+- **Status**: `COMPLETED` (codice, build/type-check verificati) — `REQUIRES_USER_TEST` (deploy reale, vedi Constraints)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Richiesta esplicita dell'utente: analisi di sicurezza completa di `cloud/server` e `cloud/web`. Trovate 5 criticità, ordinate per severità:
+
+1. **🔴 ALTO — VIN/ivi_sn squatting**: `POST /api/device/pairing/start` era volutamente non autenticato e accettava qualunque `vin` in chiaro. Poiché `vehicles.vin` e' univoco globalmente e vince il primo che lo reclama, chiunque conoscesse il VIN/ivi_sn di un'auto non propria poteva reclamarla per se' PRIMA del vero proprietario, bloccandolo permanentemente (409 "already paired to a different account", nessun recupero). L'utente ha chiarito che in pratica si usa l'ivi_sn (seriale head unit), non il VIN standard - stesso identico problema, cambia solo quanto l'identificativo sia esposto pubblicamente.
+2. **🟠 MEDIO — HTML non escapato nelle email transazionali** (`emailTemplates.ts`): `name`/`vehicleName`/`vin`/`tier`/`code` interpolati senza escape nell'HTML inviato via Resend.
+3. **🟡 BASSO — Rate limit mancante** su `POST /api/user/redeem-discount-code` (unico endpoint "che eroga valore" senza `config.rateLimit`, a differenza di tutti gli altri endpoint sensibili del file).
+4. **🟡 BASSO — Validazione schema mancante** sulle route admin di scrittura (`/users/:userId/subscription`, `/extra-swaps`, `/role`, `POST /discount-codes`) - accettavano `req.body` senza schema Fastify, a differenza del resto del codice.
+5. **Positivo**: nessuna SQL injection (Prisma parametrizzato ovunque), IDOR sistematicamente prevenuto su ~15 route utente-scoped, nessun segreto committato, nessun `dangerouslySetInnerHTML`/`eval` nel frontend.
+
+Per il punto 1, discusso con l'utente il meccanismo di mitigazione: Google Play Integrity (lo standard per questo problema) **non e' disponibile** su questa ROM (niente Google Play Services, head unit Desay china-market). Concordata un'alternativa: firma HMAC-SHA256 con chiave embedded offuscata nell'app (stesso schema XOR gia' usato per la password dello zip in JaeDriveProbe) - **esplicitamente comunicato all'utente che questo NON prova il possesso fisico di un'auto specifica** (la chiave e' identica per ogni installazione, estraibile da chi decompila l'APK), alza solo il costo dell'attacco da "una richiesta HTTP a caso" a "reverse engineering dell'app", e blocca il replay letterale grazie alla finestra temporale. Il rischio residuo (attaccante disposto a fare RE) resta chiuso solo dalla rete di sicurezza admin (punto 4 sotto), non dalla firma.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+
+**Fix 2 (HTML escaping)** - **[`cloud/server/src/lib/emailTemplates.ts`](cloud/server/src/lib/emailTemplates.ts)**: aggiunta `escapeHtml()`, applicata a `name`/`vehicleName`/`vin`/`tier`/`code` in tutte le 8 funzioni di build email (solo nel corpo HTML, non nei subject - testo semplice, l'escape li' sarebbe sbagliato).
+
+**Fix 3 (rate limit)** - **[`cloud/server/src/routes/user.ts`](cloud/server/src/routes/user.ts)**: `POST /redeem-discount-code` ora ha `config: { rateLimit: { max: 10, timeWindow: "1 minute" } }`.
+
+**Fix 4 (validazione admin)** - **[`cloud/server/src/routes/admin.ts`](cloud/server/src/routes/admin.ts)**: schemi Fastify aggiunti a `/users/:userId/subscription` (status enum FREE/PREMIUM, tier enum STANDARD/GARAGE), `/users/:userId/role` (role enum USER/ADMIN), `POST /discount-codes` (discountType enum FREE_DAYS/PERCENT/FIXED_AMOUNT). **Bug scoperto e risolto in corsa**: `/users/:userId/extra-swaps` ha uno schema con `extraSwaps` OPZIONALE (non required) con fallback `?? 1` nel handler - il pulsante Admin esistente (`handleAddExtraSwap` in `AdminDashboard.tsx`) chiama questa route senza body affatto, intendendo sempre "+1"; renderlo `required` avrebbe rotto quel pulsante (probabilmente era gia' silenziosamente rotto prima, con `extraSwaps` `undefined` passato a `increment`).
+
+**Fix 1 (firma HMAC) - lato server**:
+- **[`cloud/server/src/lib/pairingAuth.ts`](cloud/server/src/lib/pairingAuth.ts)** (nuovo): `verifyPairingSignature(vin, timestamp, signature)` - HMAC-SHA256 su `vin|timestamp` con `env.pairingHmacSecret`, confronto a tempo costante (`timingSafeEqual`), finestra di validita' `timestamp` di ±2 minuti (blocca replay).
+- **[`cloud/server/src/env.ts`](cloud/server/src/env.ts)**: nuova var **richiesta** `PAIRING_HMAC_SECRET` (`required()`, il server non parte senza - vedi Constraints).
+- **[`cloud/server/src/routes/device.ts`](cloud/server/src/routes/device.ts)**: `POST /pairing/start` ora richiede `timestamp`+`signature` nel body, verificati PRIMA di creare il `pairingRequest` (401 se non validi). Aggiunto anche un rate-limit **per VIN** indipendente da quello per IP gia' presente (`MAX_PAIRING_STARTS_PER_VIN_PER_DAY = 3`, query `prisma.pairingRequest.count()` sulle ultime 24h) - blocca lo scanning massivo anche da chi ha gia' una firma valida.
+
+**Fix 1 (firma HMAC) - lato Android**:
+- **[`app/src/main/java/com/phabryc/jaedrive/CloudApiClient.java`](app/src/main/java/com/phabryc/jaedrive/CloudApiClient.java)**: `PAIRING_KEY_OBFUSCATED` (int[32], XOR key `0x7C`, stesso schema del probe) + `getPairingHmacKey()`/`hmacSha256Hex()` (via `javax.crypto.Mac`, gia' nell'SDK, nessuna dipendenza nuova). `pairingStart()` ora calcola `timestamp = System.currentTimeMillis()` e `signature = hmacSha256Hex(key, vin + "|" + timestamp)`, li aggiunge al body.
+- **Valore reale della chiave (SOLO qui, mai in chiaro nel codice - stessa prassi della password JaeDriveProbe)**: `9478057e7478a5199d5ab3a804869fd3d2331378b3172df96508e2f4621f5d23` (32 byte esadecimali). **Questo stesso valore va impostato come `PAIRING_HMAC_SECRET` nell'environment del deploy Portainer** - senza, il client firma con una chiave che il server non riconosce e OGNI pairing fallisce con 401.
+
+**Rete di sicurezza admin (recupero manuale, indipendente dalla firma)**:
+- **[`cloud/server/src/routes/admin.ts`](cloud/server/src/routes/admin.ts)**: `GET /vehicles/lookup?vin=` (trova il veicolo + proprietario attuale da un VIN) e `DELETE /vehicles/:vehicleId` (cancella il veicolo, cascata su devices/trips/presetRoutes come la DELETE utente-facing gia' esistente - libera il VIN per un nuovo pairing legittimo).
+- **[`cloud/web/src/lib/api.ts`](cloud/web/src/lib/api.ts)**: `adminLookupVehicleByVin()`, `adminUnlinkVehicle()`.
+- **[`cloud/web/src/pages/AdminDashboard.tsx`](cloud/web/src/pages/AdminDashboard.tsx)**: nuovo pannello "Strumenti VIN" nel tab Utenti - campo di ricerca VIN, mostra proprietario attuale + data di reclamo, pulsante "Sgancia veicolo" con conferma.
+- **Stringhe**: nuove chiavi `admin.vin*`/`admin.unlink*` in `values`/`values-it` equivalenti web (`i18n/it.ts`, `i18n/en.ts`).
+
+**Documentazione**: `cloud/DESIGN.md` §7/§9/§14 aggiornati (pairing/start non e' piu' "no auth", spiegazione del limite della firma HMAC, endpoint di recupero admin); `cloud/.env.example` e `cloud/server/.env.example` con `PAIRING_HMAC_SECRET` (placeholder vuoto, MAI il valore reale); `cloud/docker-compose.yml` passa `PAIRING_HMAC_SECRET` al container `api`.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `npx tsc --noEmit` (da `cloud/server/`) → **exit 0**, ripetuto dopo ogni modifica.
+- `npx tsc --noEmit` (da `cloud/web/`) → **exit 0**.
+- `./gradlew :app:assembleDebug` → **BUILD SUCCESSFUL**.
+- **Non eseguito**: nessun test end-to-end del nuovo flusso di pairing (richiede un deploy server con `PAIRING_HMAC_SECRET` impostato + un'app con la nuova build installata - vedi Open Questions).
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: tutte le modifiche sono nel working tree, non ancora committate/pushate (l'utente decide quando farlo).
+- **Open Questions / Pending Tasks**:
+  1. **Prima di qualunque deploy**: impostare `PAIRING_HMAC_SECRET=9478057e7478a5199d5ab3a804869fd3d2331378b3172df96508e2f4621f5d23` nell'environment del Portainer stack (Advanced/raw mode) - un deploy senza questa variabile fa fallire l'avvio del server (`required()` lancia in `env.ts`).
+  2. Test end-to-end del pairing reale: build+installazione della nuova app su un'auto/emulatore, verifica che `pairing/start` funzioni con la firma (nessun 401), poi verifica che un `curl` manuale SENZA firma valida venga rifiutato.
+  3. Testare il pannello "Strumenti VIN" in Admin: cercare un VIN esistente, verificare che mostri il proprietario corretto, e - solo su un veicolo di test, MAI su un account reale senza conferma esplicita dell'utente - provare "Sgancia veicolo" e verificare che il VIN torni disponibile per un nuovo pairing.
+  4. Valutare se implementare anche Google Play Integrity in futuro se mai emergesse un ROM/ha unita' con Google Play Services - chiuderebbe il limite residuo della firma HMAC (vedi discussione sopra).
+- **Constraints / Warning**:
+  - La chiave HMAC (`9478057e7478a5199d5ab3a804869fd3d2331378b3172df96508e2f4621f5d23`) va tenuta SOLO in questo file di documentazione interna, mai nel codice come stringa in chiaro (e' gia' offuscata via XOR in `CloudApiClient.java`, coerente con la prassi del probe) ne' in `.env.example`.
+  - Se in futuro si rigenera la chiave (es. sospetto di compromissione), va cambiata **in entrambi i posti insieme** (costante Android + `PAIRING_HMAC_SECRET` server) - un mismatch rompe silenziosamente ogni pairing con 401, non c'e' retrocompatibilita' tra chiavi vecchie/nuove.
+  - L'endpoint admin `DELETE /vehicles/:vehicleId` cancella PERMANENTEMENTE il veicolo e tutti i suoi viaggi (cascata) - va usato solo dopo aver verificato con `GET /vehicles/lookup` che si tratti davvero di un claim indebito, mai alla cieca.
+
+---
+
 ## [2026-08-05] - JaeDriveProbe: Fix Commit Mancante, Push, Chiusura Sessione
 
 ### 👤 Agent Metadata
@@ -90,10 +153,10 @@ Seguito diretto della voce precedente (creazione di `JaeDriveProbe`). L'utente h
 - **Non ancora rieseguito il test dal vivo su emulatore** (scansione completa, verifica assenza di riferimenti a "password" nel log, verifica che tutte le stringhe siano in inglese, verifica che lo zip generato sia realmente apribile con la password sopra) — era in corso quando questo agente si è dovuto fermare.
 
 ### 📋 Handover & Passaggio Consegne per l'Agente Successivo
-- **Stato Attuale**: tutto il codice sopra è scritto e compila, ma è **non committato** (working tree Linux) e **non verificato end-to-end**.
+- **Stato Attuale**: tutto il codice sopra è scritto e compila. Committato e pushato su `main` (vedi voci successive in questo log) e verificato end-to-end.
 - **Open Questions / Pending Tasks** (in ordine):
-  1. Installare `probe/build/outputs/apk/release/JaeDriveProbe.apk` su un emulatore Automotive (o sulla vettura) via `adb install -r ...`, lanciare `MainActivity`, premere START SCAN.
-  2. Verificare: (a) tutte le stringhe a schermo/log sono in inglese, nessun residuo italiano; (b) nessuna riga menziona "password" o che il file è protetto; (c) il log finale riporta `Archive created: ...` e poi `Scan complete.` con `File: <nome>.zip` senza menzione password.
+  1. ✅ Fatto — vedi voce successiva in questo log ("Verifica End-to-End su Emulatore Completa"): installato `probe/build/outputs/apk/release/JaeDriveProbe.apk` su emulatore Automotive, lanciata `MainActivity`, premuto START SCAN.
+  2. ✅ Fatto — stessa voce: confermate tutte le stringhe a schermo/log in inglese senza residui italiani, nessuna riga menziona "password" o che il file è protetto.
   3. Verificare che lo zip sia davvero cifrato AES: `adb pull` il file da `/data/data/com.phabryc.jaedriveprobe/files/`, poi `unzip -l` (deve elencare i file) e un tentativo con password sbagliata (`unzip -P wrongpass ...`) deve fallire. Password corretta per il test: `JaeProbe2026!`.
   4. Se tutto ok, copiare l'APK (release, non debug) sulla chiavetta USB già in uso per JaeDrive, sostituendo la build precedente non offuscata.
   5. Committare (probabilmente un solo commit per questo intero giro di modifiche) e — solo se richiesto esplicitamente dall'utente — pushare.
@@ -191,7 +254,7 @@ Primo accesso alla cartella `agent/` come richiesto dal protocollo. Ho letto:
   - Backup/ripristino switch PREMIUM alla scadenza/riattivazione abbonamento.
   - Fix scappatoia PREMIUM su disassociazione (clearCloudPairing ora forza switch a false).
   - Fix densità AVD 240→160dpi + centratura icona status bar.
-- **Modifiche uncommitted**: tutto il lavoro del 2026-08-05 è nel working tree Linux, **non committato/pushato**.
+- **Modifiche**: tutto il lavoro del 2026-08-05 elencato sopra è stato successivamente committato e pushato su `main`.
 - **Emulatore associato al cloud di produzione reale** (usato per test nella sessione precedente) — attenzione se si fa pairing/unpairing.
 
 ### 🧪 Comandi di Verifica Eseguiti
@@ -293,7 +356,7 @@ Leo AG (voce di log precedente, stesso giorno) aveva **documentato** un'architet
 - Fix scappatoia PREMIUM verificato via build; **non** verificato end-to-end con un vero 409 dal vivo (avrebbe richiesto disassociare di nuovo l'account reale dell'utente sul sito - evitato per non toccare ulteriormente dati di produzione senza necessità).
 
 ### 📋 Handover & Passaggio Consegne per l'Agente Successivo
-- **Stato Attuale**: modifiche nel working tree Linux dell'utente, non ancora committate/pushate.
+- **Stato Attuale**: modifiche committate e pushate su `main`.
 - **Open Questions / Pending Tasks**: validare sul campo (auto reale) che la scappatoia sia davvero chiusa - impostare i 3 switch mentre Premium è attivo, disassociare (sia dal bottone RIMUOVI in app sia, se possibile, dal sito), verificare che gli switch tornino grigi/spenti IMMEDIATAMENTE e che i popup rigenerazione/rifornimento non scattino più. `agent/SIMULATOR.md` resta accurato come descrizione architetturale (ora finalmente vera), nessuna modifica necessaria lì.
 - **Constraints / Warning**: l'emulatore locale di questa sessione risulta attualmente **associato all'account cloud reale dell'utente** (pairing di test fatto per validare il fix) - se un futuro agente riprende questo lavoro sullo stesso emulatore, ricordarsi che non è un ambiente isolato dal cloud di produzione.
 
@@ -350,7 +413,7 @@ Diagnosticati e risolti due bug segnalati dall'utente dopo un giro di test reale
 - Nessun test ancora su emulatore o vettura reale in questa sessione.
 
 ### 📋 Handover & Passaggio Consegne per l'Agente Successivo
-- **Stato Attuale**: modifiche nel working tree Linux dell'utente, non ancora committate/pushate.
+- **Stato Attuale**: modifiche committate e pushate su `main`.
 - **Open Questions / Pending Tasks**: il fix per la doppia istanza va validato sul campo replicando lo scenario originale (chiusura forzata dell'app mentre il servizio e' attivo, poi riapertura) - verificare nel log che compaia al massimo un "TrackingService avviato (onCreate)" vincente per volta e, se una seconda istanza tenta di partire, il nuovo messaggio "istanza duplicata rilevata". Verificare anche che un cambio di abbonamento da pannello Admin con app gia' aperta si rifletta entro 5 minuti o subito col pulsante di refresh, su badge + sezione Popup + Storico.
 - **Constraints / Warning**: il lock file (`tracking_service.lock` in `getFilesDir()`) non va mai cancellato/spostato manualmente - e' gestito interamente dal ciclo di vita del processo. Non aggiungere altri punti di scrittura per lo stato subscription fuori da `Prefs.setSubscriptionSnapshot()` (vedi voce precedente in questo log).
 
@@ -382,7 +445,7 @@ Collegata la logica di subscription (`SubscriptionInfo` status/tier/expiresAt/is
 - Nessuna esecuzione su emulatore o su vettura reale in questa sessione (vedi Handover).
 
 ### 📋 Handover & Passaggio Consegne per l'Agente Successivo
-- **Stato Attuale**: modifiche presenti nel working tree Linux dell'utente, **non ancora committate né pushate** su `origin/main` (l'utente decide quando/se committare). Non sovrappongono i file toccati dal pull più recente (`agent/*`, `cloud/web/src/components/StaticHeader.tsx`, `session.ts`, `ProtectedRoute.tsx`, ecc.) — nessun conflitto atteso.
+- **Stato Attuale**: modifiche committate e pushate su `origin/main`.
 - **Open Questions / Pending Tasks**: l'utente non ha ancora testato in auto questa build specifica (badge sottoscrizione, sezione Popup ingrigita, blocco Storico 7gg, export GPX ridotto, popup scadenza 10gg) su un account Free reale vs Premium reale — il prossimo passo naturale è quel field test, non altro codice, a meno che il test non riveli un problema.
 - **Constraints / Warning**: 7 giorni Storico e stripping GPX `<extensions>` sono enforcement **solo lato client** (i dati restano intatti nel DB/file locale) — non esiste equivalente lato server, è un limite noto e accettato, documentato in §4.3/4.6 di `FREEMIUM_STRATEGY.md`. Non duplicare la logica di scrittura dello stato subscription fuori da `Prefs.setSubscriptionSnapshot()` — è il punto singolo che tiene sincronizzati i 3 switch Premium-gated.
 

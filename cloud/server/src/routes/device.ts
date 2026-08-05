@@ -3,8 +3,15 @@ import { prisma } from "../db.js";
 import { requireDevice } from "../auth/requireDevice.js";
 import { generatePairingCode } from "../lib/tokens.js";
 import { reverseGeocode, firstAndLastPoint } from "../lib/geocode.js";
+import { verifyPairingSignature } from "../lib/pairingAuth.js";
 
 const PAIRING_TTL_MS = 10 * 60 * 1000;
+
+// Oltre al rate-limit per IP gia' su questa route, un limite per VIN/ivi_sn indipendente:
+// impedisce lo scanning massivo di piu' identificativi anche da chi e' gia' riuscito a
+// falsificare una firma valida (vedi lib/pairingAuth.ts) - un singolo tentativo mirato non
+// e' comunque bloccabile da un rate-limit, per quello serve il recupero manuale lato admin.
+const MAX_PAIRING_STARTS_PER_VIN_PER_DAY = 3;
 
 const tripBodySchema = {
   type: "object",
@@ -46,9 +53,11 @@ export async function deviceRoutes(app: FastifyInstance) {
       schema: {
         body: {
           type: "object",
-          required: ["vin"],
+          required: ["vin", "timestamp", "signature"],
           properties: {
             vin: { type: "string", minLength: 5, maxLength: 32 },
+            timestamp: { type: "string" },
+            signature: { type: "string" },
             appVersion: { type: "string", nullable: true },
             headunitId: { type: "string", nullable: true },
           },
@@ -56,12 +65,34 @@ export async function deviceRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
-      const { vin, appVersion, headunitId } = req.body as { vin: string; appVersion?: string; headunitId?: string };
+      const { vin, timestamp, signature, appVersion, headunitId } = req.body as {
+        vin: string;
+        timestamp: string;
+        signature: string;
+        appVersion?: string;
+        headunitId?: string;
+      };
+
+      // Non prova il possesso fisico di QUESTA auto, solo che il chiamante conosce la
+      // chiave embedded nell'app - vedi lib/pairingAuth.ts per i limiti espliciti di
+      // questa scelta e agent_log.md per la discussione completa.
+      if (!verifyPairingSignature(vin, timestamp, signature)) {
+        return reply.code(401).send({ error: "Invalid or expired pairing signature" });
+      }
+
+      const normalizedVin = vin.trim().toUpperCase();
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentStarts = await prisma.pairingRequest.count({
+        where: { vin: normalizedVin, createdAt: { gte: oneDayAgo } },
+      });
+      if (recentStarts >= MAX_PAIRING_STARTS_PER_VIN_PER_DAY) {
+        return reply.code(429).send({ error: "Too many pairing attempts for this vehicle, try again later" });
+      }
 
       const code = generatePairingCode();
       const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
       const pairing = await prisma.pairingRequest.create({
-        data: { code, vin: vin.trim().toUpperCase(), deviceHint: appVersion ?? null, headunitId: headunitId ?? null, expiresAt },
+        data: { code, vin: normalizedVin, deviceHint: appVersion ?? null, headunitId: headunitId ?? null, expiresAt },
       });
 
       return reply.send({ pairingRequestId: pairing.id, code: pairing.code, expiresAt: pairing.expiresAt });

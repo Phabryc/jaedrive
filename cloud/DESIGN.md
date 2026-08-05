@@ -148,7 +148,7 @@ Offloading auth to Firebase does not remove this project's obligations for the *
 
 This is the OAuth 2.0 **Device Authorization Grant** pattern (RFC 8628 — the same flow Netflix/YouTube/Apple TV use), built directly rather than relying on a provider's implementation, so it works regardless of auth provider:
 
-1. Car app reads the VIN (see §12 — **not yet confirmed reachable**, flagged as an open risk) and calls `POST /api/device/pairing/start { vin, appVersion }` (no auth required — this is the entry point).
+1. Car app reads the VIN (see §12 — **not yet confirmed reachable**, flagged as an open risk) and calls `POST /api/device/pairing/start { vin, timestamp, signature, appVersion }` (no Firebase/device-token auth — this is the entry point — but as of 2026-08-05 `signature` is required: an HMAC-SHA256 of `vin|timestamp` under a key embedded, obfuscated, in the Android app and mirrored in `PAIRING_HMAC_SECRET` server-side, see `lib/pairingAuth.ts`. This does **not** prove possession of a specific physical vehicle — it's the same key for every app install, extractable by decompiling the APK — it only proves the caller has the JaeDrive app's embedded key, which blocks the trivial "curl with a known VIN" attack described below and rejects stale/replayed requests via the timestamp window. See `agent_log.md` 2026-08-05 for the full threat-model discussion and its acknowledged limits).
 2. Server generates an 8-character alnum code (excluding ambiguous chars `0/O/1/I`), creates a `pairing_requests` row with `status='pending'`, `expires_at = now() + 10 minutes`. Returns `{ pairingRequestId, code, expiresAt }`.
 3. Car app displays the code full-screen and polls `GET /api/device/pairing/status/{pairingRequestId}` every 3–5s (no auth — the `pairingRequestId` itself, a UUID, is the bearer secret for this specific poll).
 4. User, already logged into the web app on phone/PC, opens "Add vehicle" and enters the code. Web app calls `POST /api/user/pairing/claim { code }` (Firebase-authenticated).
@@ -159,7 +159,9 @@ This is the OAuth 2.0 **Device Authorization Grant** pattern (RFC 8628 — the s
    - Creates (or reuses) a `devices` row, generates a fresh device token, stores its hash, marks the pairing request `claimed` with `device_id` set.
 6. Car app's next poll to `/api/device/pairing/status/{pairingRequestId}` sees `status: claimed` and receives the plaintext device token **once** (never returned again). Stores it in `SharedPreferences`. All subsequent `/api/device/*` calls use this token.
 
-Rate-limit `pairing/start` and `pairing/claim` per IP to prevent code brute-forcing (8-char alnum with a 10-minute window is already fairly strong, but cheap to add a max-attempts lockout per code too).
+Rate-limit `pairing/start` and `pairing/claim` per IP to prevent code brute-forcing (8-char alnum with a 10-minute window is already fairly strong, but cheap to add a max-attempts lockout per code too). `pairing/start` is additionally rate-limited **per VIN** (max 3/day) independent of the per-IP limit, to slow mass-scanning across many VINs even by a caller who has a valid signature (see step 1 above).
+
+Because a globally unique `vehicles.vin` means the first successful claim of a never-before-seen VIN wins permanently, and no purely software-based check (HMAC signature included) can prove physical possession of a specific car without hardware attestation unavailable on this ROM (no Google Play Services), `DELETE /api/admin/vehicles/:vehicleId` (and `GET /api/admin/vehicles/lookup?vin=`) exist as a manual recovery path: if a VIN gets claimed by the wrong account (in error or maliciously) before the real owner pairs their car, an admin can look it up and unlink it, freeing the VIN for a fresh legitimate claim.
 
 ## 8. Android client responsibilities (contract only — implementation lives in the existing app)
 
@@ -175,7 +177,7 @@ Device-facing (car app, no Firebase involved):
 
 | Method | Path | Auth | Body | Response |
 |---|---|---|---|---|
-| POST | `/api/device/pairing/start` | none | `{ vin, appVersion }` | `{ pairingRequestId, code, expiresAt }` |
+| POST | `/api/device/pairing/start` | HMAC signature (see §7) | `{ vin, timestamp, signature, appVersion }` | `{ pairingRequestId, code, expiresAt }` |
 | GET | `/api/device/pairing/status/:id` | none | — | `{ status, deviceToken? }` |
 | POST | `/api/device/trips` | device token | trip payload, see §10 | `{ tripId }` |
 | POST | `/api/device/heartbeat` | device token | — | `{ ok: true }` (updates `last_seen_at`, powers a "last synced" indicator in the webapp) |
@@ -312,7 +314,8 @@ Host-side nginx (outside this stack, not managed by it) needs a `server {}` bloc
 - Device tokens: 32 random bytes, base64url-encoded, shown to the client once at pairing time, stored server-side only as a sha256 hash (never the raw token) — same principle as password hashing.
 - Pairing codes: 8 alnum chars, 10-minute expiry, rate-limited `start`/`claim` endpoints, lock out a code after a few failed claim attempts.
 - Firebase ID tokens verified on every request via `firebase-admin` (no custom JWT signing needed).
-- No secrets in the repo — `POSTGRES_PASSWORD`/`FIREBASE_SERVICE_ACCOUNT_JSON` supplied via the Portainer stack's environment, not committed.
+- No secrets in the repo — `POSTGRES_PASSWORD`/`FIREBASE_SERVICE_ACCOUNT_JSON`/`PAIRING_HMAC_SECRET` supplied via the Portainer stack's environment, not committed.
+- `pairing/start` HMAC signature (2026-08-05, see §7 and `agent_log.md`): a real VIN is not a secret (visible through a windshield, on marketplace listings, insurance docs), so without this the endpoint would let anyone who knows a car's VIN claim it for themselves before the real owner ever pairs — `vehicles.vin` is globally unique and first-claim wins, so this was a real, permanent lockout risk, not just theoretical. The HMAC signature only proves "caller has the app's embedded key" (extractable via APK decompilation), not "caller physically possesses this car" — no purely software-based scheme can prove the latter without hardware attestation (e.g. Google Play Integrity, unavailable on this ROM — no Google Play Services). The residual risk is bounded by the admin recovery endpoint (`DELETE /api/admin/vehicles/:vehicleId`), not eliminated by the signature.
 
 ## 15. Open decisions / flagged risks
 

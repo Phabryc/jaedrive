@@ -19,4 +19,10 @@ export const env = {
   resendApiKey: process.env.RESEND_API_KEY,
   fromEmail: process.env.FROM_EMAIL ?? "JaeDrive <noreply@jaedrive.com>",
   adminEmails: process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(",").map(e => e.trim()) : [],
+  // Chiave HMAC condivisa con l'app Android (embedded offuscata via XOR, vedi
+  // CloudApiClient.getPairingHmacKey()) per firmare POST /api/device/pairing/start - non
+  // prova il possesso fisico di un'auto specifica (vedi lib/pairingAuth.ts), ma impedisce
+  // che l'endpoint (volutamente non autenticato, e' il punto di ingresso del pairing) sia
+  // chiamabile da un client generico che non conosce questa chiave.
+  pairingHmacSecret: required("PAIRING_HMAC_SECRET"),
 };

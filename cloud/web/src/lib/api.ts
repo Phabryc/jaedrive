@@ -199,6 +199,13 @@ export const api = {
   adminDiscountCodes: () => adminRequest<any[]>("/discount-codes"),
   adminCreateDiscountCode: (data: any) => adminRequest<any>("/discount-codes", { method: "POST", body: JSON.stringify(data) }),
   adminDeleteDiscountCode: (id: string) => adminRequest<void>(`/discount-codes/${id}`, { method: "DELETE" }),
+  // Recupero manuale per lo scenario "VIN gia' reclamato da un altro account" (vedi
+  // agent_log.md) - lookup mostra chi possiede il veicolo prima di sganciarlo.
+  adminLookupVehicleByVin: (vin: string) => adminRequest<{
+    id: string; vin: string; nickname: string; brand: string | null; model: string | null;
+    createdAt: string; owner: { id: string; email: string | null; displayName: string | null };
+  }>(`/vehicles/lookup?vin=${encodeURIComponent(vin)}`),
+  adminUnlinkVehicle: (vehicleId: string) => adminRequest<void>(`/vehicles/${vehicleId}`, { method: "DELETE" }),
   adminStats: () => adminRequest<any>("/stats"),
   adminSendTestEmail: (data: {
     type: string;

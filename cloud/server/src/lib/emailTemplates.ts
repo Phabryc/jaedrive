@@ -5,6 +5,20 @@ export interface EmailPayload {
   html: string;
 }
 
+// Tutti i campi qui sotto (name/vehicleName/vin/tier/code) possono contenere testo
+// scelto dall'utente (firstName/lastName, nickname veicolo) o dall'admin (tier, code) e
+// finiscono interpolati direttamente in HTML inviato via email - senza questo escape un
+// nome/nickname tipo "<img src=x onerror=...>" verrebbe iniettato non filtrato in ogni
+// email successiva.
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function wrapEmailHtml(contentHtml: string, lang: Language): string {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
   const footerText = isIt
@@ -77,9 +91,11 @@ export function buildSubActivatedEmail({
   expiresAt?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? "🎉 Il tuo abbonamento Premium JaeDrive è attivo!" : "🎉 Your JaeDrive Premium subscription is active!";
   const expiresText = expiresAt ? new Date(expiresAt).toLocaleDateString(isIt ? "it-IT" : "en-US") : isIt ? "A vita ∞ (Nessuna scadenza)" : "Lifetime ∞ (No expiration)";
+  const safeTier = escapeHtml(tier);
 
   const content = `
     <p style="font-size:18px;font-weight:700;color:#FFFFFF;margin-top:0;">${greeting}</p>
@@ -93,7 +109,7 @@ export function buildSubActivatedEmail({
         </tr>
         <tr>
           <td style="padding:6px 0;color:#94A3B8;">${isIt ? "Piano Garage:" : "Garage Plan:"}</td>
-          <td align="right" style="padding:6px 0;font-weight:700;color:#FFFFFF;">${tier}</td>
+          <td align="right" style="padding:6px 0;font-weight:700;color:#FFFFFF;">${safeTier}</td>
         </tr>
         <tr>
           <td style="padding:6px 0;color:#94A3B8;">${isIt ? "Scadenza:" : "Expiration:"}</td>
@@ -125,9 +141,11 @@ export function buildSubRenewedEmail({
   expiresAt?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? "✨ Il tuo abbonamento JaeDrive è stato rinnovato!" : "✨ Your JaeDrive subscription has been renewed!";
   const expiresText = expiresAt ? new Date(expiresAt).toLocaleDateString(isIt ? "it-IT" : "en-US") : isIt ? "A vita ∞ (Nessuna scadenza)" : "Lifetime ∞ (No expiration)";
+  const safeTier = escapeHtml(tier);
 
   const content = `
     <p style="font-size:18px;font-weight:700;color:#FFFFFF;margin-top:0;">${greeting}</p>
@@ -137,7 +155,7 @@ export function buildSubRenewedEmail({
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:14px;">
         <tr>
           <td style="padding:6px 0;color:#94A3B8;">${isIt ? "Piano Attuale:" : "Current Plan:"}</td>
-          <td align="right" style="padding:6px 0;font-weight:700;color:#FFFFFF;">PREMIUM ${tier}</td>
+          <td align="right" style="padding:6px 0;font-weight:700;color:#FFFFFF;">PREMIUM ${safeTier}</td>
         </tr>
         <tr>
           <td style="padding:6px 0;color:#94A3B8;">${isIt ? "Nuova Scadenza:" : "New Expiration Date:"}</td>
@@ -169,7 +187,8 @@ export function buildSubExpiringEmail({
   expiresAt?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? `⚠️ Il tuo abbonamento JaeDrive scade tra ${daysLeft} giorni` : `⚠️ Your JaeDrive subscription expires in ${daysLeft} days`;
   const expiresText = expiresAt ? new Date(expiresAt).toLocaleDateString(isIt ? "it-IT" : "en-US") : "—";
 
@@ -202,7 +221,8 @@ export function buildSubExpiredEmail({
   name?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? "❌ Il tuo abbonamento JaeDrive Premium è scaduto" : "❌ Your JaeDrive Premium subscription has expired";
 
   const content = `
@@ -238,7 +258,10 @@ export function buildNewPairingEmail({
   vin?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const safeVehicleName = escapeHtml(vehicleName);
+  const safeVin = vin ? escapeHtml(vin) : vin;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? `🚗 Nuova auto associata: ${vehicleName}` : `🚗 New car paired: ${vehicleName}`;
 
   const content = `
@@ -249,12 +272,12 @@ export function buildNewPairingEmail({
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:14px;">
         <tr>
           <td style="padding:6px 0;color:#94A3B8;">${isIt ? "Veicolo:" : "Vehicle:"}</td>
-          <td align="right" style="padding:6px 0;font-weight:700;color:#00BFFF;">${vehicleName}</td>
+          <td align="right" style="padding:6px 0;font-weight:700;color:#00BFFF;">${safeVehicleName}</td>
         </tr>
-        ${vin ? `
+        ${safeVin ? `
         <tr>
           <td style="padding:6px 0;color:#94A3B8;">VIN:</td>
-          <td align="right" style="padding:6px 0;font-family:monospace;color:#FFFFFF;">${vin}</td>
+          <td align="right" style="padding:6px 0;font-family:monospace;color:#FFFFFF;">${safeVin}</td>
         </tr>
         ` : ""}
         <tr>
@@ -287,12 +310,15 @@ export function buildVehicleDeletedEmail({
   vin?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const safeVehicleName = escapeHtml(vehicleName);
+  const safeVin = vin ? escapeHtml(vin) : vin;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? `🗑️ Veicolo rimosso dal garage: ${vehicleName}` : `🗑️ Vehicle removed from garage: ${vehicleName}`;
 
   const content = `
     <p style="font-size:18px;font-weight:700;color:#FFFFFF;margin-top:0;">${greeting}</p>
-    <p>${isIt ? `Ti confermiamo che il veicolo **${vehicleName}** ${vin ? `(VIN: ${vin})` : ""} è stato rimosso dal tuo account JaeDrive.` : `We confirm that vehicle **${vehicleName}** ${vin ? `(VIN: ${vin})` : ""} has been removed from your JaeDrive account.`}</p>
+    <p>${isIt ? `Ti confermiamo che il veicolo **${safeVehicleName}** ${safeVin ? `(VIN: ${safeVin})` : ""} è stato rimosso dal tuo account JaeDrive.` : `We confirm that vehicle **${safeVehicleName}** ${safeVin ? `(VIN: ${safeVin})` : ""} has been removed from your JaeDrive account.`}</p>
 
     <div style="background-color:#1C212C;border:1px solid #2D3545;border-radius:12px;padding:16px 20px;margin:24px 0;color:#94A3B8;font-size:13px;">
       ${isIt ? "Se non sei stato tu ad effettuare questa operazione, ti invitiamo a contattare subito il supporto o modificare la password." : "If you did not perform this action, please contact support immediately or change your password."}
@@ -311,7 +337,8 @@ export function buildAccountDeletedEmail({
   name?: string | null;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? "👋 Il tuo account JaeDrive è stato eliminato" : "👋 Your JaeDrive account has been deleted";
 
   const content = `
@@ -339,7 +366,9 @@ export function buildDiscountCodeEmail({
   value: number;
 }): EmailPayload {
   const isIt = !lang || String(lang).toLowerCase().startsWith("it");
-  const greeting = name ? `${isIt ? "Ciao" : "Hello"} ${name},` : isIt ? "Ciao," : "Hello,";
+  const safeName = name ? escapeHtml(name) : name;
+  const safeCode = escapeHtml(code);
+  const greeting = safeName ? `${isIt ? "Ciao" : "Hello"} ${safeName},` : isIt ? "Ciao," : "Hello,";
   const subject = isIt ? `🎁 Hai ricevuto un codice promo esclusivo: ${code}` : `🎁 You received an exclusive promo code: ${code}`;
 
   let desc = "";
@@ -353,7 +382,7 @@ export function buildDiscountCodeEmail({
 
     <div style="background-color:#0F172A;border:2px dashed #00BFFF;border-radius:14px;padding:24px;margin:24px 0;text-align:center;">
       <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#94A3B8;font-weight:700;">${isIt ? "IL TUO CODICE PROMO" : "YOUR PROMO CODE"}</p>
-      <p style="margin:8px 0;font-family:monospace;font-size:28px;font-weight:800;color:#00BFFF;letter-spacing:3px;">${code}</p>
+      <p style="margin:8px 0;font-family:monospace;font-size:28px;font-weight:800;color:#00BFFF;letter-spacing:3px;">${safeCode}</p>
       <p style="margin:0;font-size:14px;font-weight:600;color:#E2E8F0;">${desc}</p>
     </div>
 

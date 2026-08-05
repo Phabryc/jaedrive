@@ -10,6 +10,10 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 
 // Client HTTP per le rotte /api/device/* del backend cloud (vedi cloud/DESIGN.md §9) -
 // HttpURLConnection + org.json invece di una libreria nuova, entrambi gia' disponibili
@@ -21,6 +25,46 @@ public class CloudApiClient {
 
     private static final String BASE_URL = "https://jaedrive.com";
     private static final int TIMEOUT_MS = 15000;
+
+    // Chiave HMAC condivisa col server (env PAIRING_HMAC_SECRET, vedi
+    // cloud/server/src/lib/pairingAuth.ts) per firmare POST /api/device/pairing/start -
+    // l'endpoint e' volutamente non autenticato (e' il punto di ingresso del pairing, prima
+    // che esista un device token), quindi senza questa firma sarebbe chiamabile da chiunque
+    // conosca il VIN/ivi_sn di un'auto NON PROPRIA per "occupare" quel VIN prima del vero
+    // proprietario (vedi agent_log.md per l'analisi completa). Offuscata con lo stesso schema
+    // XOR gia' usato in JaeDriveProbe per la password dello zip - onestamente non e' vera
+    // sicurezza (chi decompila l'APK la ritrova), alza solo il costo dell'attacco da "una
+    // richiesta HTTP a caso" a "reverse engineering dell'app".
+    private static final int[] PAIRING_KEY_OBFUSCATED = {
+        0xE8, 0x04, 0x79, 0x02, 0x08, 0x04, 0xD9, 0x65,
+        0xE1, 0x26, 0xCF, 0xD4, 0x78, 0xFA, 0xE3, 0xAF,
+        0xAE, 0x4F, 0x6F, 0x04, 0xCF, 0x6B, 0x51, 0x85,
+        0x19, 0x74, 0x9E, 0x88, 0x1E, 0x63, 0x21, 0x5F
+    };
+    private static final int PAIRING_KEY_XOR = 0x7C;
+
+    private static byte[] getPairingHmacKey() {
+        byte[] key = new byte[PAIRING_KEY_OBFUSCATED.length];
+        for (int i = 0; i < PAIRING_KEY_OBFUSCATED.length; i++) {
+            key[i] = (byte) (PAIRING_KEY_OBFUSCATED[i] ^ PAIRING_KEY_XOR);
+        }
+        return key;
+    }
+
+    private static String hmacSha256Hex(byte[] key, String data) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(key, "HmacSHA256"));
+            byte[] raw = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(raw.length * 2);
+            for (byte b : raw) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (NoSuchAlgorithmException | java.security.InvalidKeyException e) {
+            // HmacSHA256 e' sempre disponibile nell'SDK Android, e la chiave e' sempre a
+            // lunghezza fissa valida - non dovrebbe mai succedere in pratica.
+            throw new RuntimeException(e);
+        }
+    }
 
     public static class PairingStart {
         public final String pairingRequestId;
@@ -43,8 +87,13 @@ public class CloudApiClient {
     }
 
     public static PairingStart pairingStart(String vin, String appVersion) throws IOException, JSONException {
+        String timestamp = String.valueOf(System.currentTimeMillis());
+        String signature = hmacSha256Hex(getPairingHmacKey(), vin + "|" + timestamp);
+
         JSONObject body = new JSONObject();
         body.put("vin", vin);
+        body.put("timestamp", timestamp);
+        body.put("signature", signature);
         if (appVersion != null) body.put("appVersion", appVersion);
         JSONObject resp = postJson("/api/device/pairing/start", null, body);
         return new PairingStart(resp.getString("pairingRequestId"), resp.getString("code"));

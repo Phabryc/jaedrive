@@ -30,6 +30,7 @@ services:
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       ADMIN_EMAILS: ${ADMIN_EMAILS}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      PAIRING_HMAC_SECRET: ${PAIRING_HMAC_SECRET}
       NODE_ENV: production
     ports:
       # Optional/for direct debugging only (e.g. curl from the VPS itself) - Nginx Proxy

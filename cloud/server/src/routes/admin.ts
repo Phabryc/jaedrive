@@ -72,7 +72,23 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send(mappedUsers);
   });
 
-  app.post("/users/:userId/subscription", async (req, reply) => {
+  app.post(
+    "/users/:userId/subscription",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["status", "tier"],
+          properties: {
+            status: { type: "string", enum: ["FREE", "PREMIUM"] },
+            tier: { type: "string", enum: ["STANDARD", "GARAGE"] },
+            expiresAt: { type: "string", nullable: true },
+            notes: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
     const { userId } = req.params as { userId: string };
     const { status, tier, expiresAt, notes } = req.body as {
       status: string;
@@ -117,21 +133,45 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send(updatedUser);
   });
 
-  app.post("/users/:userId/extra-swaps", async (req, reply) => {
+  app.post(
+    "/users/:userId/extra-swaps",
+    {
+      // "extraSwaps" e' opzionale (default 1): il pulsante Admin esistente
+      // (handleAddExtraSwap in AdminDashboard.tsx) chiama questa route senza body,
+      // intende sempre "+1" - required qui romperebbe quel pulsante.
+      schema: {
+        body: {
+          type: "object",
+          properties: { extraSwaps: { type: "integer", minimum: -1000, maximum: 1000 } },
+        },
+      },
+    },
+    async (req, reply) => {
     const { userId } = req.params as { userId: string };
-    const { extraSwaps } = req.body as { extraSwaps: number };
+    const { extraSwaps } = (req.body ?? {}) as { extraSwaps?: number };
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        extraDeviceSwaps: { increment: extraSwaps }
+        extraDeviceSwaps: { increment: extraSwaps ?? 1 }
       }
     });
 
     return reply.send(updatedUser);
   });
 
-  app.patch("/users/:userId/role", async (req, reply) => {
+  app.patch(
+    "/users/:userId/role",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["role"],
+          properties: { role: { type: "string", enum: ["USER", "ADMIN"] } },
+        },
+      },
+    },
+    async (req, reply) => {
     const { userId } = req.params as { userId: string };
     const { role } = req.body as { role: string };
 
@@ -148,7 +188,26 @@ export async function adminRoutes(app: FastifyInstance) {
     return reply.send(codes);
   });
 
-  app.post("/discount-codes", async (req, reply) => {
+  app.post(
+    "/discount-codes",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["code", "discountType", "value"],
+          properties: {
+            code: { type: "string", minLength: 1, maxLength: 50 },
+            discountType: { type: "string", enum: ["FREE_DAYS", "PERCENT", "FIXED_AMOUNT"] },
+            value: { type: "number" },
+            maxUses: { type: "integer", nullable: true },
+            expiresAt: { type: "string", nullable: true },
+            isGlobal: { type: "boolean", nullable: true },
+            assignedEmail: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
     const data = req.body as {
       code: string;
       discountType: string;
@@ -216,6 +275,46 @@ export async function adminRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ ok: true, subject: res.subject });
+  });
+
+  // Rete di sicurezza per lo scenario "VIN/ivi_sn squatting" (vedi agent_log.md e
+  // cloud/DESIGN.md §14/§15): oggi il primo che reclama un VIN/ivi_sn mai visto vince per
+  // sempre (unique constraint su vehicles.vin), e non esiste altro modo di liberarlo per il
+  // vero proprietario rimasto bloccato con un 409. Lookup by VIN cosi' l'admin (che di
+  // solito conosce solo il VIN segnalato dall'utente, non l'id interno) puo' vedere chi lo
+  // ha reclamato prima di decidere se sganciarlo.
+  app.get("/vehicles/lookup", async (req, reply) => {
+    const { vin } = req.query as { vin?: string };
+    if (!vin || vin.trim().length < 5) return reply.code(400).send({ error: "Missing or invalid vin" });
+
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { vin: vin.trim().toUpperCase() },
+      include: { user: { select: { id: true, email: true, displayName: true } } },
+    });
+    if (!vehicle) return reply.code(404).send({ error: "No vehicle claims this VIN" });
+
+    return reply.send({
+      id: vehicle.id,
+      vin: vehicle.vin,
+      nickname: vehicle.nickname,
+      brand: vehicle.brand,
+      model: vehicle.model,
+      createdAt: vehicle.createdAt,
+      owner: vehicle.user,
+    });
+  });
+
+  // Cancella il veicolo (cascata su devices/trips/presetRoutes, stesse regole gia' usate da
+  // DELETE /api/user/vehicles/:id) cosi' il VIN torna reclamabile con un nuovo pairing - uso
+  // previsto: supporto manuale dopo che un utente segnala di non riuscire ad associare la
+  // propria auto reale perche' qualcun altro l'ha gia' reclamata.
+  app.delete("/vehicles/:vehicleId", async (req, reply) => {
+    const { vehicleId } = req.params as { vehicleId: string };
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle) return reply.code(404).send({ error: "Vehicle not found" });
+
+    await prisma.vehicle.delete({ where: { id: vehicleId } });
+    return reply.code(204).send();
   });
 
   app.get("/stats", async (req, reply) => {

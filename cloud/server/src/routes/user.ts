@@ -114,6 +114,7 @@ export async function userRoutes(app: FastifyInstance) {
   app.post(
     "/redeem-discount-code",
     {
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
       schema: {
         body: {
           type: "object",
