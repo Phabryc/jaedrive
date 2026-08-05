@@ -19,12 +19,9 @@ export function vehicleTitle(brand: string | null, model: string | null, powertr
   return [brand, model, powertrainLabel(powertrain)].filter(Boolean).join(" ");
 }
 
-// Silhouette stilizzate (2026-07-26) derivate dai render ufficiali forniti dall'utente -
-// NON le foto originali (non di proprieta' dell'utente, mai spedite cosi' come sono):
-// riempimento piatto a 2 toni (carrozzeria + vetri/gomme/ombra) con contorno, generato da
-// una sogliatura di luminanza sulla maschera alpha del cutout originale - trasformativo,
-// non una riproduzione fotografica. Tutte gia' orientate nello stesso verso (3/4
-// anteriore-sinistra, muso a sinistra). File in /public/vehicles/, serviti da Vite.
+// Sketch line-art in bianco e nero con sfondo trasparente derivati e riconosciuti dai modelli ufficiali:
+// vista 3/4 anteriore orientata a sinistra per Jaecoo (5, 7, 8) e Omoda (5, 7, 9).
+// File in /public/vehicles/, serviti da Vite.
 const MODEL_IMAGES: Record<string, string> = {
   JAECOO_5: "/vehicles/jaecoo_5.png",
   JAECOO_7: "/vehicles/jaecoo_7.png",
