@@ -81,32 +81,37 @@ const FEATURES: Feature[] = [
     enBody:
       "Every time you start your car JaeDrive begins recording — automatically, without opening the app. Data is saved on the headunit; with a Premium plan, trips land automatically in the cloud and are accessible from any device.",
     itDetails: [
-      "Traccia GPS completa con mappa interattiva del percorso",
-      "Suddivisione km in modalità EV / ibrida / termica",
-      "Consumi reali per tratto di percorso",
-      "Livello carburante e SOC a inizio e fine viaggio",
+      "Traccia GPS completa registrata localmente sull'headunit",
+      "Livello carburante e SOC registrati a inizio e fine viaggio",
       "Rilevamento automatico stop intermedi",
       "Unione di viaggi consecutivi (più soste, un unico percorso combinato)",
+      "Mappa interattiva del percorso con timeline 👑 Premium",
+      "Ripartizione km EV / ibrida / termica e consumi per tratto 👑 Premium",
+      "Analisi flusso energia e SOC% punto per punto 👑 Premium",
     ],
     enDetails: [
-      "Full GPS track with interactive route map",
-      "Km breakdown by EV / hybrid / thermal mode",
-      "Real consumption per road segment",
-      "Fuel level and SOC at trip start and end",
+      "Full GPS route track recorded locally on the headunit",
+      "Fuel level and SOC recorded at trip start and end",
       "Automatic intermediate stop detection",
       "Merge consecutive trips (multiple stops, one combined journey)",
+      "Interactive route map with timeline 👑 Premium",
+      "EV / hybrid / thermal km breakdown and per-segment consumption 👑 Premium",
+      "Point-by-point energy flow and SOC% analysis 👑 Premium",
     ],
   },
+
   {
     id: "routes",
     icon: icons.route,
     color: "text-purple-400 bg-purple-500/10",
     itTitle: "Percorsi ricorrenti & statistiche aggregate",
     enTitle: "Recurring routes & aggregate stats",
+    premium: true,
+    premiumTier: "STANDARD",
     itBody:
-      "Salva i percorsi che fai spesso — casa-lavoro, palestra, vacanze — e osserva come cambiano i consumi nel tempo. JaeDrive riconosce automaticamente i percorsi salvati.",
+      "Salva i percorsi che fai spesso — casa-lavoro, palestra, vacanze — e osserva come cambiano i consumi nel tempo. JaeDrive riconosce automaticamente i percorsi salvati. Funzione disponibile sulla webapp cloud con piano Premium.",
     enBody:
-      "Save the routes you drive often — commute, gym, holidays — and watch how consumption evolves over time. JaeDrive automatically recognises saved routes.",
+      "Save the routes you drive often — commute, gym, holidays — and watch how consumption evolves over time. JaeDrive automatically recognises saved routes. Available in the cloud web app with a Premium plan.",
     itDetails: [
       "Salvataggio manuale di qualsiasi percorso con nome personalizzato",
       "Statistiche aggregate per percorso (media consumi, km totali, viaggi)",
@@ -120,6 +125,7 @@ const FEATURES: Feature[] = [
       "Heatmap view of the most frequent segments",
     ],
   },
+
   {
     id: "cloud",
     icon: icons.cloud,
