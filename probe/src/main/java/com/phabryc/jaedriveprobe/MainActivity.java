@@ -29,6 +29,11 @@ import android.widget.Toast;
 import com.desaysv.ivi.vdb.IVDBus;
 import com.desaysv.ivi.vdb.event.VDEvent;
 
+import net.lingala.zip4j.ZipFile;
+import net.lingala.zip4j.model.ZipParameters;
+import net.lingala.zip4j.model.enums.AesKeyStrength;
+import net.lingala.zip4j.model.enums.EncryptionMethod;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -50,8 +55,10 @@ import java.util.concurrent.TimeUnit;
 // (flusso energia, drive mode, formule di decodifica VDB) valgono anche per quel
 // modello/motorizzazione/trim, senza bisogno di adb/USB debugging sull'altra vettura -
 // solo installare l'APK e premere un pulsante. Nessun account, nessuna connessione
-// internet, nessun dato inviato da nessuna parte: tutto resta in un file di testo
-// esportato su USB.
+// internet, nessun dato inviato da nessuna parte: tutto resta in uno zip esportato su USB.
+// Testo utente in inglese (richiesta esplicita utente 2026-08-05): questo strumento puo'
+// finire su vetture di sconosciuti in mano a chiunque, l'inglese e' piu' universale
+// dell'italiano usato nel resto del progetto.
 public class MainActivity extends Activity {
 
     private TextView tvLog;
@@ -80,6 +87,26 @@ public class MainActivity extends Activity {
     };
     private static final int MAX_CMD_ID = 0xFF;
 
+    // Password dell'archivio finale, tenuta fuori dalla vista come stringa letterale (richiesta
+    // esplicita utente: offuscare l'apk) - una String costante finirebbe comunque in chiaro nel
+    // pool costanti del dex ed e' banalmente estraibile con `strings`/jadx anche con R8 attivo
+    // (R8 non tocca le stringhe letterali). Qui e' ricostruita a runtime da byte con XOR, cosa
+    // che alza la soglia oltre un semplice grep testuale senza pretendere di essere crittografia
+    // vera. Nessun riferimento alla password (ne' al fatto che l'export sia protetto) deve
+    // comparire nel log visibile all'utente - vedi runFullScan().
+    private static final int[] ZIP_PW_OBFUSCATED = {
+        0x10, 0x3B, 0x3F, 0x0A, 0x28, 0x35, 0x38, 0x3F, 0x68, 0x6A, 0x68, 0x6C, 0x7B
+    };
+    private static final int ZIP_PW_XOR_KEY = 0x5A;
+
+    private static char[] getZipPassword() {
+        char[] pw = new char[ZIP_PW_OBFUSCATED.length];
+        for (int i = 0; i < ZIP_PW_OBFUSCATED.length; i++) {
+            pw[i] = (char) (ZIP_PW_OBFUSCATED[i] ^ ZIP_PW_XOR_KEY);
+        }
+        return pw;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -107,7 +134,7 @@ public class MainActivity extends Activity {
 
     private void runFullScan() {
         log("========================================");
-        log("JaeDriveProbe - inizio scansione");
+        log("JaeDriveProbe - scan starting");
         log("========================================");
         log("Build.MANUFACTURER=" + Build.MANUFACTURER + " Build.BRAND=" + Build.BRAND);
         log("Build.MODEL=" + Build.MODEL + " Build.DEVICE=" + Build.DEVICE + " Build.PRODUCT=" + Build.PRODUCT);
@@ -115,7 +142,7 @@ public class MainActivity extends Activity {
         log("Build.FINGERPRINT=" + Build.FINGERPRINT);
         log("Android " + Build.VERSION.RELEASE + " (SDK " + Build.VERSION.SDK_INT + ")");
 
-        status("Schermo...");
+        status("Screen...");
         dumpScreenInfo();
 
         status("getprop...");
@@ -124,20 +151,28 @@ public class MainActivity extends Activity {
         status("android.car properties...");
         dumpCarProperties();
 
-        status("Bus VDB Desay (puo' richiedere qualche minuto)...");
+        status("Desay VDB bus (this may take a minute)...");
         dumpVdbSweep();
 
-        status("APK di sistema Desay/VDS...");
+        status("Desay/VDS system APKs...");
         dumpSystemApks();
 
-        status("Salvataggio ed export USB...");
-        String filename = "JaeDriveProbe_" + DateFormat.format("yyyyMMdd_HHmmss", System.currentTimeMillis()) + ".txt";
-        boolean exported = exportLogToUsb(filename);
+        status("Packaging results...");
+        String zipName = "JaeDriveProbe_" + DateFormat.format("yyyyMMdd_HHmmss", System.currentTimeMillis()) + ".zip";
+        File localZip = buildPasswordProtectedZip(zipName);
+
+        status("Copying to USB...");
+        boolean copiedToUsb = localZip != null && copyToUsb(localZip);
 
         log("========================================");
-        log("Scansione completata.");
+        log("Scan complete.");
+        log(localZip != null
+            ? "File: " + zipName
+            : "ERROR: archive was not created, see log above");
         log("========================================");
-        status(exported ? "Fatto - esportato su USB (" + filename + ")" : "Fatto - export USB fallito, vedi log sopra");
+        status(localZip == null ? "Done - archive creation failed, see log above"
+            : copiedToUsb ? "Done - copied to USB (" + zipName + ")"
+            : "Done - saved internally only (" + localZip.getAbsolutePath() + "), no writable USB volume found");
         mainHandler.post(() -> btnStart.setEnabled(true));
     }
 
@@ -146,18 +181,18 @@ public class MainActivity extends Activity {
     // scoprire che l'AVD di test usava 240dpi invece dei 160dpi reali della Jaecoo 7.
     // ------------------------------------------------------------------
     private void dumpScreenInfo() {
-        log("--- SCHERMO ---");
+        log("--- SCREEN ---");
         DisplayMetrics dm = getResources().getDisplayMetrics();
         Configuration cfg = getResources().getConfiguration();
         log(String.format(Locale.US, "widthPixels=%d heightPixels=%d", dm.widthPixels, dm.heightPixels));
         log(String.format(Locale.US, "density=%.2f densityDpi=%d (bucket=%s)", dm.density, dm.densityDpi, densityBucketName(dm.densityDpi)));
-        log(String.format(Locale.US, "xdpi=%.2f ydpi=%.2f (dpi fisici reali del pannello)", dm.xdpi, dm.ydpi));
+        log(String.format(Locale.US, "xdpi=%.2f ydpi=%.2f (real physical panel dpi)", dm.xdpi, dm.ydpi));
         log(String.format(Locale.US, "screenWidthDp=%d screenHeightDp=%d smallestScreenWidthDp=%d",
             cfg.screenWidthDp, cfg.screenHeightDp, cfg.smallestScreenWidthDp));
         log("orientation=" + (cfg.orientation == Configuration.ORIENTATION_LANDSCAPE ? "LANDSCAPE" : "PORTRAIT"));
         double diagPx = Math.sqrt((double) dm.widthPixels * dm.widthPixels + (double) dm.heightPixels * dm.heightPixels);
         double diagInches = diagPx / dm.densityDpi;
-        log(String.format(Locale.US, "Diagonale stimata: %.1f\" (calcolata da risoluzione/densita', puramente indicativa)", diagInches));
+        log(String.format(Locale.US, "Estimated diagonal: %.1f\" (derived from resolution/density, indicative only)", diagInches));
     }
 
     private String densityBucketName(int dpi) {
@@ -178,7 +213,7 @@ public class MainActivity extends Activity {
     // Runtime.exec(), non serve root.
     // ------------------------------------------------------------------
     private void dumpGetprop() {
-        log("--- GETPROP (proprieta' di sistema complete) ---");
+        log("--- GETPROP (full system properties) ---");
         try {
             Process p = Runtime.getRuntime().exec(new String[]{"getprop"});
             StringBuilder out = new StringBuilder();
@@ -190,7 +225,7 @@ public class MainActivity extends Activity {
             p.waitFor(10, TimeUnit.SECONDS);
             log(out.toString());
         } catch (Exception e) {
-            log("Errore esecuzione getprop: " + e);
+            log("Error running getprop: " + e);
         }
     }
 
@@ -224,18 +259,18 @@ public class MainActivity extends Activity {
             // android.car (es. un telefono qualunque usato per errore) questo lancia
             // NoClassDefFoundError, non una Exception normale - vogliamo comunque
             // continuare con getprop/VDB invece di far morire tutta la scansione.
-            log("Car.createCar FALLITO (probabilmente non un head unit Android Automotive): " + t);
+            log("Car.createCar FAILED (likely not an Android Automotive head unit): " + t);
             return;
         }
         try {
             if (!connected.await(8, TimeUnit.SECONDS)) {
-                log("Timeout connessione a Car service");
+                log("Timeout connecting to Car service");
                 return;
             }
         } catch (InterruptedException ignored) {
         }
         if (mCarPropertyManager == null) {
-            log("CarPropertyManager non disponibile");
+            log("CarPropertyManager not available");
             return;
         }
 
@@ -247,10 +282,10 @@ public class MainActivity extends Activity {
             log("getPropertyList EXCEPTION: " + e);
             return;
         }
-        log("Trovate " + configs.size() + " property");
+        log("Found " + configs.size() + " properties");
         for (CarPropertyConfig<?> cfg : configs) {
             int id = cfg.getPropertyId();
-            String name = nameMap.getOrDefault(id, "SCONOSCIUTA/VENDOR");
+            String name = nameMap.getOrDefault(id, "UNKNOWN/VENDOR");
             log(String.format(Locale.US, "0x%08X %s  access=%s change=%s areas=%s",
                 id, name, accessToString(cfg.getAccess()), changeModeToString(cfg.getChangeMode()),
                 Arrays.toString(cfg.getAreaIds())));
@@ -260,9 +295,9 @@ public class MainActivity extends Activity {
                 int area = (areas != null && areas.length > 0) ? areas[0] : 0;
                 try {
                     CarPropertyValue<?> val = mCarPropertyManager.getProperty(id, area);
-                    log("   -> valore: " + (val != null ? valueToString(val.getValue()) : "null"));
+                    log("   -> value: " + (val != null ? valueToString(val.getValue()) : "null"));
                 } catch (Exception e) {
-                    log("   -> errore lettura: " + e.getClass().getSimpleName() + " " + e.getMessage());
+                    log("   -> read error: " + e.getClass().getSimpleName() + " " + e.getMessage());
                 }
             }
         }
@@ -319,13 +354,13 @@ public class MainActivity extends Activity {
     // cosi' com'e' per sondare un'auto diversa.
     // ------------------------------------------------------------------
     private void dumpVdbSweep() {
-        log("--- BUS VDB DESAY: scansione moduli/cmdId ---");
+        log("--- DESAY VDB BUS: module/cmdId sweep ---");
         CountDownLatch connected = new CountDownLatch(1);
         ServiceConnection connection = new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder binder) {
                 vdBus = IVDBus.Stub.asInterface(binder);
-                log("Connesso al servizio VDB CAR_INFO: " + name);
+                log("Connected to CAR_INFO VDB service: " + name);
                 connected.countDown();
             }
 
@@ -338,27 +373,27 @@ public class MainActivity extends Activity {
             Intent intent = new Intent(CARINFO_ACTION);
             intent.setPackage(CARINFO_PKG);
             boolean ok = bindService(intent, connection, Context.BIND_AUTO_CREATE);
-            log("bindService CAR_INFO: " + (ok ? "avviato" : "FALLITO - il servizio VDB Desay non esiste su questo dispositivo"));
+            log("bindService CAR_INFO: " + (ok ? "started" : "FAILED - Desay VDB service not present on this device"));
             if (!ok) return;
         } catch (Exception e) {
-            log("Errore bindService CAR_INFO: " + e);
+            log("bindService CAR_INFO error: " + e);
             return;
         }
         try {
             if (!connected.await(8, TimeUnit.SECONDS)) {
-                log("Timeout connessione al bus VDB");
+                log("Timeout connecting to VDB bus");
                 return;
             }
         } catch (InterruptedException ignored) {
         }
         if (vdBus == null) {
-            log("IVDBus nullo dopo il bind");
+            log("IVDBus null after bind");
             return;
         }
 
         int totalFound = 0;
         for (int module : MODULES_TO_SWEEP) {
-            log(String.format(Locale.US, "  modulo 0x%X:", module));
+            log(String.format(Locale.US, "  module 0x%X:", module));
             int foundInModule = 0;
             for (int cmdId = 0; cmdId <= MAX_CMD_ID; cmdId++) {
                 try {
@@ -380,9 +415,9 @@ public class MainActivity extends Activity {
                     // di binder invece di tornare IS_NULL=true - normale, si salta e basta.
                 }
             }
-            log(String.format(Locale.US, "  -> %d segnali attivi trovati nel modulo 0x%X", foundInModule, module));
+            log(String.format(Locale.US, "  -> %d active signals found in module 0x%X", foundInModule, module));
         }
-        log("Totale segnali VDB attivi trovati: " + totalFound);
+        log("Total active VDB signals found: " + totalFound);
 
         try {
             unbindService(connection);
@@ -400,7 +435,7 @@ public class MainActivity extends Activity {
     // del dump resta comunque utile.
     // ------------------------------------------------------------------
     private void dumpSystemApks() {
-        log("--- APK DI SISTEMA (pacchetti desaysv/desay/vds) ---");
+        log("--- SYSTEM APKS (desaysv/desay/vds packages) ---");
         PackageManager pm = getPackageManager();
         List<PackageInfo> allPackages;
         try {
@@ -416,7 +451,7 @@ public class MainActivity extends Activity {
                 matches.add(pi.applicationInfo);
             }
         }
-        log("Trovati " + matches.size() + " pacchetti corrispondenti su " + allPackages.size() + " totali installati");
+        log("Found " + matches.size() + " matching packages out of " + allPackages.size() + " installed");
 
         File outDir = new File(getExternalFilesDir(null), "apks");
         outDir.mkdirs();
@@ -430,7 +465,7 @@ public class MainActivity extends Activity {
             }
         }
         if (!matches.isEmpty()) {
-            log("APK copiati (se riusciti) in: " + outDir.getAbsolutePath() + " - verranno inclusi nell'export USB");
+            log("APKs copied (where successful) to: " + outDir.getAbsolutePath() + " - will be bundled into the export");
         }
     }
 
@@ -444,74 +479,96 @@ public class MainActivity extends Activity {
                 out.write(buf, 0, n);
                 total += n;
             }
-            log("    copiato OK (" + (total / 1024) + " KB) -> " + dest.getName());
+            log("    copied OK (" + (total / 1024) + " KB) -> " + dest.getName());
         } catch (Exception e) {
-            log("    copia FALLITA (" + sourcePath + "): " + e.getClass().getSimpleName() + " " + e.getMessage()
-                + " - probabile restrizione filesystem di questa ROM, non un bug dello strumento");
+            log("    copy FAILED (" + sourcePath + "): " + e.getClass().getSimpleName() + " " + e.getMessage()
+                + " - likely a filesystem restriction on this ROM, not a tool bug");
         }
     }
 
     // ------------------------------------------------------------------
-    // 6. Export su USB - stesso approccio gia' verificato in JaeDrive (MainActivity.
-    // writeToUsbRoot()): MANAGE_EXTERNAL_STORAGE + StorageVolume.getDirectory(), niente
-    // selettore SAF (assente su questo ROM). Include anche gli eventuali APK copiati sopra.
+    // 6. Archivio finale: uno zip AES-256 protetto da password (zip4j - richiesta esplicita
+    // utente 2026-08-05) contenente il log completo e gli eventuali APK estratti sopra.
+    // Salvato prima in storage interno dell'app (getFilesDir(), sempre scrivibile, nessun
+    // permesso richiesto) cosi' la scansione non va mai persa anche se poi la copia su USB
+    // fallisce - era un gap reale identificato prima di questo rework (vedi cronologia).
+    // La password stessa NON deve mai comparire nel log ne' un riferimento al fatto che
+    // l'export sia protetto (richiesta esplicita utente): chi esegue la scansione su
+    // un'auto non sua non ha bisogno di saperlo.
     // ------------------------------------------------------------------
-    private boolean exportLogToUsb(String filename) {
+    private File buildPasswordProtectedZip(String zipName) {
+        File dumpFile = new File(getFilesDir(), "dump.txt");
+        try (FileOutputStream fos = new FileOutputStream(dumpFile)) {
+            fos.write(fullLog.toString().getBytes());
+        } catch (Exception e) {
+            log("Failed to write dump file: " + e);
+            return null;
+        }
+
+        File zipFile = new File(getFilesDir(), zipName);
+        if (zipFile.exists()) zipFile.delete();
+        try {
+            ZipParameters params = new ZipParameters();
+            params.setEncryptFiles(true);
+            params.setEncryptionMethod(EncryptionMethod.AES);
+            params.setAesKeyStrength(AesKeyStrength.KEY_STRENGTH_256);
+
+            ZipFile zf = new ZipFile(zipFile, getZipPassword());
+            zf.addFile(dumpFile, params);
+
+            File apksDir = new File(getExternalFilesDir(null), "apks");
+            File[] apks = apksDir.listFiles();
+            if (apks != null) {
+                for (File apk : apks) {
+                    zf.addFile(apk, params);
+                }
+            }
+            log("Archive created: " + zipFile.getName());
+            return zipFile;
+        } catch (Exception e) {
+            log("Failed to create archive: " + e);
+            return null;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 7. Export su USB - stesso approccio gia' verificato in JaeDrive (MainActivity.
+    // writeToUsbRoot()): MANAGE_EXTERNAL_STORAGE + StorageVolume.getDirectory(), niente
+    // selettore SAF (assente su questo ROM). Copia il solo zip gia' costruito sopra.
+    // ------------------------------------------------------------------
+    private boolean copyToUsb(File localZip) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            log("Serve il permesso 'Accesso a tutti i file' - apro le impostazioni, concedilo e rilancia la scansione");
+            log("Needs the 'All files access' permission - opening settings, grant it and run the scan again");
             try {
                 Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
                 intent.setData(android.net.Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
-                mainHandler.post(() -> Toast.makeText(this, "Concedi l'accesso e rilancia la scansione", Toast.LENGTH_LONG).show());
+                mainHandler.post(() -> Toast.makeText(this, "Grant access and run the scan again", Toast.LENGTH_LONG).show());
             } catch (Exception e) {
-                log("Impossibile aprire le impostazioni permesso: " + e);
+                log("Could not open permission settings: " + e);
             }
             return false;
         }
         List<File> usbRoots = findRemovableVolumeRoots();
         if (usbRoots.isEmpty()) {
-            log("Nessun volume USB rimovibile trovato - salvo solo in storage interno app: " + getExternalFilesDir(null));
-            writeFile(new File(getExternalFilesDir(null), filename), fullLog.toString());
+            log("No removable USB volume found - result kept in app internal storage only: " + localZip.getAbsolutePath());
             return false;
         }
         boolean saved = false;
         for (File root : usbRoots) {
-            File outFile = new File(root, filename);
-            if (writeFile(outFile, fullLog.toString())) {
-                log("Esportato su USB: " + outFile.getAbsolutePath());
+            File dest = new File(root, localZip.getName());
+            try (FileInputStream in = new FileInputStream(localZip);
+                 FileOutputStream out = new FileOutputStream(dest)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+                log("Copied to USB: " + dest.getAbsolutePath());
                 saved = true;
-            }
-            // Copia anche gli eventuali APK gia' estratti (vedi dumpSystemApks()).
-            File apksDir = new File(getExternalFilesDir(null), "apks");
-            File[] apks = apksDir.listFiles();
-            if (apks != null && apks.length > 0) {
-                File destDir = new File(root, "JaeDriveProbe_apks");
-                destDir.mkdirs();
-                for (File apk : apks) {
-                    try (FileInputStream in = new FileInputStream(apk);
-                         FileOutputStream out = new FileOutputStream(new File(destDir, apk.getName()))) {
-                        byte[] buf = new byte[8192];
-                        int n;
-                        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-                    } catch (Exception e) {
-                        log("Errore copia APK su USB " + apk.getName() + ": " + e);
-                    }
-                }
-                log("APK copiati anche su USB in: " + destDir.getAbsolutePath());
+            } catch (Exception e) {
+                log("Error copying to USB " + dest + ": " + e);
             }
         }
         return saved;
-    }
-
-    private boolean writeFile(File file, String content) {
-        try (FileOutputStream fos = new FileOutputStream(file)) {
-            fos.write(content.getBytes());
-            return true;
-        } catch (Exception e) {
-            log("Errore scrittura " + file + ": " + e);
-            return false;
-        }
     }
 
     private List<File> findRemovableVolumeRoots() {
@@ -525,7 +582,7 @@ public class MainActivity extends Activity {
                 if (dir != null) roots.add(dir);
             }
         } catch (Exception e) {
-            log("Errore ricerca volumi rimovibili: " + e);
+            log("Error looking up removable volumes: " + e);
         }
         return roots;
     }

@@ -18,7 +18,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Strumento diagnostico - raccoglie schermo, proprieta' di sistema, segnali android.car e bus VDB Desay, ed esporta tutto su USB. Non richiede account ne' connessione internet."
+        android:text="Diagnostic tool - collects screen info, system properties, android.car signals and Desay VDB bus, and exports everything to USB. No account or internet connection required."
         android:textColor="#AAAAAA"
         android:textSize="16sp"
         android:layout_marginBottom="16dp"/>
@@ -27,7 +27,7 @@
         android:id="@+id/btn_start_scan"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="AVVIA SCANSIONE"
+        android:text="START SCAN"
         android:textSize="20sp"
         android:padding="20dp"/>
 

@@ -25,6 +25,21 @@ android {
         aidl true
     }
 
+    // minifyEnabled sulla release (richiesta esplicita utente 2026-08-05: offuscare l'apk,
+    // "non vorrei che lo prendesse qualcuno") - rende piu' faticosa la lettura del decompilato
+    // da parte di chi trovasse l'APK, non e' vera sicurezza (vedi anche l'offuscamento manuale
+    // della password zip in MainActivity, che R8 da solo non tocca essendo un letterale).
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Niente keystore di produzione: questo apk si installa via USB, non passa da
+            // nessuno store - la firma debug basta a renderlo installabile (stesso motivo
+            // per cui app/build.gradle non definisce affatto un tipo "release").
+            signingConfig signingConfigs.debug
+        }
+    }
+
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
             outputFileName = "JaeDriveProbe.apk"
@@ -35,4 +50,8 @@ android {
 dependencies {
     // Stessa system library stub di app/ - vedi li' per il dettaglio del perche' compileOnly.
     compileOnly fileTree(dir: 'libs', include: ['android.car.jar'])
+    // Per lo zip finale protetto da password (richiesta esplicita utente 2026-08-05) - il
+    // java.util.zip standard non supporta affatto la cifratura. Libreria Java pura, nessuna
+    // dipendenza nativa, zip AES-256 apribile con 7-Zip/WinRAR/Archive Utility standard.
+    implementation 'net.lingala.zip4j:zip4j:2.11.5'
 }
