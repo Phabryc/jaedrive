@@ -23,12 +23,12 @@ export function vehicleTitle(brand: string | null, model: string | null, powertr
 // vista 3/4 anteriore orientata a sinistra per Jaecoo (5, 7, 8) e Omoda (5, 7, 9).
 // File in /public/vehicles/, serviti da Vite.
 const MODEL_IMAGES: Record<string, string> = {
-  JAECOO_5: "/vehicles/jaecoo_5.png?v=all_transparent",
-  JAECOO_7: "/vehicles/jaecoo_7.png?v=all_transparent",
-  JAECOO_8: "/vehicles/jaecoo_8.png?v=all_transparent",
-  OMODA_5: "/vehicles/omoda_5.png?v=all_transparent",
-  OMODA_7: "/vehicles/omoda_7.png?v=all_transparent",
-  OMODA_9: "/vehicles/omoda_9.png?v=all_transparent",
+  JAECOO_5: "/vehicles/jaecoo_5.png?v=glass_reflection",
+  JAECOO_7: "/vehicles/jaecoo_7.png?v=glass_reflection",
+  JAECOO_8: "/vehicles/jaecoo_8.png?v=glass_reflection",
+  OMODA_5: "/vehicles/omoda_5.png?v=glass_reflection",
+  OMODA_7: "/vehicles/omoda_7.png?v=glass_reflection",
+  OMODA_9: "/vehicles/omoda_9.png?v=glass_reflection",
 };
 
 export function vehicleImageFor(brand: string | null, model: string | null): string | null {
