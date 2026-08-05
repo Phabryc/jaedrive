@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Stessi permessi Car API di JaeDrive - vogliamo poter leggere quante piu' property
+         possibile per il dump, indipendentemente da quali risultino poi effettivamente
+         concesse su questa specifica vettura/ROM (il dump registra anche i SecurityException
+         per property negata, e' un'informazione utile quanto un valore letto). -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED"/>
+    <uses-permission android:name="android.car.permission.CAR_ENERGY"/>
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN"/>
+    <uses-permission android:name="android.car.permission.CAR_INFO"/>
+    <uses-permission android:name="android.car.permission.READ_CAR_DISPLAY_UNITS"/>
+    <uses-permission android:name="android.car.permission.CAR_MILEAGE"/>
+    <uses-permission android:name="android.car.permission.CAR_VENDOR_EXTENSION"/>
+    <uses-permission android:name="android.car.permission.CAR_IDENTIFICATION"/>
+
+    <!-- Per scrivere il dump alla radice della USB (stesso approccio di JaeDrive: niente
+         selettore SAF, questo ROM non ha un'app "Gestione file"/DocumentsUI). -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+
+    <!-- Per enumerare TUTTI i pacchetti installati (non solo quelli dichiarati in <queries>)
+         e trovare eventuali app Desay/VDS specifiche di un modello mai visto prima - vedi
+         MainActivity.dumpSystemApks(). Solo uso diagnostico locale, mai su Play Store. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission"
+        xmlns:tools="http://schemas.android.com/tools"/>
+
+    <application
+        android:label="JaeDriveProbe"
+        android:icon="@android:drawable/ic_menu_search"
+        android:allowBackup="false"
+        android:supportsRtl="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="unspecified">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

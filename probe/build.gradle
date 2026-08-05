@@ -1,0 +1,38 @@
+apply plugin: 'com.android.application'
+
+// Modulo separato e indipendente da JaeDrive (2026-08-05, richiesta esplicita utente):
+// strumento diagnostico usa-e-getta per raccogliere informazioni da vetture Chery/Jaecoo/
+// Omoda diverse dalla propria (dealer, altri proprietari) - nessun account/cloud/pairing,
+// solo i permessi strettamente necessari al dump. Vedi MainActivity per cosa raccoglie.
+android {
+    compileSdk 33
+    namespace 'com.phabryc.jaedriveprobe'
+
+    defaultConfig {
+        applicationId "com.phabryc.jaedriveprobe"
+        minSdk 28
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        aidl true
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "JaeDriveProbe.apk"
+        }
+    }
+}
+
+dependencies {
+    // Stessa system library stub di app/ - vedi li' per il dettaglio del perche' compileOnly.
+    compileOnly fileTree(dir: 'libs', include: ['android.car.jar'])
+}
