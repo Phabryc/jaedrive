@@ -1,11 +1,11 @@
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/AuthContext";
 import { useLanguage, type TranslationKey } from "../lib/i18n/LanguageContext";
-import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { StaticHeader } from "../components/StaticHeader";
 import { buttonVariants } from "../components/Button";
-import jdLogo from "../assets/jd_logo.png";
 import { IconGauge, IconFuel, IconCloud, IconRoute } from "../components/icons";
 import { vehicleImageFor } from "../lib/vehicleCatalog";
+import { hasEnteredAppSession, setEnteredAppSession } from "../lib/session";
 
 const MODELS: { brand: string; model: string; label: string }[] = [
   { brand: "JAECOO", model: "5", label: "Jaecoo 5" },
@@ -26,40 +26,16 @@ const FEATURES: { icon: typeof IconGauge; titleKey: TranslationKey; bodyKey: Tra
 export default function Landing() {
   const { user, loading } = useAuth();
   const { t } = useLanguage();
-  if (!loading && user) return <Navigate to="/dashboard" replace />;
+
+  // Redirect automatico alla dashboard solo quando l'utente arriva da fuori (prima visita della sessione).
+  if (!loading && user && !hasEnteredAppSession()) {
+    setEnteredAppSession();
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-bg text-onsurface">
-      {/* ── Header ── */}
-      <header className="border-b border-surface-border">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          {/* Logo → home */}
-          <Link to="/" aria-label="JaeDrive home">
-            <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
-          </Link>
-
-          <nav className="flex items-center gap-3">
-            <LanguageSwitcher />
-            {/* Piani — link testuale evidente */}
-            <Link
-              to="/plans"
-              className="hidden text-sm font-medium text-accent underline-offset-4 hover:underline sm:inline"
-            >
-              {t("landing.plansLink")}
-            </Link>
-            {/* Features */}
-            <Link
-              to="/features"
-              className="hidden text-sm font-medium text-onsurface-variant underline-offset-4 hover:text-onsurface hover:underline sm:inline"
-            >
-              {t("landing.featuresLink")}
-            </Link>
-            <Link to="/login" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("common.login")}
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <StaticHeader />
 
       <main>
         {/* ── Hero ── */}

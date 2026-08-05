@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "../lib/i18n/LanguageContext";
-import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { StaticHeader } from "../components/StaticHeader";
 import { buttonVariants } from "../components/Button";
-import jdLogo from "../assets/jd_logo.png";
 
 // ─── icons (inline SVG per zero deps aggiuntive) ──────────────────────────────
 
@@ -161,20 +160,7 @@ export default function Plans() {
 
   return (
     <div className="min-h-screen bg-bg text-onsurface">
-      {/* ── Header ── */}
-      <header className="border-b border-surface-border">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link to="/">
-            <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
-          </Link>
-          <div className="flex items-center gap-3">
-            <LanguageSwitcher />
-            <Link to="/login" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("common.login")}
-            </Link>
-          </div>
-        </div>
-      </header>
+      <StaticHeader />
 
       <main className="mx-auto max-w-5xl px-4 pb-24">
         {/* ── Hero ── */}

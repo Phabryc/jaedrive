@@ -9,6 +9,8 @@ import { IconSettings, IconLogout, IconAdmin } from "./icons";
 import jdLogo from "../assets/jd_logo.png";
 import { useProfile } from "../lib/ProfileContext";
 
+import { clearEnteredAppSession } from "../lib/session";
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { profile } = useProfile();
@@ -18,6 +20,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   function handleLogout() {
+    clearEnteredAppSession();
     setUserMenuOpen(false);
     signOut(auth).then(() => navigate("/login"));
   }
@@ -41,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-[1800px] items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           {/* LOGO & NAVIGATION */}
           <div className="flex items-center gap-6">
-            <Link to="/dashboard" className="shrink-0">
+            <Link to="/" aria-label="JaeDrive home" className="shrink-0">
               <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
             </Link>
             <nav className="flex items-center gap-4 text-sm font-medium">

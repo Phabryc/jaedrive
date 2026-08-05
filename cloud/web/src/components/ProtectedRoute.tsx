@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useAuth } from "../lib/AuthContext";
 import { useLanguage } from "../lib/i18n/LanguageContext";
+import { setEnteredAppSession } from "../lib/session";
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -16,5 +17,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
     // can send them back here after signing in instead of always landing on "/".
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
+
+  setEnteredAppSession();
   return <>{children}</>;
 }

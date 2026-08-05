@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "../lib/i18n/LanguageContext";
-import { LanguageSwitcher } from "../components/LanguageSwitcher";
+import { StaticHeader } from "../components/StaticHeader";
 import { buttonVariants } from "../components/Button";
-import jdLogo from "../assets/jd_logo.png";
 
 // ─── Inline SVG icons ─────────────────────────────────────────────────────────
 
@@ -337,23 +336,7 @@ export default function Features() {
 
   return (
     <div className="min-h-screen bg-bg text-onsurface">
-      {/* ── Header ── */}
-      <header className="border-b border-surface-border">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <Link to="/" aria-label="JaeDrive home">
-            <img src={jdLogo} alt="JaeDrive" className="h-7 w-auto" />
-          </Link>
-          <nav className="flex items-center gap-3">
-            <LanguageSwitcher />
-            <Link to="/plans" className="hidden text-sm font-medium text-accent underline-offset-4 hover:underline sm:inline">
-              {t("landing.plansLink")}
-            </Link>
-            <Link to="/login" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-              {t("common.login")}
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <StaticHeader />
 
       <main className="mx-auto max-w-5xl px-4 pb-24">
         {/* ── Hero ── */}
