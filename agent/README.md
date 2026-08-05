@@ -29,7 +29,7 @@ Ogni intervento sul codice deve essere registrato in `agent_log.md` aggiungendo 
 ## [YYYY-MM-DD] - <Titolo Sintetico Modifica>
 
 ### 👤 Agent Metadata
-- **Agent / Model**: <Nome Agente, es. Antigravity (Gemini 3.6 Flash)>
+- **Agent Nickname / Model**: <Nickname e Modello, es. Leo AG (Antigravity / Gemini 3.6 Flash)>
 - **Scope / Subsystem**: <`[app]`, `[cloud]`, `[agent]`, `[build-system]`>
 - **Status**: <`COMPLETED` | `IN_PROGRESS` | `REQUIRES_USER_TEST`>
 

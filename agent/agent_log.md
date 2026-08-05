@@ -7,7 +7,7 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 ## [2026-08-05] - Configurazione Ambiente di Compilazione, Mock Veicolo (Debug-Only) e Documentazione Agenti
 
 ### 👤 Agent Metadata
-- **Agent / Model**: Antigravity (Gemini 3.6 Flash)
+- **Agent Nickname / Model**: Leo AG (Antigravity / Gemini 3.6 Flash)
 - **Scope / Subsystem**: `[app]`, `[build-system]`, `[agent]`
 - **Status**: `COMPLETED`
 
