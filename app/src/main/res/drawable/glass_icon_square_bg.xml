@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sfondo della zona icona (top, 100dp - vedi overlay_status_bar_icon.xml) - tinta piatta,
+     nessun angolo arrotondato: il lato destro e' subito adiacente alla barra dati quando
+     espansa; quando collassata la barra dati si ritira in ALTEZZA verso l'alto (non piu' in
+     larghezza), quindi anche da collassata questa zona resta adiacente al bordo superiore
+     della barra dati collassata - mai davvero "esposta" a se', niente arrotondamento qui in
+     nessuno dei due stati (a differenza della zona freccia sotto, vedi
+     glass_icon_arrow_bg.xml). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/glass_card_fill"/>
+</shape>

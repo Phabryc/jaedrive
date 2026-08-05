@@ -38,6 +38,39 @@ public class SyncWorker extends Worker {
         String token = Prefs.getCloudDeviceToken(ctx);
         if (token == null) return Result.success(); // mai associata, o disassociata nel frattempo
 
+        // Heartbeat PRIMA di tentare qualunque upload (2026-08-04, vedi
+        // cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md): un abbonamento non attivo blocca OGNI
+        // upload con 403 lato server - chiederlo una volta qui evita di martellare /trips
+        // una volta per ciascun viaggio in coda solo per beccare lo stesso 403 ripetuto, e
+        // aggiorna subito lo snapshot locale (card CLOUD, gate premium status bar, popup
+        // scadenza) anche in un giro senza nessun viaggio da caricare.
+        try {
+            CloudApiClient.SubscriptionInfo sub = CloudApiClient.heartbeat(token);
+            if (sub != null) {
+                Prefs.setSubscriptionSnapshot(ctx, sub.status, sub.tier, sub.expiresAt, sub.isActive);
+                Prefs.setCloudSyncPaused(ctx, !sub.isActive);
+                SubscriptionExpiryNotifier.checkAndNotify(ctx, sub);
+                if (!sub.isActive) {
+                    Log.i(TAG, "Sync in pausa: abbonamento non attivo");
+                    // Non un errore da ritentare con backoff - ripartira' al prossimo
+                    // trip chiuso o avvio di TrackingService, quando l'abbonamento potrebbe
+                    // essere di nuovo attivo.
+                    return Result.success();
+                }
+            }
+        } catch (CloudApiClient.ApiException e) {
+            if (e.httpCode == 409) {
+                Log.w(TAG, "Device non piu' associato (409, heartbeat) - rimuovo l'associazione locale");
+                Prefs.clearCloudPairingRemotely(ctx);
+                return Result.success();
+            }
+            // Altri errori applicativi sull'heartbeat non sono fatali per questo giro - si
+            // prova comunque l'upload sotto, che ha la propria gestione errori/retry.
+            Log.w(TAG, "Heartbeat fallito, proseguo comunque con gli upload in coda: " + e);
+        } catch (IOException | JSONException e) {
+            Log.w(TAG, "Heartbeat fallito, proseguo comunque con gli upload in coda: " + e);
+        }
+
         List<TripRecord> pending = TripDatabase.getInstance(ctx).getUnsyncedTrips();
         if (pending.isEmpty()) return Result.success();
 
@@ -58,6 +91,14 @@ public class SyncWorker extends Worker {
                     // Prefs.clearCloudPairingRemotely()/MainActivity.onCreate()).
                     Log.w(TAG, "Device non piu' associato (409) - rimuovo l'associazione locale");
                     Prefs.clearCloudPairingRemotely(ctx);
+                    return Result.success();
+                }
+                if (e.httpCode == 403) {
+                    // Abbonamento diventato non attivo esattamente tra l'heartbeat sopra e
+                    // questo upload (o l'heartbeat stesso era fallito e si e' arrivati qui
+                    // comunque) - stesso trattamento "pausa, non ritentare all'infinito".
+                    Log.w(TAG, "Upload trip " + r.id + " bloccato: abbonamento non attivo (403)");
+                    Prefs.setCloudSyncPaused(ctx, true);
                     return Result.success();
                 }
                 Log.w(TAG, "Upload trip " + r.id + " fallito, riprovo piu' tardi: " + e);

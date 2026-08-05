@@ -1058,15 +1058,39 @@
                         android:layout_height="wrap_content"/>
                 </LinearLayout>
 
-                <TextView
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/section_popups_title"
-                    android:textColor="@color/primary"
-                    android:textSize="20sp"
-                    android:letterSpacing="0.08"
-                    android:layout_marginBottom="12dp"/>
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/section_popups_title"
+                        android:textColor="@color/primary"
+                        android:textSize="20sp"
+                        android:letterSpacing="0.08"/>
+                    <!-- Funzione PREMIUM (2026-08-04) - vedi MainActivity.refreshPremiumGatedSwitches():
+                         l'intera sezione (entrambe le card sotto) viene disattivata/ingrigita
+                         quando l'abbonamento non e' attivo, badge visibile solo in quel caso. -->
+                    <TextView
+                        android:id="@+id/tv_popups_premium_badge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:text="@string/label_premium_badge"
+                        android:textColor="@color/primary"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.06"
+                        android:background="@drawable/badge_chip_primary"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="3dp"
+                        android:visibility="gone"/>
+                </LinearLayout>
                 <LinearLayout
+                    android:id="@+id/card_regen_popup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -1090,6 +1114,7 @@
                         android:layout_height="wrap_content"/>
                 </LinearLayout>
                 <LinearLayout
+                    android:id="@+id/card_refuel_popup"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
@@ -1109,6 +1134,34 @@
                     </LinearLayout>
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/switch_refuel_popup"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+                <!-- Terza card della sezione Popup (2026-08-05: comportamento reso coerente
+                     con le due sopra - stesso badge PREMIUM unico sull'header di sezione,
+                     nessun badge proprio qui, vedi MainActivity.refreshPremiumGatedSwitches()
+                     per come si disattiva/ingrigisce insieme alle altre due. -->
+                <LinearLayout
+                    android:id="@+id/card_status_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/card_bg"
+                    android:padding="24dp"
+                    android:layout_marginBottom="28dp">
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_status_bar_title" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
+                        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="@string/label_status_bar_subtitle" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
+                    </LinearLayout>
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/switch_status_bar"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
                 </LinearLayout>
@@ -1210,10 +1263,14 @@
                     android:orientation="horizontal"
                     android:layout_marginBottom="28dp">
                     <LinearLayout
+                        android:id="@+id/card_version"
                         android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
                         android:layout_marginEnd="10dp"
                         android:orientation="vertical"
                         android:background="@drawable/card_bg"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true"
                         android:padding="24dp">
                         <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:text="@string/label_version" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
@@ -1291,6 +1348,46 @@
                             android:text="@string/label_cloud_not_paired" android:textColor="@color/on_surface" android:textSize="26sp" android:textStyle="bold"/>
                         <TextView android:id="@+id/tv_cloud_subtitle" android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:text="@string/label_cloud_not_paired_subtitle" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
+                        <!-- Badge tier abbonamento (2026-08-04, vedi ANDROID_SUBSCRIPTION_HANDSHAKE.md) -
+                             visibile solo se associata (vedi MainActivity.renderSubscriptionBadge()).
+                             L'iconcina auto compare solo per GARAGE (3 auto vs 1 di STANDARD). -->
+                        <LinearLayout
+                            android:id="@+id/row_cloud_subscription"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="10dp"
+                            android:visibility="gone">
+                            <ImageView
+                                android:id="@+id/iv_cloud_tier_icon"
+                                android:layout_width="15dp"
+                                android:layout_height="15dp"
+                                android:layout_marginEnd="6dp"
+                                android:src="@drawable/ic_car_small"
+                                android:tint="@color/tier_garage_accent"
+                                android:visibility="gone"
+                                android:contentDescription="@null"/>
+                            <TextView
+                                android:id="@+id/tv_cloud_subscription_badge"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                android:letterSpacing="0.04"
+                                android:paddingHorizontal="10dp"
+                                android:paddingVertical="4dp"/>
+                        </LinearLayout>
+                        <!-- Avviso sync in pausa (FREE o abbonamento scaduto) - stesso posto,
+                             sotto il badge, mai visibile insieme a un badge PREMIUM attivo. -->
+                        <TextView
+                            android:id="@+id/tv_cloud_sync_hint"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:textColor="@color/trend_warning"
+                            android:textSize="16sp"
+                            android:visibility="gone"/>
                     </LinearLayout>
                     <TextView
                         android:id="@+id/btn_cloud_pair"
@@ -1305,6 +1402,24 @@
                         android:paddingVertical="12dp"
                         android:clickable="true"
                         android:focusable="true"/>
+                    <!-- Refresh on-demand (2026-08-05, richiesta esplicita utente): rilegge
+                         subito lo stato abbonamento dal server invece di aspettare il check
+                         automatico ogni 5 minuti o la prossima riapertura app - vedi
+                         MainActivity.fetchOwnerProfile()/setupCloudSection(). Stessa
+                         visibilita' di btn_cloud_unpair (solo quando l'auto e' associata). -->
+                    <ImageView
+                        android:id="@+id/btn_cloud_refresh"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="8dp"
+                        android:padding="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_refresh"
+                        android:tint="@color/on_surface_variant"
+                        android:visibility="gone"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="@string/label_cloud_refresh_button"/>
                     <TextView
                         android:id="@+id/btn_cloud_unpair"
                         android:layout_width="wrap_content"

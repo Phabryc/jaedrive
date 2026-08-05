@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Freccia della barra di stato - disegnata puntando in su, ruotata via codice
+         (ImageView.setRotation(), vedi StatusBarOverlay) per puntare a sx/dx: +-90 gradi,
+         non piu' 0/180 dal 2026-08-04 (collasso passato da verticale a orizzontale) - niente
+         drawable duplicato per le due direzioni. Stesso stile a tratto delle altre icone
+         della barra (ic_route/ic_gauge). -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,15l7,-7l7,7"/>
+</vector>

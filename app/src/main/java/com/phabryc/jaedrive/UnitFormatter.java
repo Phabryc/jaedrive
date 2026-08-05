@@ -37,9 +37,10 @@ public class UnitFormatter {
     // usato per formatDistance) e "percorrenza per unita' di carburante" vs "carburante per
     // 100 unita' di distanza". L'unita' di CARBURANTE segue la distanza in entrambi i formati
     // (mercato UK, richiesta esplicita 2026-08-02): litri se km (km/l, L/100km), GALLONE
-    // IMPERIALE (non USA) se miglia (mpg, gal/100mi) - "(UK)" nell'etichetta per non lasciare
-    // ambiguita' su quale gallone, dato che "mpg"/"gal" da soli si confondono facilmente con
-    // la variante USA (3.785 L, contro i 4.546 L di quello imperiale usato qui).
+    // IMPERIALE (non USA) se miglia (mpg, gal/100mi) - senza "(UK)" nell'etichetta (rimosso
+    // 2026-08-02 per accorciarla, es. per farla stare nella status bar senza troncare), anche
+    // se questo lascia un po' di ambiguita' su quale gallone rispetto alla variante USA
+    // (3.785 L, contro i 4.546 L di quello imperiale usato qui).
     // kmPerLiter e' sempre > 0 quando questo metodo viene chiamato: i chiamanti
     // (MainActivity) passano avg solo quando TripConsumption.computeAverage() l'ha calcolato
     // con successo (litri > 0), mai un valore nullo/zero/infinito.
@@ -49,13 +50,13 @@ public class UnitFormatter {
             double perHundredKm = 100.0 / kmPerLiter;
             if (miles) {
                 double galPer100Mi = perHundredKm / (KM_TO_MI * L_PER_IMPERIAL_GALLON);
-                return String.format(Locale.ITALY, "%.1f gal/100mi (UK)", galPer100Mi);
+                return String.format(Locale.ITALY, "%.1f gal/100mi", galPer100Mi);
             }
             return String.format(Locale.ITALY, "%.1f L/100km", perHundredKm);
         }
         if (miles) {
             double mpg = kmPerLiter * KM_TO_MI * L_PER_IMPERIAL_GALLON;
-            return String.format(Locale.ITALY, "%.1f mpg (UK)", mpg);
+            return String.format(Locale.ITALY, "%.1f mpg", mpg);
         }
         return String.format(Locale.ITALY, "%.2f km/l", kmPerLiter);
     }

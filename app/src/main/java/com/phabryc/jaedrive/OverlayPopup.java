@@ -116,8 +116,8 @@ public class OverlayPopup {
             // Stessa filosofia "leggibile/premibile al volo mentre si guida" del testo del
             // messaggio - bottoni piccoli in un overlay sono ancora piu' scomodi da centrare
             // col dito di un dialog normale, guardando lo schermo di sfuggita.
-            btn.setTextSize(22);
-            btn.setPadding(dp(ctx, 24), dp(ctx, 16), dp(ctx, 24), dp(ctx, 16));
+            btn.setTextSize(24);
+            btn.setPadding(dp(ctx, 28), dp(ctx, 18), dp(ctx, 28), dp(ctx, 18));
             btn.setClickable(true);
             btn.setFocusable(true);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -150,7 +150,12 @@ public class OverlayPopup {
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-        params.y = dp(ctx, 40);
+        // 40dp -> 130dp (2026-08-03, richiesta esplicita): la notification bar del LAUNCHER
+        // di questa vettura occupa i primi 100px in alto a tutta larghezza (vedi
+        // StatusBarOverlay per lo stesso vincolo sulla zona cliccabile della barra di stato) -
+        // un popup che partiva a 40dp ci finiva mezzo sotto. 130dp lascia un margine oltre i
+        // 100px della notification bar.
+        params.y = dp(ctx, 130);
         try {
             wm.addView(view, params);
             currentView = view;

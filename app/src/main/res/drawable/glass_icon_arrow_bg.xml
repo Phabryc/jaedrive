@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sfondo della zona freccia (bottom, 40dp - vedi overlay_status_bar_icon.xml), SEMPRE con
+     l'angolo in basso a destra arrotondato (richiesta esplicita 2026-08-02: questa fascia sta
+     oltre i 100px della notification bar del launcher, quindi non e' MAI adiacente a nient'
+     altro a destra - ne' quando la barra dati e' espansa (che occupa solo y 0-100px, non
+     arriva fin qui) ne' quando e' collassata - a differenza della zona icona sopra, dove
+     l'arrotondamento resta condizionale/assente, questa e' fissa in entrambi gli stati). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/glass_card_fill"/>
+    <corners
+        android:topLeftRadius="0dp"
+        android:topRightRadius="0dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="18dp"/>
+</shape>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sfondo della barra dati (2026-08-04, sostituisce il tappo sfumato glass_status_bar_bg.xml
+     - vedi overlay_status_bar.xml). Tinta piatta su tutta la larghezza, solo l'angolo in
+     basso a destra arrotondato (fine dell'ultimo box, mai adiacente a nulla ne' sotto ne' a
+     destra) - l'alto a destra resta squadrato, a filo del bordo superiore schermo. Stesso
+     raggio 24dp usato per il box status bar nel mockup (proporzionato ai 100dp di altezza,
+     a differenza dei 18dp della zona freccia che e' alta solo 40dp). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/glass_card_fill"/>
+    <corners
+        android:topLeftRadius="0dp"
+        android:topRightRadius="0dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="24dp"/>
+</shape>

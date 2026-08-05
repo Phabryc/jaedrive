@@ -129,8 +129,10 @@ public class MainActivity extends AppCompatActivity {
     // Impostazioni
     private TextView toggleUnitKm, toggleUnitMi, toggleUnitKml, toggleUnitL100km;
     private TextView toggleLangIt, toggleLangEn;
-    private SwitchCompat switchGps, switchDebugMode, switchRegenPopup, switchRefuelPopup;
+    private SwitchCompat switchGps, switchDebugMode, switchRegenPopup, switchRefuelPopup, switchStatusBar;
     private TextView btnTestRefuelPopup;
+    private View cardRegenPopup, cardRefuelPopup, cardStatusBar;
+    private TextView tvPopupsPremiumBadge;
     private View devSectionContainer;
     // Sblocco sezione Sviluppo: SOLO in memoria (non in Prefs), richiesta esplicita
     // 2026-08-02 - deve ri-nascondersi allo spegnimento dell'auto, cioe' quando il processo
@@ -145,7 +147,12 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvVinLabel;
     private TextView tvVehicleModel;
     private TextView tvCloudStatus, tvCloudSubtitle, btnCloudPair, btnCloudUnpair;
+    private ImageView btnCloudRefresh;
+    private android.animation.ObjectAnimator refreshSpinAnimator;
     private ImageView ivCloudPhoto;
+    private View rowCloudSubscription;
+    private ImageView ivCloudTierIcon;
+    private TextView tvCloudSubscriptionBadge, tvCloudSyncHint;
 
     // Log
     private TextView tvLog;
@@ -323,6 +330,11 @@ public class MainActivity extends AppCompatActivity {
         btnTestRefuelPopup = findViewById(R.id.btn_test_refuel_popup);
         switchRegenPopup = findViewById(R.id.switch_regen_popup);
         switchRefuelPopup = findViewById(R.id.switch_refuel_popup);
+        switchStatusBar = findViewById(R.id.switch_status_bar);
+        cardRegenPopup = findViewById(R.id.card_regen_popup);
+        cardRefuelPopup = findViewById(R.id.card_refuel_popup);
+        cardStatusBar = findViewById(R.id.card_status_bar);
+        tvPopupsPremiumBadge = findViewById(R.id.tv_popups_premium_badge);
         tvAppVersion = findViewById(R.id.tv_app_version);
         tvVehicleVin = findViewById(R.id.tv_vehicle_vin);
         tvVinLabel = findViewById(R.id.tv_vin_label);
@@ -331,7 +343,12 @@ public class MainActivity extends AppCompatActivity {
         tvCloudSubtitle = findViewById(R.id.tv_cloud_subtitle);
         btnCloudPair = findViewById(R.id.btn_cloud_pair);
         btnCloudUnpair = findViewById(R.id.btn_cloud_unpair);
+        btnCloudRefresh = findViewById(R.id.btn_cloud_refresh);
         ivCloudPhoto = findViewById(R.id.iv_cloud_photo);
+        rowCloudSubscription = findViewById(R.id.row_cloud_subscription);
+        ivCloudTierIcon = findViewById(R.id.iv_cloud_tier_icon);
+        tvCloudSubscriptionBadge = findViewById(R.id.tv_cloud_subscription_badge);
+        tvCloudSyncHint = findViewById(R.id.tv_cloud_sync_hint);
 
         tvLog = findViewById(R.id.tv_log);
         scrollLog = findViewById(R.id.scroll_log);
@@ -405,6 +422,7 @@ public class MainActivity extends AppCompatActivity {
         connectCar();
         connectVdbInfo();
         startTripConsumptionRefresh();
+        startSubscriptionRefreshTimer();
     }
 
     private void startLiveDotPulse() {
@@ -422,7 +440,17 @@ public class MainActivity extends AppCompatActivity {
         try {
             android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                // Confermato sul campo 2026-08-02: su questa ROM l'intent "parte" ma non c'e'
+                // un'app Impostazioni che lo risolva davvero - finisce in un gestore generico
+                // che mostra solo un toast di sistema "cannot handle operation", mai il vero
+                // dialogo. Ritentare ad ogni apertura app sarebbe solo un toast fastidioso
+                // ripetuto per niente - una volta tentato ci si ferma (vedi Prefs).
+                if (Prefs.hasRequestedBatteryOptExemption(this)) {
+                    appendLog("Esenzione ottimizzazione batteria: gia' tentata in passato, non ripeto (ROM non la supporta)");
+                    return;
+                }
                 appendLog("Richiedo esenzione ottimizzazione batteria");
+                Prefs.setRequestedBatteryOptExemption(this);
                 Intent intent = new Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 intent.setData(Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
@@ -448,6 +476,26 @@ public class MainActivity extends AppCompatActivity {
 
     private void startTripConsumptionRefresh() {
         tripRefreshHandler.post(tripRefreshRunnable);
+    }
+
+    // Check automatico stato abbonamento ogni 5 minuti ad app aperta (2026-08-05, richiesta
+    // esplicita utente - prima un cambio fatto dal pannello admin mentre l'app restava in
+    // primo piano non si vedeva finche' non si chiudeva e riapriva l'app, perche'
+    // fetchOwnerProfile() partiva solo una volta in onCreate). Stesso pattern di
+    // tripRefreshHandler sopra; postDelayed (non post) perche' il primo giro e' gia' coperto
+    // da refreshCloudSection() in onCreate.
+    private static final long SUBSCRIPTION_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+    private final android.os.Handler subscriptionRefreshHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable subscriptionRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            fetchOwnerProfile();
+            subscriptionRefreshHandler.postDelayed(this, SUBSCRIPTION_REFRESH_INTERVAL_MS);
+        }
+    };
+
+    private void startSubscriptionRefreshTimer() {
+        subscriptionRefreshHandler.postDelayed(subscriptionRefreshRunnable, SUBSCRIPTION_REFRESH_INTERVAL_MS);
     }
 
     private static final int KEY_DRIVE_MODE = VDInfoClient.keyFor(VDInfoClient.MODULE_NEW_ENERGY, VDInfoClient.ID_DRIVE_MODE);
@@ -1003,10 +1051,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Sblocco sezione Sviluppo: 10 tocchi sulla card veicolo in Impostazioni (stesso pattern
-    // del "numero build" di Android), richiesta 2026-08-02. Il tocco singolo continua ad
-    // aprire il dialogo Veicolo come prima - il conteggio corre in parallelo, non lo
-    // sostituisce. Vedi devSectionUnlocked per perche' non e' persistito in Prefs.
+    // Sblocco sezione Sviluppo: 10 tocchi sulla card versione app in Impostazioni (stesso
+    // pattern del "numero build" di Android), spostato qui dalla card veicolo il 2026-08-02
+    // perche' quest'ultima ha un'azione propria (apre il dialogo Veicolo) mentre la card
+    // versione non fa nulla al tocco - meno probabilita' di sblocco accidentale. Vedi
+    // devSectionUnlocked per perche' non e' persistito in Prefs.
     private void handleVehicleCardTapForDevUnlock() {
         if (devSectionUnlocked) return;
         vehicleCardTapCount++;
@@ -1167,10 +1216,20 @@ public class MainActivity extends AppCompatActivity {
     // modalita' selezione la riga non si espande piu' (tap = seleziona/deseleziona) e la
     // freccia e' sostituita da un indicatore di selezione - i due record "ongoing"
     // virtuali (id negativo, non persistiti) non sono mai selezionabili/cancellabili.
+    // Storico accessibile solo agli ultimi 7 giorni per gli utenti FREE (2026-08-04, richiesta
+    // esplicita) - la registrazione/lista NON cambia (refreshTrackList() non filtra nulla),
+    // solo l'interazione: righe piu' vecchie restano visibili ma non cliccabili, senza
+    // statistiche, con un badge PREMIUM al posto della freccia espandi. Se l'abbonamento torna
+    // attivo (o l'utente rinnova), tornano normali al refresh successivo - nessun dato perso
+    // nel frattempo.
+    private static final long FREE_HISTORY_WINDOW_MS = 7L * 24 * 60 * 60 * 1000;
+
     private View buildTripRow(TripRecord r) {
-        boolean selectable = !r.ongoing;
+        boolean premiumLocked = !r.ongoing && !Prefs.isSubscriptionActive(this)
+            && (System.currentTimeMillis() - r.startTime) > FREE_HISTORY_WINDOW_MS;
+        boolean selectable = !r.ongoing && !premiumLocked;
         boolean selected = selectionMode && selectable && selectedTripIds.contains(r.id);
-        boolean expanded = !selectionMode && expandedTripId != null && expandedTripId == r.id;
+        boolean expanded = !selectionMode && !premiumLocked && expandedTripId != null && expandedTripId == r.id;
 
         LinearLayout outer = new LinearLayout(this);
         outer.setOrientation(LinearLayout.VERTICAL);
@@ -1185,26 +1244,28 @@ public class MainActivity extends AppCompatActivity {
         header.setGravity(android.view.Gravity.CENTER_VERTICAL);
         int pad = (int) dp(20);
         header.setPadding(pad, pad, pad, pad);
-        header.setClickable(true);
-        header.setFocusable(true);
-        header.setOnClickListener(v -> {
-            if (selectionMode) {
-                if (!selectable) return;
-                if (selected) selectedTripIds.remove(r.id); else selectedTripIds.add(r.id);
+        header.setClickable(!premiumLocked);
+        header.setFocusable(!premiumLocked);
+        if (!premiumLocked) {
+            header.setOnClickListener(v -> {
+                if (selectionMode) {
+                    if (!selectable) return;
+                    if (selected) selectedTripIds.remove(r.id); else selectedTripIds.add(r.id);
+                    refreshTrackList();
+                } else {
+                    expandedTripId = expanded ? null : r.id;
+                    refreshTrackList();
+                }
+            });
+            header.setOnLongClickListener(v -> {
+                if (!selectable) return false;
+                selectionMode = true;
+                expandedTripId = null;
+                selectedTripIds.add(r.id);
                 refreshTrackList();
-            } else {
-                expandedTripId = expanded ? null : r.id;
-                refreshTrackList();
-            }
-        });
-        header.setOnLongClickListener(v -> {
-            if (!selectable) return false;
-            selectionMode = true;
-            expandedTripId = null;
-            selectedTripIds.add(r.id);
-            refreshTrackList();
-            return true;
-        });
+                return true;
+            });
+        }
 
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
@@ -1257,14 +1318,17 @@ public class MainActivity extends AppCompatActivity {
         range.setTextSize(hasLabel ? 18 : 20);
         if (!hasLabel) range.setTypeface(range.getTypeface(), android.graphics.Typeface.BOLD);
 
-        LinearLayout stats = buildTripRowStatsRow(r);
-        LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        statsParams.topMargin = (int) dp(6);
-        stats.setLayoutParams(statsParams);
-
         textCol.addView(range);
-        textCol.addView(stats);
+        // Statistiche nascoste per le righe bloccate (FREE, oltre 7 giorni) - vedi
+        // FREE_HISTORY_WINDOW_MS in cima al metodo.
+        if (!premiumLocked) {
+            LinearLayout stats = buildTripRowStatsRow(r);
+            LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            statsParams.topMargin = (int) dp(6);
+            stats.setLayoutParams(statsParams);
+            textCol.addView(stats);
+        }
 
         if (selectionMode && selectable) {
             // Indicatore di selezione: classico checkbox quadrato con segno di spunta -
@@ -1283,6 +1347,24 @@ public class MainActivity extends AppCompatActivity {
             selectIndicator.setBackgroundResource(selected ? R.drawable.checkbox_checked_bg : R.drawable.checkbox_unchecked_bg);
             header.addView(textCol);
             header.addView(selectIndicator);
+        } else if (!selectionMode && premiumLocked) {
+            // Badge al posto della freccia espandi/comprimi - una freccia implicherebbe
+            // interattivita' che questa riga non ha (vedi header.setClickable(!premiumLocked)
+            // sopra), stesso stile del badge "PREMIUM" gia' usato altrove in Impostazioni.
+            TextView badge = new TextView(this);
+            badge.setText(getString(R.string.label_premium_badge));
+            badge.setTextColor(ContextCompat.getColor(this, R.color.primary));
+            badge.setTextSize(14);
+            badge.setTypeface(badge.getTypeface(), android.graphics.Typeface.BOLD);
+            badge.setBackgroundResource(R.drawable.badge_chip_primary);
+            int bp = (int) dp(9);
+            badge.setPadding(bp, (int) dp(3), bp, (int) dp(3));
+            LinearLayout.LayoutParams badgeParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            badgeParams.leftMargin = (int) dp(16);
+            badge.setLayoutParams(badgeParams);
+            header.addView(textCol);
+            header.addView(badge);
         } else if (!selectionMode) {
             TextView chevron = new TextView(this);
             chevron.setText(expanded ? "▲" : "▼");
@@ -1292,8 +1374,8 @@ public class MainActivity extends AppCompatActivity {
             header.addView(textCol);
             header.addView(chevron);
         } else {
-            // Selection mode, ma questa riga (ongoing) non e' selezionabile: nessun
-            // indicatore, solo il testo.
+            // Selection mode, ma questa riga (ongoing, o bloccata FREE) non e' selezionabile:
+            // nessun indicatore, solo il testo.
             header.addView(textCol);
         }
         outer.addView(header);
@@ -1343,14 +1425,21 @@ public class MainActivity extends AppCompatActivity {
         row.addView(buildStatIconText(R.drawable.ic_location, kmStr, 0));
         row.addView(buildStatIconText(R.drawable.ic_fuel, litersStr, (int) dp(18)));
         row.addView(buildStatIconText(R.drawable.ic_eco, avgStr, (int) dp(18)));
-        // Stato sincronizzazione cloud: solo icona (nessuna etichetta), verde se gia'
-        // caricato, grigio (stesso colore delle altre icone) se ancora in coda - non e'
-        // un errore, SyncWorker riprova automaticamente in background. Non mostrata per i
-        // record "virtuali" (trip manuali ancora aperti, mai esistiti in TripDatabase).
+        // Stato sincronizzazione cloud: solo icona (nessuna etichetta) - verde se gia'
+        // caricato; arancio (2026-08-04, vedi Prefs.isCloudSyncPaused()) se ancora in coda
+        // E la sync e' in pausa per abbonamento non attivo, un vero blocco non temporaneo;
+        // grigio (stesso colore delle altre icone) se ancora in coda ma la sync e' regolare,
+        // SyncWorker la caricera' automaticamente in background. Non mostrata per i record
+        // "virtuali" (trip manuali ancora aperti, mai esistiti in TripDatabase).
         if (!r.ongoing) {
-            int cloudColor = r.uploaded
-                ? ContextCompat.getColor(this, R.color.trend_positive)
-                : ContextCompat.getColor(this, R.color.on_surface_variant);
+            int cloudColor;
+            if (r.uploaded) {
+                cloudColor = ContextCompat.getColor(this, R.color.trend_positive);
+            } else if (Prefs.isCloudSyncPaused(this)) {
+                cloudColor = ContextCompat.getColor(this, R.color.trend_warning);
+            } else {
+                cloudColor = ContextCompat.getColor(this, R.color.on_surface_variant);
+            }
             row.addView(buildStatIconText(R.drawable.ic_cloud, "", (int) dp(18), cloudColor));
         }
         return row;
@@ -1618,12 +1707,29 @@ public class MainActivity extends AppCompatActivity {
             File gpxFile = new File(r.gpxPath);
             if (gpxFile.exists()) {
                 try {
-                    exportToUsb(tripSubDir, gpxFile.getName(), Files.readAllBytes(gpxFile.toPath()));
+                    byte[] gpxBytes = Files.readAllBytes(gpxFile.toPath());
+                    // Utenti FREE: solo GPX "semplice" (traccia GPS standard), senza le
+                    // estensioni jd:* (energyFlow/batteryPct/fuelPct/driveMode/speedKmh/
+                    // instConsumption/regenLevel - vedi TrackingService.buildGpx()) - solo
+                    // Premium ha il GPX completo (richiesta esplicita 2026-08-04).
+                    if (!Prefs.isSubscriptionActive(this)) {
+                        gpxBytes = stripGpxExtensions(new String(gpxBytes, java.nio.charset.StandardCharsets.UTF_8))
+                            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    }
+                    exportToUsb(tripSubDir, gpxFile.getName(), gpxBytes);
                 } catch (Exception e) {
                     appendLog("Errore lettura gpx per export: " + e);
                 }
             }
         }
+    }
+
+    // Rimuove i blocchi <extensions>...</extensions> (dato jd:* custom di
+    // TrackingService.buildGpx(), un'estensione per trkpt, mai annidata/multi-riga) - il
+    // file resta un GPX 1.1 standard valido (lat/lon/ele/time invariati), solo senza il
+    // layer dati energetici/velocita'/ecc riservato a Premium.
+    private static String stripGpxExtensions(String gpx) {
+        return gpx.replaceAll("<extensions>.*?</extensions>", "");
     }
 
     private String readFileQuiet(File f) {
@@ -1676,6 +1782,31 @@ public class MainActivity extends AppCompatActivity {
             appendLog("Popup rifornimento rilevato " + (checked ? "attivato" : "disattivato") + " dalle Impostazioni");
         });
 
+        switchStatusBar.setChecked(Prefs.isStatusBarEnabled(this));
+        switchStatusBar.setOnCheckedChangeListener((btn, checked) -> {
+            Prefs.setStatusBarEnabled(this, checked);
+            appendLog("Barra di stato in background " + (checked ? "attivata" : "disattivata") + " dalle Impostazioni");
+            // Se disattivata mentre e' gia' visibile, non aspettare il prossimo tick VDB
+            // di TrackingService (refreshStatusBar()) - spegnila subito. Se attivata, la
+            // mostra automaticamente lui stesso al primo tick appena l'app va in background
+            // (qui siamo per forza in primo piano, mostrarla subito non avrebbe senso).
+            if (!checked) StatusBarOverlay.hide();
+            // Il livello di rigenerazione e' gia' mostrato nella barra - spegne il popup
+            // dedicato una volta sola quando si ACCENDE la barra (richiesta esplicita
+            // 2026-08-02), per non avere lo stesso dato notificato due volte. Solo un
+            // gesto di cortesia iniziale: se l'utente poi lo riaccende a mano, resta
+            // acceso - setChecked() qui sotto passa comunque dal listener di
+            // switchRegenPopup, che scrive normalmente in Prefs.
+            if (checked && switchRegenPopup.isChecked()) {
+                switchRegenPopup.setChecked(false);
+            }
+        });
+
+        // Applica subito l'eventuale spegnimento forzato scritto da
+        // Prefs.setSubscriptionSnapshot() (heartbeat gia' girato prima di questo onCreate,
+        // es. da un avvio precedente di TrackingService) - vedi refreshPremiumGatedSwitches().
+        refreshPremiumGatedSwitches();
+
         btnTestRefuelPopup.setOnClickListener(v -> {
             Intent testIntent = new Intent(this, TrackingService.class);
             testIntent.setAction(TrackingService.ACTION_TEST_REFUEL_POPUP);
@@ -1689,6 +1820,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) {
         }
         tvAppVersion.setText(getString(R.string.app_name) + " " + versionName);
+        findViewById(R.id.card_version).setOnClickListener(v -> handleVehicleCardTapForDevUnlock());
 
         setupLanguageToggle();
         setupCloudSection();
@@ -1701,6 +1833,14 @@ public class MainActivity extends AppCompatActivity {
     private void setupCloudSection() {
         refreshCloudSection();
         btnCloudPair.setOnClickListener(v -> showPairingDialog());
+        // Refresh on-demand (2026-08-05, richiesta esplicita utente): stessa fetchOwnerProfile()
+        // del check periodico/di onCreate, solo chiamata a comando invece che ogni 5 minuti -
+        // vedi anche subscriptionRefreshRunnable per il timer automatico.
+        btnCloudRefresh.setOnClickListener(v -> {
+            if (refreshSpinAnimator != null) return; // gia' in corso, ignora doppi tap
+            startRefreshSpin();
+            fetchOwnerProfile(this::stopRefreshSpin);
+        });
         btnCloudUnpair.setOnClickListener(v -> {
             // Il token serve per l'eventuale DELETE /api/device/vehicle sotto - va catturato
             // PRIMA di Prefs.clearCloudPairing(), altrimenti non potremmo piu' autenticare
@@ -1738,16 +1878,24 @@ public class MainActivity extends AppCompatActivity {
         boolean paired = Prefs.isCloudPaired(this);
         btnCloudPair.setVisibility(paired ? View.GONE : View.VISIBLE);
         btnCloudUnpair.setVisibility(paired ? View.VISIBLE : View.GONE);
+        btnCloudRefresh.setVisibility(paired ? View.VISIBLE : View.GONE);
         if (!paired) {
             tvCloudStatus.setText(getString(R.string.label_cloud_not_paired));
             tvCloudSubtitle.setText(getString(R.string.label_cloud_not_paired_subtitle));
             ivCloudPhoto.setVisibility(View.GONE);
+            rowCloudSubscription.setVisibility(View.GONE);
+            tvCloudSyncHint.setVisibility(View.GONE);
             return;
         }
         // Placeholder immediato (stato "associata" generico), poi sostituito dai dati veri
         // non appena arrivano dal server - vedi fetchOwnerProfile().
         tvCloudStatus.setText(getString(R.string.label_cloud_paired));
         tvCloudSubtitle.setText(getString(R.string.label_cloud_paired_subtitle));
+        // Idem per il badge abbonamento: si mostra subito l'ultimo valore noto (Prefs, gia'
+        // scritto da un heartbeat precedente di SyncWorker) invece di restare vuoto finche'
+        // fetchOwnerProfile() non risponde - stesso principio del placeholder sopra.
+        renderSubscriptionBadge(Prefs.getSubscriptionStatus(this), Prefs.getSubscriptionTier(this),
+            Prefs.getSubscriptionExpiresAt(this), Prefs.isSubscriptionActive(this));
         fetchOwnerProfile();
     }
 
@@ -1756,10 +1904,7 @@ public class MainActivity extends AppCompatActivity {
     private void setupVehicleSection() {
         refreshVehicleCard();
         refreshEnergyCapabilityUi();
-        findViewById(R.id.card_vehicle).setOnClickListener(v -> {
-            showVehicleOnboardingDialog(false);
-            handleVehicleCardTapForDevUnlock();
-        });
+        findViewById(R.id.card_vehicle).setOnClickListener(v -> showVehicleOnboardingDialog(false));
     }
 
     private void refreshVehicleCard() {
@@ -1973,13 +2118,23 @@ public class MainActivity extends AppCompatActivity {
         container.addView(chip);
     }
 
-    // Nome/cognome/email/foto dell'account collegato, mostrati nella card CLOUD - vedi
-    // CloudApiClient.getOwnerProfile()/DESIGN.md. Richiesto ad ogni apertura di Impostazioni
-    // (non cacheato) cosi' un cambio di nome/foto fatto dal sito si riflette qui senza dover
-    // riassociare l'auto.
+    // Nome/cognome/email/foto/abbonamento dell'account collegato, mostrati nella card CLOUD -
+    // vedi CloudApiClient.getOwnerProfile()/ANDROID_SUBSCRIPTION_HANDSHAKE.md. Richiesto ad
+    // ogni apertura di Impostazioni (non cacheato) cosi' un cambio di nome/foto/abbonamento
+    // fatto dal sito si riflette qui senza dover riassociare l'auto.
     private void fetchOwnerProfile() {
+        fetchOwnerProfile(null);
+    }
+
+    // onDone gira sempre sul thread UI (successo o errore) - usato dal pulsante di refresh
+    // manuale per fermare l'animazione di rotazione qualunque sia l'esito, vedi
+    // startRefreshSpin()/stopRefreshSpin().
+    private void fetchOwnerProfile(Runnable onDone) {
         String token = Prefs.getCloudDeviceToken(this);
-        if (token == null) return;
+        if (token == null) {
+            if (onDone != null) runOnUiThread(onDone);
+            return;
+        }
         new Thread(() -> {
             try {
                 CloudApiClient.OwnerProfile profile = CloudApiClient.getOwnerProfile(token);
@@ -1995,11 +2150,116 @@ public class MainActivity extends AppCompatActivity {
                     } else {
                         ivCloudPhoto.setVisibility(View.GONE);
                     }
+                    // Stesso snapshot che scrive SyncWorker via heartbeat() - qualunque dei
+                    // due arrivi per ultimo vince (vedi Prefs.setSubscriptionSnapshot()),
+                    // cosi' il gate premium della status bar resta aggiornato anche solo
+                    // aprendo Impostazioni, senza aspettare il prossimo giro di sync.
+                    CloudApiClient.SubscriptionInfo sub = profile.subscription;
+                    if (sub != null) {
+                        Prefs.setSubscriptionSnapshot(this, sub.status, sub.tier, sub.expiresAt, sub.isActive);
+                        Prefs.setCloudSyncPaused(this, !sub.isActive);
+                        renderSubscriptionBadge(sub.status, sub.tier, sub.expiresAt, sub.isActive);
+                        refreshPremiumGatedSwitches();
+                        // Il blocco Storico a 7 giorni dipende dallo stesso isSubscriptionActive()
+                        // appena aggiornato sopra - se la lista e' gia' a schermo (refresh manuale
+                        // o automatico ad Impostazioni aperta), ridisegnala subito invece di
+                        // aspettare che l'utente cambi scheda e ci torni (stesso pattern di
+                        // onUnitsChanged()).
+                        if (contentStorico.getVisibility() == View.VISIBLE) refreshTrackList();
+                    }
+                    if (onDone != null) onDone.run();
                 });
             } catch (Exception e) {
                 appendLog("[Cloud] Errore lettura profilo account: " + e);
+                if (onDone != null) runOnUiThread(onDone);
             }
         }, "JaeDrive-OwnerProfile").start();
+    }
+
+    // Rotazione continua sull'icona finche' la fetch non risponde (successo o errore) -
+    // refreshSpinAnimator != null e' anche la guardia contro i doppi tap in
+    // setupCloudSection().
+    private void startRefreshSpin() {
+        btnCloudRefresh.setEnabled(false);
+        refreshSpinAnimator = android.animation.ObjectAnimator.ofFloat(btnCloudRefresh, View.ROTATION, 0f, 360f);
+        refreshSpinAnimator.setDuration(800);
+        refreshSpinAnimator.setRepeatCount(android.animation.ObjectAnimator.INFINITE);
+        refreshSpinAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
+        refreshSpinAnimator.start();
+    }
+
+    private void stopRefreshSpin() {
+        if (refreshSpinAnimator != null) {
+            refreshSpinAnimator.cancel();
+            refreshSpinAnimator = null;
+        }
+        btnCloudRefresh.setRotation(0f);
+        btnCloudRefresh.setEnabled(true);
+    }
+
+    // Badge tier + eventuale avviso "sincronizzazione in pausa" nella card CLOUD - chiamato
+    // sia col dato appena arrivato da fetchOwnerProfile() sia con l'ultimo snapshot noto in
+    // Prefs (placeholder immediato, vedi refreshCloudSection()). dd/MM/yyyy fisso, stesso
+    // formato usato in SubscriptionExpiryNotifier, indicato esplicitamente in
+    // ANDROID_SUBSCRIPTION_HANDSHAKE.md indipendentemente dalla lingua dell'app.
+    private void renderSubscriptionBadge(String status, String tier, String expiresAtIso, boolean isActive) {
+        rowCloudSubscription.setVisibility(View.VISIBLE);
+        boolean garage = "GARAGE".equals(tier);
+        ivCloudTierIcon.setVisibility(isActive && garage ? View.VISIBLE : View.GONE);
+        if (isActive) {
+            String dateLabel = formatSubscriptionDate(expiresAtIso);
+            String label = garage
+                ? getString(R.string.label_subscription_premium_garage)
+                : getString(R.string.label_subscription_premium_standard);
+            if (dateLabel != null) label = label + " · " + getString(R.string.label_subscription_expires, dateLabel);
+            tvCloudSubscriptionBadge.setText(label);
+            tvCloudSubscriptionBadge.setTextColor(ContextCompat.getColor(this, garage ? R.color.tier_garage_accent : R.color.trend_positive));
+            tvCloudSubscriptionBadge.setBackgroundResource(garage ? R.drawable.badge_chip_premium_garage : R.drawable.badge_chip_premium_standard);
+            tvCloudSyncHint.setVisibility(View.GONE);
+        } else {
+            tvCloudSubscriptionBadge.setText(getString(R.string.label_subscription_free));
+            tvCloudSubscriptionBadge.setTextColor(ContextCompat.getColor(this, R.color.trend_warning));
+            tvCloudSubscriptionBadge.setBackgroundResource(R.drawable.badge_chip_free);
+            tvCloudSyncHint.setText(getString(R.string.label_cloud_sync_paused_hint));
+            tvCloudSyncHint.setVisibility(View.VISIBLE);
+        }
+    }
+
+    // Riusa il parsing/formato di SubscriptionExpiryNotifier (stesso ISO 8601 dal server,
+    // stesso dd/MM/yyyy di output) invece di duplicarlo qui.
+    private String formatSubscriptionDate(String iso) {
+        if (iso == null) return null;
+        Long millis = SubscriptionExpiryNotifier.parseIso(iso);
+        return millis != null ? SubscriptionExpiryNotifier.formatDate(millis) : null;
+    }
+
+    // Riflette in UI l'eventuale spegnimento forzato delle 3 funzioni PREMIUM (status bar,
+    // popup rigenerazione, popup rifornimento) gia' scritto in Prefs da
+    // Prefs.setSubscriptionSnapshot() - MAI la sorgente di verita' qui, solo lettura. Va
+    // richiamato ad ogni punto in cui l'abbonamento potrebbe essere cambiato "alle spalle" di
+    // questa UI: onCreate (vedi setupImpostazioni()), onResume() (l'app torna in primo piano
+    // dopo che TrackingService/SyncWorker ha girato in background), il check periodico ogni 5
+    // minuti e il refresh manuale (vedi subscriptionRefreshRunnable/fetchOwnerProfile()).
+    //
+    // Comportamento uniformato (2026-08-05, prima lo status bar restava attivabile a mano con
+    // solo un toast di avviso - segnalato come incoerente rispetto alle altre due righe gia'
+    // ingrigite): tutte e 3 le card si disattivano/ingrigiscono insieme, un solo badge PREMIUM
+    // sull'header della sezione (mai uno per riga).
+    private void refreshPremiumGatedSwitches() {
+        boolean active = Prefs.isSubscriptionActive(this);
+
+        switchStatusBar.setChecked(Prefs.isStatusBarEnabled(this));
+        switchRegenPopup.setChecked(Prefs.isRegenPopupEnabled(this));
+        switchRefuelPopup.setChecked(Prefs.isRefuelPopupEnabled(this));
+
+        switchStatusBar.setEnabled(active);
+        switchRegenPopup.setEnabled(active);
+        switchRefuelPopup.setEnabled(active);
+        float alpha = active ? 1f : 0.5f;
+        cardStatusBar.setAlpha(alpha);
+        cardRegenPopup.setAlpha(alpha);
+        cardRefuelPopup.setAlpha(alpha);
+        tvPopupsPremiumBadge.setVisibility(active ? View.GONE : View.VISIBLE);
     }
 
     // Usato solo per la foto profilo (URL esterno, es. Google) - nessuna libreria di
@@ -2220,6 +2480,10 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         isForeground = true;
         if (mapView != null) mapView.onResume();
+        // L'abbonamento potrebbe essere scaduto mentre l'app era in background (TrackingService/
+        // SyncWorker gia' aggiornato Prefs via setSubscriptionSnapshot()) - vedi
+        // refreshPremiumGatedSwitches().
+        refreshPremiumGatedSwitches();
         // Se l'utente ha appena concesso "Accesso a tutti i file" dalle Impostazioni e torna
         // indietro, completa automaticamente tutti gli export rimasti in sospeso.
         if (!pendingExports.isEmpty()
@@ -2874,5 +3138,6 @@ public class MainActivity extends AppCompatActivity {
         if (mCar != null && mCar.isConnected()) mCar.disconnect();
         if (vdInfoClient != null) vdInfoClient.disconnect();
         tripRefreshHandler.removeCallbacks(tripRefreshRunnable);
+        subscriptionRefreshHandler.removeCallbacks(subscriptionRefreshRunnable);
     }
 }

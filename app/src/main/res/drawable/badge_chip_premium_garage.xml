@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Badge "Premium Garage" nella card CLOUD - stesso pattern di badge_chip_primary.xml,
+     tinta smeraldo distinta da Premium Standard (vedi tier_garage_accent in colors.xml). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="6dp"/>
+    <solid android:color="@color/tier_garage_accent_tint_10"/>
+</shape>

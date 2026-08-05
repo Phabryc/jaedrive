@@ -1,20 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Popup overlay (TYPE_APPLICATION_OVERLAY, vedi OverlayPopup) mostrato sopra qualunque
      altra app - stesso stile "glass card" del resto dell'app, cosi' si riconosce subito
-     come JaeDrive anche comparendo sopra un'altra schermata (navigazione, media, ecc). -->
+     come JaeDrive anche comparendo sopra un'altra schermata (navigazione, media, ecc). Usato
+     solo da showActionPopup() in pratica (il popup di rifornimento rilevato) - allargato a
+     600dp il 2026-08-03 su richiesta esplicita. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/glass_card_glow_bg"
-    android:padding="32dp"
+    android:padding="20dp"
     android:gravity="center_horizontal"
-    android:minWidth="300dp">
+    android:minWidth="600dp">
 
+    <!-- BUG TROVATO SUL CAMPO (2026-08-03): jd_logo.png e' un'immagine RETTANGOLARE 1424x368
+         (il marchio "JD" + il testo "JaeDrive" affiancati, rapporto 3.87:1), non quadrata -
+         forzarla in un ImageView quadrato (180x180dp, prima di questo fix) la faceva scalare
+         per riempire solo la larghezza, lasciando meta' del box vuoto sopra/sotto
+         (letterboxing). Fix: adjustViewBounds+layout_width=wrap_content calcola da solo la
+         larghezza corretta dato solo layout_height (60dp) - niente piu' spazio vuoto, e resta
+         corretto anche se l'immagine del logo cambiasse in futuro. -->
     <ImageView
-        android:layout_width="112dp"
-        android:layout_height="112dp"
-        android:layout_marginBottom="16dp"
+        android:layout_width="wrap_content"
+        android:layout_height="60dp"
+        android:adjustViewBounds="true"
+        android:layout_marginBottom="20dp"
         android:src="@drawable/jd_logo"
         android:contentDescription="@null"/>
 
@@ -27,10 +37,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@color/on_surface"
-        android:textSize="30sp"
+        android:textSize="36sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:maxWidth="480dp"/>
+        android:maxWidth="560dp"/>
 
     <LinearLayout
         android:id="@+id/row_overlay_buttons"

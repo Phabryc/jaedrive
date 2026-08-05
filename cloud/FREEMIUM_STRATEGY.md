@@ -16,6 +16,8 @@ Questo documento costituisce la specifica tecnica finale ed ufficiale del modell
 | **Esportazione Dati** | Solo GPX base | **GPX completo con estensioni**, CSV e PDF | **GPX completo con estensioni**, CSV e PDF |
 | **Supporto Lifetime** | N/A | Supported (`expiresAt = null`) | Supported (`expiresAt = null`) |
 
+> ⚠️ **Stato implementazione (2026-08-05)**: l'esportazione **GPX** (base vs completo con estensioni) è già implementata lato Android - vedi §4.4. **CSV e PDF non esistono ancora da nessuna parte** (né Android né WebApp) - restano un obiettivo di roadmap, non funzionalità già disponibili.
+
 ---
 
 ## 🔒 2. Prevenzione Abuse & Controllo Headunit Swaps
@@ -66,7 +68,38 @@ Per consentire all'App Android Headunit di conoscere in tempo reale lo stato del
     }
   }
   ```
-- **Documentazione Integrazione Android**: `cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md`.
+- **Documentazione Integrazione Android**: `cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md` (dettaglio tecnico completo: classi, metodi, gating esatto - qui solo il riassunto decisionale).
+
+### 4.1 Comportamento di Sincronizzazione (Heartbeat-First)
+- `heartbeat()` prima non veniva mai invocato (codice morto, risposta scartata). Ora viene chiamato **prima** di ogni tentativo di upload viaggio, aggiorna subito lo snapshot locale dell'abbonamento e - se non attivo - **blocca la sincronizzazione in modo pulito** (nessun retry), invece del comportamento precedente che, su un `403`, ritentava all'infinito con backoff crescente martellando il server.
+- Il controllo gira almeno una volta per accensione (`TrackingService.onCreate()`) e dopo ogni viaggio chiuso - sufficiente perché l'app torni "attiva" non appena l'abbonamento lo è, senza bisogno di riaprire le Impostazioni.
+
+### 4.2 Funzionalità Premium Aggiuntive Lato Android
+Decisione presa in questa sessione, non presente nello schema originale del punto 1: oltre al blocco upload/pairing (già server-side, vedi tabella §1), l'app rende **Premium-exclusive tre funzioni in background**, con gate puramente client-side su `subscription.isActive` - nessuna nuova rotta server necessaria:
+- Barra di stato overlay in background.
+- Popup livello rigenerazione.
+- Popup rilevamento rifornimento.
+
+Gli switch corrispondenti in Impostazioni si disattivano **da soli** quando l'abbonamento non è attivo (scritto in un unico punto, `Prefs.setSubscriptionSnapshot()`, condiviso da heartbeat e da `/owner`). Comportamento uniformato su tutte e 3 le card (rivisto il 2026-08-05, prima la barra di stato aveva un trattamento diverso - segnalato come incoerente): switch bloccati e sezione ingrigita (opacità ridotta) insieme, un solo badge "PREMIUM" sull'intestazione della sezione, mai uno per singola riga.
+
+**Configurazione utente preservata alla riattivazione** (2026-08-05, richiesta esplicita utente): prima, spegnere i 3 switch alla scadenza sovrascriveva per sempre la scelta reale dell'utente - riattivando l'abbonamento restavano tutti spenti a prescindere da cosa fosse impostato prima. Ora `Prefs.setSubscriptionSnapshot()` salva un backup dei 3 valori la prima volta che vede l'abbonamento non attivo (una sola volta per scadenza, non ad ogni heartbeat successivo) e lo ripristina automaticamente non appena l'abbonamento torna attivo, cancellando poi il backup. Il backup viene azzerato anche in caso di rimozione associazione, così un'auto riassociata a un account diverso non eredita le preferenze salvate per l'account precedente.
+
+### 4.3 Storico Viaggi (Free: ultimi 7 giorni)
+I viaggi continuano ad essere **registrati e mostrati in lista per tutti gli utenti**, Free compresi - nessun dato viene eliminato o nascosto. Per gli account Free/scaduti, le sole righe più vecchie di 7 giorni diventano non cliccabili, senza la riga statistiche, con un piccolo badge "PREMIUM" al posto della freccia di espansione. Il conto rientra automaticamente non appena l'abbonamento torna attivo, senza bisogno di alcuna azione lato server.
+
+### 4.4 Esportazione GPX (base vs completa)
+Il file GPX generato localmente (`TrackingService.buildGpx()`) include per ogni punto traccia dei tag `<extensions>` custom (`jd:energyFlow`, `jd:batteryPct`, `jd:fuelPct`, `jd:driveMode`, `jd:speedKmh`, `jd:instConsumption`, `jd:regenLevel`). L'esportazione manuale su USB **rimuove questi tag per gli account Free/scaduti**, lasciando un GPX 1.1 standard valido (lat/lon/quota/orario invariati) - i Premium ricevono il file completo, invariato.
+
+### 4.5 Avviso Scadenza Imminente (10 giorni)
+Nuovo popup overlay locale (funziona anche con l'app in background, stesso meccanismo dei popup rigenerazione/rifornimento) quando un abbonamento **attivo** scade entro 10 giorni. Due pulsanti: **OK** (richiude solo per ora, ricompare al prossimo controllo) e **Non ricordare più** (silenzia solo per quella specifica `expiresAt` - un rinnovo con nuova data la rende di nuovo eleggibile, invece di restare silenziata per sempre). Calcolato interamente lato client dal campo `expiresAt` già fornito da `/owner` e `/heartbeat` - nessuna nuova logica server, complementare (non sostitutivo) al cron email `SUBSCRIPTION_EXPIRING` già esistente lato server (§6).
+
+### 4.6 Limite noto: enforcement solo lato client
+I punti 4.3 e 4.4 sono applicati **esclusivamente nel codice dell'app Android**, su dati che il dispositivo ha comunque in locale (i viaggi più vecchi di 7 giorni e il GPX completo restano nel DB SQLite/filesystem del dispositivo indipendentemente dall'abbonamento) - un client modificato o l'accesso diretto ai file del dispositivo potrebbe aggirare entrambi i limiti. Le uniche restrizioni davvero non aggirabili restano quelle già server-side elencate in cima alla tabella §1 (upload viaggio, claim del pairing) - un vincolo più forte su storico/export richiederebbe una policy di retention/cifratura sul dispositivo, esplicitamente fuori scope per questo giro.
+
+### 4.7 Bugfix dal campo (2026-08-05)
+Due problemi segnalati dopo un giro di test reale, entrambi corretti lo stesso giorno:
+- **Km/litri raddoppiati**: una chiusura forzata dell'app mentre `TrackingService` era già attivo in background ha fatto coesistere due istanze del servizio per un'intera giornata, ciascuna sottoscritta per conto proprio al bus veicolo e ciascuna che sommava lo stesso identico dato reale nello stesso accumulatore condiviso (`TripConsumption`) - confermato confrontando il GPX del viaggio (distanza reale calcolata dai punti) con quanto registrato dal bus veicolo, quasi esattamente doppio. Risolto con un lock di sistema (`java.nio.FileLock`) che garantisce una sola istanza viva alla volta, indipendentemente da quale dei tre punti di avvio del servizio (boot, accessibility anchor, apertura app) ci riesca per primo - le istanze in eccesso si fermano subito da sole. Dettaglio tecnico completo in `ANDROID_SUBSCRIPTION_HANDSHAKE.md` §4.4.
+- **Stato abbonamento non live ad app aperta**: un cambio fatto dal pannello Admin (upgrade/downgrade, data di scadenza, attivazione/disattivazione) non si rifletteva nell'app finché non veniva chiusa e riaperta, perché il controllo verso il server partiva solo all'apertura di Impostazioni. Aggiunto un controllo automatico ogni 5 minuti più un pulsante di refresh manuale (icona freccia circolare) nella card CLOUD - entrambi aggiornano badge abbonamento, sezione Popup/barra di stato e Storico viaggi nello stesso momento. Dettaglio tecnico in `ANDROID_SUBSCRIPTION_HANDSHAKE.md` §4.5.
 
 ---
 

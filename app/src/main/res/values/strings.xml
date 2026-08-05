@@ -75,6 +75,8 @@
     <string name="label_regen_popup_subtitle">Show a popup when you change the regen level (if the app is in background)</string>
     <string name="label_refuel_popup_title">Refuel detected popup</string>
     <string name="label_refuel_popup_subtitle">Ask whether to reset a manual trip when a refuel is detected at startup</string>
+    <string name="label_status_bar_title">Background trip bar</string>
+    <string name="label_status_bar_subtitle">Shows a thin bar with live trip data (km, fuel, consumption, flow, regen) while the app is in background</string>
     <string name="section_dev_title">DEVELOPER</string>
     <string name="label_debug_mode_title">Debug mode</string>
     <string name="label_debug_mode_subtitle">If disabled, no logs are created or written (saves space and resources)</string>
@@ -100,6 +102,7 @@
     <string name="label_cloud_paired_subtitle">Trips are uploaded automatically to jaedrive.com</string>
     <string name="label_cloud_pair_button">LINK CAR</string>
     <string name="label_cloud_unpair_button">UNLINK</string>
+    <string name="label_cloud_refresh_button">Refresh subscription status</string>
     <string name="dialog_unpair_title">Unlink this car?</string>
     <string name="dialog_unpair_message">Trips already uploaded stay on jaedrive.com, but new ones will stop syncing until you link again.</string>
     <string name="toast_cloud_unpaired">Car unlinked</string>
@@ -122,6 +125,17 @@
     <string name="dialog_pairing_qr_description">QR code to open the pairing page on jaedrive.com</string>
     <string name="dialog_pairing_waiting">Waiting for you to complete linking on the site...</string>
     <string name="dialog_pairing_success">Linked! This car is now connected to your account.</string>
+
+    <!-- Subscription (2026-08-04, see cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md) -->
+    <string name="label_subscription_free">Free Plan</string>
+    <string name="label_subscription_premium_standard">Premium Standard</string>
+    <string name="label_subscription_premium_garage">Premium Garage</string>
+    <string name="label_subscription_expires">expires %1$s</string>
+    <string name="label_cloud_sync_paused_hint">Cloud sync is paused - an active Premium subscription is required. Manage it at jaedrive.com/settings</string>
+    <string name="label_premium_badge">PREMIUM</string>
+    <string name="popup_subscription_expiring">Your Premium subscription expires in %1$d days (%2$s). Renew at jaedrive.com/settings to keep cloud sync and the background status bar.</string>
+    <string name="btn_ok">OK</string>
+    <string name="btn_dont_remind_again">DON\'T REMIND ME AGAIN</string>
     <string name="dialog_pairing_error_vin_too_short">Enter a valid VIN (at least 5 characters).</string>
     <string name="dialog_pairing_error_network">Connection error. Check that the car has internet access and try again.</string>
     <string name="dialog_pairing_error_expired">Code expired without being used. Try again.</string>
@@ -145,7 +159,6 @@
     <string name="hero_label_fuel">FUEL</string>
     <string name="hero_label_flow">FLOW</string>
     <string name="hero_label_regen">REGEN</string>
-    <string name="overlay_regen_title">Regen level</string>
     <string name="regen_level_high">HIGH</string>
     <string name="regen_level_medium">MEDIUM</string>
     <string name="regen_level_low">LOW</string>

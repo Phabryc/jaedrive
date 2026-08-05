@@ -33,4 +33,15 @@
     <color name="trend_positive">#2E7D32</color>
     <color name="trend_warning">#FB8C00</color>
     <color name="trend_negative">#C62828</color>
+    <!-- Stesso RGB dei colori sopra, alpha 10% (~#1A) - sfondo badge chip "tinta piatta
+         diluita", stesso pattern di primary_tint_10 sopra. -->
+    <color name="trend_positive_tint_10">#1A2E7D32</color>
+    <color name="trend_warning_tint_10">#1AFB8C00</color>
+
+    <!-- Tier abbonamento GARAGE (2026-08-04, vedi ANDROID_SUBSCRIPTION_HANDSHAKE.md) - verde
+         smeraldo distinto da trend_positive apposta, cosi' il badge "Premium Garage" si
+         differenzia a colpo d'occhio da "Premium Standard" (che riusa trend_positive), non
+         solo per il testo. -->
+    <color name="tier_garage_accent">#10B981</color>
+    <color name="tier_garage_accent_tint_10">#1A10B981</color>
 </resources>

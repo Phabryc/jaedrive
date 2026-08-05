@@ -169,13 +169,25 @@ signal - **no new server endpoints needed**, all client-side gating on data the 
 already has:
 
 - **Background status bar overlay** (`StatusBarOverlay`): only shown if
-  `Prefs.isSubscriptionActive()`. The Settings switch stays user-togglable (it turns itself
-  back on automatically once Premium is active) and shows a "PREMIUM" badge; toggling it on
-  while Free shows an explanatory toast instead of silently doing nothing.
-- **Regen-level popup + refuel-detected popup** (Settings "Popups" section): both switches are
-  force-disabled and the whole section is grayed out (50% alpha, non-interactive) with its own
-  "PREMIUM" badge on the section header when not active - a stricter treatment than the status
-  bar row, since these two are visually grouped under one section title.
+  `Prefs.isSubscriptionActive()`. As of 2026-08-05 its Settings switch is treated identically to
+  the two Popup switches below (see next bullet) - force-disabled and grayed out together, one
+  shared "PREMIUM" badge on the section header. (Originally this switch stayed user-togglable
+  with its own inline badge and a toast when tapped while Free - flagged as visually
+  inconsistent and unified with the rest of the section.)
+- **Regen-level popup + refuel-detected popup** (Settings "Popups" section): all three switches
+  in this section (status bar included, see above) are force-disabled and the whole section is
+  grayed out (50% alpha, non-interactive), with a single "PREMIUM" badge on the section header
+  when not active.
+- **User configuration is preserved across an expiry/reactivation cycle** (2026-08-05, explicit
+  user request): forcing the three switches to `false` used to overwrite the user's actual
+  choice permanently - reactivating a subscription always left all three off regardless of what
+  the user had configured before it expired. `Prefs.setSubscriptionSnapshot()` now backs up the
+  current value of all three switches (`*_BACKUP` keys) the first time it sees `isActive=false`
+  for a given expiry (guarded by `SharedPreferences.contains()`, so repeated heartbeats/refreshes
+  while still inactive don't keep overwriting the backup with the already-zeroed live values),
+  then restores and clears that backup the next time it sees `isActive=true`. The backup is also
+  cleared on unpairing (`clearCloudPairing()`), so a later pairing to a different account never
+  inherits another account's saved preferences.
 - **Trip history window (Storico)**: Free/expired accounts can only interact with trips from
   the last 7 days. Older trips are still recorded and still listed (nothing is hidden from the
   list, nothing is deleted) but the row becomes non-clickable, its stats line is hidden, and a
@@ -204,3 +216,45 @@ enforcement is ever needed, the only options are DB-level encryption or not pers
 past the window locally, both explicitly out of scope for now - the trust boundary being relied
 on here is "an unmodified app on an unmodified device", same as every other client-side
 preference in this app.
+
+### 4.4 Bugfix (2026-08-05): duplicate `TrackingService` instance doubling km/liters
+Field-tested on 2026-08-05: a force-close of the app followed by reopening it while
+`TrackingService` was already alive in the background left **two** service instances running
+concurrently in the same process for the rest of the day (confirmed by every single log line -
+`GEAR_SELECTION`, `ID_TRIP`/`SUM_FUEL` reads, trip open/close - appearing exactly twice with
+identical timestamps). Both instances independently subscribed to the vehicle bus and both fed
+the same real delta into the same shared `TripConsumption` accumulator (`SharedPreferences`),
+so every km and every liter got counted twice - confirmed against the GPX track's own
+haversine-computed distance, which matched the real trip length exactly while the vehicle-bus
+figure was ~2x too high. Three independent call sites can start this service (`BootReceiver`,
+`JaeDriveAccessibilityService.onServiceConnected()`, `MainActivity.onCreate()`) with no guard
+against an already-running instance.
+
+Fixed with a `java.nio.FileLock` on a dedicated file in `getFilesDir()`, acquired as the first
+thing in `onCreate()` (right after `startForeground()`, which must still run unconditionally to
+satisfy the `startForegroundService()` contract even for a losing instance). The lock is
+exclusive for the whole JVM/process - a second `FileChannel.tryLock()` from the same process
+throws `OverlappingFileLockException` rather than silently succeeding, and from a different
+process the OS-level `flock()` correctly serializes it too - so it catches both a same-process
+double `onCreate()` and any genuine cross-process duplicate. Any instance that loses the race
+logs it and calls `stopSelf()` immediately, before touching the vehicle bus or `TripConsumption`
+at all. The lock needs no manual cleanup on crash: file locks are released by the OS when the
+holding process dies.
+
+### 4.5 Subscription status: periodic + on-demand refresh (2026-08-05)
+Field-tested gap: changing the subscription server-side (via the admin panel) while the app was
+already open and in the foreground never showed up in the app until it was force-closed and
+reopened - `fetchOwnerProfile()` (the only call that hits `/owner` for a fresh value) used to run
+exactly once, in `onCreate()`; `onResume()` only re-rendered the last cached `Prefs` snapshot,
+never asked the server again. Fixed two ways, both calling the same `fetchOwnerProfile()`:
+- **Automatic**: a 5-minute repeating `Handler` (`subscriptionRefreshRunnable`), started in
+  `onCreate()` alongside the existing trip-consumption refresh loop and stopped in `onDestroy()`.
+- **On-demand**: a refresh icon button in the CLOUD card (`btn_cloud_refresh`, visible only when
+  paired), spinning continuously while the request is in flight and calling
+  `fetchOwnerProfile(Runnable onDone)` - the same method, now with an optional completion
+  callback so the icon reliably stops spinning on both success and failure.
+
+Either path re-renders the subscription badge, the premium-gated switches/section (§4.2), and -
+new in this fix - the Storico trip list if it's currently on screen (the 7-day lock in §4.3
+depends on the same `isSubscriptionActive()` value, so a stale list could keep showing rows as
+locked/unlocked past their real state otherwise).

@@ -86,6 +86,21 @@ public class EnergyFlowUtil {
         }
     }
 
+    // Stessa etichetta di MainActivity.energyFlowLabel() (label_flow_ev/series/parallel/
+    // regen/unknown), estratta qui come metodo condiviso perche' serve anche da
+    // TrackingService (StatusBarOverlay, 2026-08-02) - un Service non ha il metodo privato
+    // di MainActivity ma getString() sulle stesse risorse funziona identico da qualunque
+    // Context.
+    public static String labelFor(android.content.Context ctx, Bucket bucket) {
+        switch (bucket) {
+            case EV: return ctx.getString(R.string.label_flow_ev);
+            case SERIES: return ctx.getString(R.string.label_flow_series);
+            case PARALLEL: return ctx.getString(R.string.label_flow_parallel);
+            case CHR: return ctx.getString(R.string.label_flow_regen);
+            default: return ctx.getString(R.string.label_flow_unknown);
+        }
+    }
+
     // Percentuali EV/serie/parallelo per il payload di upload cloud (vedi CloudApiClient) -
     // stesso conteggio di MainActivity.updateEnergyFlowBreakdown() ma con CHR+IDLE
     // accorpati in un unico "pctOther", perche' lo schema cloud (vedi cloud/DESIGN.md §10)

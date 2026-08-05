@@ -286,15 +286,41 @@ public class TrackingService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        mNotificationManager = getSystemService(NotificationManager.class);
+        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        createNotificationChannel();
+        // Deve partire SEMPRE, anche per un'istanza che risultera' un duplicato scartato
+        // subito dopo (vedi acquireSingleInstanceLock() sotto) - startForegroundService()
+        // pretende una notifica entro pochi secondi dall'avvio, pena crash del processo.
+        startForeground(NOTIF_ID, buildNotification("In attesa di accensione..."));
+        // Guardia anti-doppia-istanza (bug confermato sul campo il 2026-08-05: una chiusura
+        // forzata dell'app seguita da una riapertura, mentre questo servizio era gia' vivo
+        // in background, ha fatto coesistere DUE istanze per l'intera giornata - ciascuna
+        // sottoscritta per conto proprio al bus veicolo e ciascuna che sommava lo stesso
+        // identico delta reale nello stesso accumulatore condiviso (TripConsumption/
+        // SharedPreferences), raddoppiando sistematicamente km e litri registrati). Un
+        // java.nio.FileLock e' esclusivo per l'intera JVM/processo - due FileChannel dello
+        // STESSO processo che tentano di lockare lo stesso file lanciano
+        // OverlappingFileLockException (catturata sotto, non un lock silenziosamente
+        // ottenuto due volte) - e viene rilasciato automaticamente dal sistema operativo
+        // se il processo che lo detiene muore o crasha, quindi non serve nessuna pulizia
+        // manuale di un lock "rimasto appeso". Non importa quale dei tre punti di avvio
+        // (BootReceiver, JaeDriveAccessibilityService, MainActivity) ci riesca per primo:
+        // solo la prima istanza viva vince, tutte le altre si fermano subito qui.
+        if (!acquireSingleInstanceLock()) {
+            appendServiceLog("TrackingService: istanza duplicata rilevata (servizio gia' attivo altrove), chiusura immediata di questa copia");
+            stopForeground(true);
+            stopSelf();
+            return;
+        }
         // Il servizio puo' partire indipendentemente da MainActivity (boot/accessibility
         // service) - la migrazione deve girare qui comunque, e' idempotente quindi non
         // fa nulla se MainActivity l'ha gia' eseguita prima.
         TripConsumption.migrateLegacyKeys(this);
-        mNotificationManager = getSystemService(NotificationManager.class);
-        mLocationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        createNotificationChannel();
-        startForeground(NOTIF_ID, buildNotification("In attesa di accensione..."));
         appendServiceLog("TrackingService avviato (onCreate)");
+        // Cosi' un errore nel mostrare la barra di stato finisce nel file di log gia' usato
+        // per tutto il resto (appendServiceLog), non solo in logcat - vedi StatusBarOverlay.
+        StatusBarOverlay.setLogger(this::appendServiceLog);
         // Difensivo: normalmente il backfill dei trip storici parte gia' subito dopo un
         // pairing riuscito (vedi MainActivity.finishPairingSuccess()), ma questo copre
         // anche il caso limite di un trip rimasto non sincronizzato per qualche motivo
@@ -305,6 +331,32 @@ public class TrackingService extends Service {
         connectCar();
         connectVdbInfo();
         mainHandler.postDelayed(manualLivePushRunnable, MANUAL_LIVE_PUSH_INTERVAL_MS);
+    }
+
+    private FileOutputStream singleInstanceLockStream;
+    private java.nio.channels.FileLock singleInstanceLock;
+
+    private boolean acquireSingleInstanceLock() {
+        try {
+            File lockFile = new File(getFilesDir(), "tracking_service.lock");
+            singleInstanceLockStream = new FileOutputStream(lockFile);
+            singleInstanceLock = singleInstanceLockStream.getChannel().tryLock();
+            return singleInstanceLock != null;
+        } catch (Exception e) {
+            // Copre sia OverlappingFileLockException (stesso processo, lock gia' nostro)
+            // sia un IOException generico - in entrambi i casi trattiamo come "non sono
+            // riuscito ad ottenere l'esclusiva", stessa conclusione pratica.
+            appendServiceLog("Lock singola istanza non ottenuto: " + e);
+            return false;
+        }
+    }
+
+    private void releaseSingleInstanceLock() {
+        try {
+            if (singleInstanceLock != null) singleInstanceLock.release();
+            if (singleInstanceLockStream != null) singleInstanceLockStream.close();
+        } catch (Exception ignored) {
+        }
     }
 
     // Client VDB dedicato (indipendente da quello di MainActivity) per conoscere in ogni
@@ -363,6 +415,7 @@ public class TrackingService extends Service {
                     lastKnownInstConsumption = VDInfoClient.decodeLastTwoAsInt(value);
                 }
                 tryMigrateManualLegacy();
+                refreshStatusBar();
             }
 
             @Override
@@ -519,6 +572,47 @@ public class TrackingService extends Service {
         if (vdInfoClient != null) {
             vdInfoClient.disconnect();
         }
+        StatusBarOverlay.hide();
+        releaseSingleInstanceLock();
+    }
+
+    // Barra di stato in background (2026-08-02, richiesta esplicita utente) - refresh ad
+    // ogni tick VDB (chiamato in fondo a onValue() sopra, qualunque sia la chiave appena
+    // arrivata) invece che solo quando cambiano flusso/rigenerazione: mostra/nasconde/
+    // aggiorna in un unico posto, sempre coerente con lo stato corrente di primo piano e
+    // con l'interruttore in Impostazioni. Usa TripConsumption (viaggio automatico
+    // acceso/spento a marcia, stesso concetto di "viaggio in corso" dei due popup gia'
+    // esistenti), non i trip computer manuali - quelli non si azzerano da soli, non
+    // rappresentano "il viaggio attuale" nello stesso senso.
+    private void refreshStatusBar() {
+        // Funzione PREMIUM (2026-08-04, comportamento uniformato con le altre due card
+        // PREMIUM il 2026-08-05 - vedi MainActivity.refreshPremiumGatedSwitches()):
+        // l'interruttore in Impostazioni viene forzato OFF e disattivato non appena
+        // l'abbonamento non e' attivo, e torna disponibile da solo appena l'utente
+        // sottoscrive di nuovo (aggiornato da SyncWorker via heartbeat - vedi
+        // CloudApiClient.heartbeat()/SyncWorker.doWork() - o dal refresh manuale/periodico
+        // in MainActivity). Qui comunque non si mostra mai finche' Prefs.isSubscriptionActive()
+        // non torna vero. Fail-closed: finche' nessun heartbeat e' mai arrivato (default
+        // false), resta nascosta.
+        if (MainActivity.isForeground || !Prefs.isStatusBarEnabled(this) || !Prefs.isSubscriptionActive(this)) {
+            StatusBarOverlay.hide();
+            return;
+        }
+        StatusBarOverlay.show(this);
+        double km = TripConsumption.getKmDelta(this);
+        double liters = TripConsumption.getLitersDelta(this);
+        Double avg = TripConsumption.computeAverage(this);
+        EnergyFlowUtil.Bucket bucket = EnergyFlowUtil.bucketFor(lastKnownEnergyFlow);
+        String regenLabel = lastKnownRegenLevel >= 0
+            ? VDInfoClient.regenLevelLabel(this, lastKnownRegenLevel)
+            : "—";
+        StatusBarOverlay.update(this,
+            UnitFormatter.formatDistance(this, km),
+            UnitFormatter.formatLiters(this, liters),
+            avg != null ? UnitFormatter.formatConsumption(this, avg) : "—",
+            EnergyFlowUtil.colorForBucket(bucket),
+            EnergyFlowUtil.labelFor(this, bucket),
+            regenLabel);
     }
 
     private void createNotificationChannel() {

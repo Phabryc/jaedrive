@@ -78,6 +78,8 @@
     <string name="label_regen_popup_subtitle">Mostra un popup quando cambi il livello di rigenerazione (se l\'app è in background)</string>
     <string name="label_refuel_popup_title">Popup rifornimento rilevato</string>
     <string name="label_refuel_popup_subtitle">Chiede se resettare un trip manuale quando rileva un rifornimento all\'accensione</string>
+    <string name="label_status_bar_title">Barra viaggio in background</string>
+    <string name="label_status_bar_subtitle">Mostra una barra sottile con i dati live del viaggio (km, carburante, consumo, flusso, rigenerazione) mentre l\'app è in background</string>
     <string name="section_dev_title">SVILUPPO</string>
     <string name="label_debug_mode_title">Modalità debug</string>
     <string name="label_debug_mode_subtitle">Se disattivata, non vengono creati/scritti i log (risparmia spazio e risorse)</string>
@@ -103,6 +105,7 @@
     <string name="label_cloud_paired_subtitle">I viaggi vengono caricati automaticamente su jaedrive.com</string>
     <string name="label_cloud_pair_button">ASSOCIA AUTO</string>
     <string name="label_cloud_unpair_button">RIMUOVI</string>
+    <string name="label_cloud_refresh_button">Aggiorna stato abbonamento</string>
     <string name="dialog_unpair_title">Rimuovere l\'associazione?</string>
     <string name="dialog_unpair_message">I viaggi gia\' caricati restano su jaedrive.com, ma quelli nuovi smetteranno di sincronizzarsi finche\' non riassoci l\'auto.</string>
     <string name="toast_cloud_unpaired">Associazione rimossa</string>
@@ -125,6 +128,17 @@
     <string name="dialog_pairing_qr_description">QR code per aprire la pagina di associazione su jaedrive.com</string>
     <string name="dialog_pairing_waiting">In attesa che tu completi l\'associazione sul sito...</string>
     <string name="dialog_pairing_success">Associata! Quest\'auto e\' ora collegata al tuo account.</string>
+
+    <!-- Abbonamento (2026-08-04, vedi cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md) -->
+    <string name="label_subscription_free">Piano Free</string>
+    <string name="label_subscription_premium_standard">Premium Standard</string>
+    <string name="label_subscription_premium_garage">Premium Garage</string>
+    <string name="label_subscription_expires">scade il %1$s</string>
+    <string name="label_cloud_sync_paused_hint">Sincronizzazione in pausa - e\' necessario un abbonamento Premium attivo. Gestiscilo su jaedrive.com/settings</string>
+    <string name="label_premium_badge">PREMIUM</string>
+    <string name="popup_subscription_expiring">Il tuo abbonamento Premium scade tra %1$d giorni (%2$s). Rinnova su jaedrive.com/settings per non perdere la sincronizzazione cloud e la barra di stato in background.</string>
+    <string name="btn_ok">OK</string>
+    <string name="btn_dont_remind_again">NON RICORDARE PIU\'</string>
     <string name="dialog_pairing_error_vin_too_short">Inserisci un VIN valido (almeno 5 caratteri).</string>
     <string name="dialog_pairing_error_network">Errore di connessione. Verifica che l\'auto abbia accesso a internet e riprova.</string>
     <string name="dialog_pairing_error_expired">Codice scaduto senza essere usato. Riprova.</string>
@@ -148,7 +162,6 @@
     <string name="hero_label_fuel">CARBURANTE</string>
     <string name="hero_label_flow">FLUSSO</string>
     <string name="hero_label_regen">RIGEN.</string>
-    <string name="overlay_regen_title">Livello di rigenerazione</string>
     <string name="regen_level_high">ALTO</string>
     <string name="regen_level_medium">MEDIO</string>
     <string name="regen_level_low">BASSO</string>

@@ -248,12 +248,30 @@ public class VDInfoClient {
     // un'etichetta, coerente col resto del progetto (mai un'ipotesi non confermata mostrata
     // come fosse un dato certo).
     public static String regenLevelLabel(Context ctx, int raw) {
+        Context localized = localizedContext(ctx);
         switch (raw) {
-            case 0: return ctx.getString(R.string.regen_level_high);
-            case 1: return ctx.getString(R.string.regen_level_medium);
-            case 2: return ctx.getString(R.string.regen_level_low);
+            case 0: return localized.getString(R.string.regen_level_high);
+            case 1: return localized.getString(R.string.regen_level_medium);
+            case 2: return localized.getString(R.string.regen_level_low);
             default: return String.valueOf(raw);
         }
+    }
+
+    // Chiamato anche da TrackingService (un Service, non un'Activity) per la barra di stato
+    // in background - un Service gia' in esecuzione puo' restare "fisso" sulla lingua con
+    // cui e' partito se l'utente cambia lingua dalle Impostazioni mentre il service e' gia'
+    // attivo (limite noto del compat-mode di AppCompatDelegate su Android <13: ricrea le
+    // Activity per applicare la nuova lingua, ma non aggiorna un Context di un Service gia'
+    // creato). Si ricostruisce quindi qui un Context con la lingua REALMENTE selezionata
+    // (AppCompatDelegate.getApplicationLocales() riflette sempre la preferenza corrente,
+    // a differenza della Configuration del Context chiamante che puo' essere uno snapshot
+    // vecchio) invece di leggere le stringhe direttamente da ctx.
+    private static Context localizedContext(Context ctx) {
+        androidx.core.os.LocaleListCompat locales = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales();
+        if (locales.isEmpty()) return ctx;
+        android.content.res.Configuration config = new android.content.res.Configuration(ctx.getResources().getConfiguration());
+        config.setLocale(locales.get(0));
+        return ctx.createConfigurationContext(config);
     }
 
     public interface Listener {

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barra di stato persistente in background (2026-08-02) - vedi StatusBarOverlay.java.
+     Finestra "dati", separata dall'icona (overlay_status_bar_icon.xml - tornate DUE finestre
+     il 2026-08-02 sera dopo che la versione a finestra singola aveva confermato che il
+     problema iniziale NON era un limite di questa ROM sul numero di overlay simultanei
+     [popup + vecchia status bar avevano gia' coesistito bene] - il logging aggiunto in
+     StatusBarOverlay.setLogger() ora cattura in chiaro nel file di log qualunque errore,
+     invece di scomparire in silenzio come la prima volta). Ancorata subito a destra della
+     finestra icona, larga quanto serve (calcolato a runtime in StatusBarOverlay.show(), non
+     qui: layout_width/height della root sono ignorati da WindowManager.addView(), i veri
+     valori li impone WindowManager.LayoutParams). Resta sempre "not touchable" (i tocchi
+     passano all'app sotto): la finestra intera collassa/espande in LARGHEZZA (2026-08-04,
+     tornati da un collasso in altezza) quando si preme la freccia nell'altra finestra,
+     ritirandosi verso sinistra (verso l'icona).
+
+     Tutti i box hanno la STESSA larghezza fissa (190dp, quella gia' usata per il consumo -
+     richiesta esplicita 2026-08-02) con contenuto centrato (gravity center) invece di
+     larghezze diverse per dato - piu' uniforme, e il consumo restava comunque il piu'
+     esigente in caratteri. Separati da una linea sottile 1dp (@color/glass_border), stesso
+     pattern dei blocchi ripartizione energia in view_trip_detail.xml. Mostra 5 dati del
+     viaggio in corso, aggiornati in tempo reale dallo stesso poll VDB di TrackingService: km,
+     litri, consumo medio, flusso energia (pallino colorato come nell'app), livello
+     rigenerazione.
+
+     2026-08-04: rimosso il "tappo" sfumato finale (glass_status_bar_bg.xml, gia' esso stesso
+     un fix per un bug di colore precedente) - richiesta esplicita, lo sfondo sfumato non
+     convinceva visivamente. Root ora a tinta piatta OPACA su TUTTA la larghezza (nessun tappo
+     extra), con solo l'angolo in basso a destra arrotondato (fine dell'ultimo box, mai
+     adiacente a nulla) via glass_status_bar_content_bg.xml - l'angolo in alto a destra resta
+     squadrato apposta, e' a filo del bordo superiore schermo. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="100dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/glass_status_bar_content_bg"
+    android:paddingStart="14dp">
+
+    <LinearLayout android:layout_width="190dp" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_route" android:tint="@color/on_surface_variant"
+            android:layout_marginEnd="6dp" android:contentDescription="@null"/>
+        <TextView android:id="@+id/tv_status_bar_km" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface"
+            android:textSize="20sp" android:textStyle="bold" android:letterSpacing="0.01"
+            android:singleLine="true" android:ellipsize="end"/>
+    </LinearLayout>
+    <View android:layout_width="1dp" android:layout_height="68dp" android:background="@color/glass_border"/>
+
+    <LinearLayout android:layout_width="190dp" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_fuel" android:tint="@color/on_surface_variant"
+            android:layout_marginEnd="6dp" android:contentDescription="@null"/>
+        <TextView android:id="@+id/tv_status_bar_fuel" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface"
+            android:textSize="20sp" android:textStyle="bold" android:letterSpacing="0.01"
+            android:singleLine="true" android:ellipsize="end"/>
+    </LinearLayout>
+    <View android:layout_width="1dp" android:layout_height="68dp" android:background="@color/glass_border"/>
+
+    <LinearLayout android:layout_width="190dp" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_gauge" android:tint="@color/on_surface_variant"
+            android:layout_marginEnd="6dp" android:contentDescription="@null"/>
+        <TextView android:id="@+id/tv_status_bar_consumption" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface"
+            android:textSize="20sp" android:textStyle="bold" android:letterSpacing="0.01"
+            android:singleLine="true"/>
+    </LinearLayout>
+    <View android:layout_width="1dp" android:layout_height="68dp" android:background="@color/glass_border"/>
+
+    <LinearLayout android:layout_width="190dp" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center">
+        <View android:id="@+id/dot_status_bar_flow" android:layout_width="18dp" android:layout_height="18dp"
+            android:background="@drawable/dot_primary" android:layout_marginEnd="6dp"/>
+        <TextView android:id="@+id/tv_status_bar_flow" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface"
+            android:textSize="20sp" android:textStyle="bold" android:letterSpacing="0.01"
+            android:singleLine="true" android:ellipsize="end"/>
+    </LinearLayout>
+    <View android:layout_width="1dp" android:layout_height="68dp" android:background="@color/glass_border"/>
+
+    <LinearLayout android:layout_width="190dp" android:layout_height="match_parent"
+        android:orientation="horizontal" android:gravity="center">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp"
+            android:src="@drawable/ic_restart" android:tint="@color/on_surface_variant"
+            android:layout_marginEnd="6dp" android:contentDescription="@null"/>
+        <TextView android:id="@+id/tv_status_bar_regen" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:fontFamily="@font/geist_mono" android:text="—" android:textColor="@color/on_surface"
+            android:textSize="20sp" android:textStyle="bold" android:letterSpacing="0.01"
+            android:singleLine="true" android:ellipsize="end"/>
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Badge "Premium Standard" nella card CLOUD - stesso pattern di badge_chip_primary.xml,
+     tinta trend_positive invece di primary (vedi colors.xml). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="6dp"/>
+    <solid android:color="@color/trend_positive_tint_10"/>
+</shape>

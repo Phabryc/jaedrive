@@ -30,6 +30,35 @@ public class Prefs {
     private static final String KEY_LAST_FUEL_PCT_SEEN = "last_fuel_pct_seen";
     private static final String KEY_REGEN_POPUP_ENABLED = "regen_popup_enabled";
     private static final String KEY_REFUEL_POPUP_ENABLED = "refuel_popup_enabled";
+    private static final String KEY_STATUS_BAR_ENABLED = "status_bar_enabled";
+    private static final String KEY_BATTERY_OPT_REQUESTED = "battery_opt_requested";
+    // Ultimo snapshot abbonamento noto (2026-08-04, vedi ANDROID_SUBSCRIPTION_HANDSHAKE.md) -
+    // aggiornato da CloudApiClient.heartbeat() (SyncWorker) e getOwnerProfile() (card CLOUD in
+    // Impostazioni), qualunque dei due arrivi prima. Persistito (non solo in memoria) cosi'
+    // la UI e i gate premium (status bar) hanno subito un valore plausibile anche prima del
+    // primo giro di rete di questa sessione, invece di dover assumere "FREE" alla cieca.
+    private static final String KEY_SUB_STATUS = "sub_status";
+    private static final String KEY_SUB_TIER = "sub_tier";
+    private static final String KEY_SUB_EXPIRES_AT = "sub_expires_at";
+    private static final String KEY_SUB_IS_ACTIVE = "sub_is_active";
+    // Backup della configurazione utente dei 3 switch PREMIUM (2026-08-05, richiesta esplicita
+    // utente) - scritto in setSubscriptionSnapshot() PRIMA di forzarli a false, cosi' alla
+    // riattivazione dell'abbonamento si puo' ripristinare esattamente cio' che l'utente aveva
+    // scelto invece di lasciare tutto spento. La sola PRESENZA di queste chiavi (non il loro
+    // valore) e' usata come flag "backup gia' fatto per questa scadenza" - vedi
+    // setSubscriptionSnapshot().
+    private static final String KEY_STATUS_BAR_ENABLED_BACKUP = "status_bar_enabled_backup";
+    private static final String KEY_REGEN_POPUP_ENABLED_BACKUP = "regen_popup_enabled_backup";
+    private static final String KEY_REFUEL_POPUP_ENABLED_BACKUP = "refuel_popup_enabled_backup";
+    // Vero se l'ultimo tentativo di sync (heartbeat o upload) ha visto l'abbonamento non
+    // attivo - usato per lo stato "bloccato" dell'iconcina cloud nello Storico, distinto dal
+    // normale "in coda" grigio (vedi MainActivity.buildTripRowStatsRow()).
+    private static final String KEY_SYNC_PAUSED = "sync_paused";
+    // Valore di expiresAt per cui l'utente ha gia' premuto "Non ricordare piu'" sul popup di
+    // scadenza imminente (vedi SubscriptionExpiryNotifier) - confrontato col nuovo expiresAt
+    // ad ogni check, non un semplice booleano: se l'utente rinnova (nuovo expiresAt diverso),
+    // il popup torna eleggibile per il nuovo ciclo invece di restare silenziato per sempre.
+    private static final String KEY_SUB_EXPIRY_WARNING_DISMISSED_FOR = "sub_expiry_warning_dismissed_for";
 
     public static boolean isDistanceMiles(Context ctx) {
         return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_UNIT_DISTANCE_MI, false);
@@ -107,7 +136,105 @@ public class Prefs {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .remove(KEY_CLOUD_DEVICE_TOKEN)
             .remove(KEY_CLOUD_VEHICLE_ID)
+            .remove(KEY_SUB_STATUS)
+            .remove(KEY_SUB_TIER)
+            .remove(KEY_SUB_EXPIRES_AT)
+            .remove(KEY_SUB_IS_ACTIVE)
+            .remove(KEY_SYNC_PAUSED)
+            .remove(KEY_SUB_EXPIRY_WARNING_DISMISSED_FOR)
+            // Backup della configurazione switch PREMIUM (vedi setSubscriptionSnapshot()) -
+            // uno scenario di riassociazione con un account diverso non deve ripristinare le
+            // preferenze salvate per l'account precedente.
+            .remove(KEY_STATUS_BAR_ENABLED_BACKUP)
+            .remove(KEY_REGEN_POPUP_ENABLED_BACKUP)
+            .remove(KEY_REFUEL_POPUP_ENABLED_BACKUP)
             .apply();
+    }
+
+    // Scritto insieme da CloudApiClient.heartbeat() (SyncWorker, sfondo) e getOwnerProfile()
+    // (card CLOUD, primo piano) - qualunque dei due arrivi per ultimo vince, sono lo stesso
+    // dato letto da endpoint diversi. isActive gia' calcolato lato server (tiene conto anche
+    // di expiresAt scaduto), non ricalcolato qui.
+    public static void setSubscriptionSnapshot(Context ctx, String status, String tier, String expiresAt, boolean isActive) {
+        SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit()
+            .putString(KEY_SUB_STATUS, status)
+            .putString(KEY_SUB_TIER, tier)
+            .putString(KEY_SUB_EXPIRES_AT, expiresAt)
+            .putBoolean(KEY_SUB_IS_ACTIVE, isActive);
+        if (!isActive) {
+            // Funzioni PREMIUM (2026-08-04, richiesta esplicita utente: status bar, popup
+            // rigenerazione, popup rifornimento) - si spengono da sole quando l'abbonamento
+            // non e' (piu') attivo, invece di restare "accesi" nell'interruttore mentre la
+            // funzione vera e propria resta comunque bloccata altrove (vedi
+            // TrackingService.refreshStatusBar()/MainActivity.refreshPremiumGatedSwitches()).
+            // Scritto qui, unico punto in cui arriva un nuovo stato abbonamento (heartbeat in
+            // SyncWorker o getOwnerProfile in MainActivity), cosi' vale per entrambe le fonti
+            // senza duplicare la logica.
+            //
+            // Backup PRIMA di azzerare (2026-08-05, richiesta esplicita utente) - solo se non
+            // gia' fatto per questa scadenza (contains() come flag "gia' salvato": altrimenti
+            // ogni heartbeat/refresh successivo mentre resta inattivo sovrascriverebbe il
+            // backup con i valori gia' azzerati qui sotto, perdendo per sempre la vera scelta
+            // dell'utente). Gli switch sono disabilitati in UI mentre l'abbonamento non e'
+            // attivo (vedi MainActivity.refreshPremiumGatedSwitches()), quindi non possono
+            // cambiare "sotto" a questo backup finche' non si ripristina.
+            if (!prefs.contains(KEY_STATUS_BAR_ENABLED_BACKUP)) {
+                editor.putBoolean(KEY_STATUS_BAR_ENABLED_BACKUP, prefs.getBoolean(KEY_STATUS_BAR_ENABLED, false));
+                editor.putBoolean(KEY_REGEN_POPUP_ENABLED_BACKUP, prefs.getBoolean(KEY_REGEN_POPUP_ENABLED, true));
+                editor.putBoolean(KEY_REFUEL_POPUP_ENABLED_BACKUP, prefs.getBoolean(KEY_REFUEL_POPUP_ENABLED, true));
+            }
+            editor.putBoolean(KEY_STATUS_BAR_ENABLED, false);
+            editor.putBoolean(KEY_REGEN_POPUP_ENABLED, false);
+            editor.putBoolean(KEY_REFUEL_POPUP_ENABLED, false);
+        } else if (prefs.contains(KEY_STATUS_BAR_ENABLED_BACKUP)) {
+            // Riattivazione: ripristina esattamente cio' che l'utente aveva scelto prima della
+            // scadenza, poi rimuove il backup - la prossima scadenza ne salvera' uno nuovo,
+            // non trovera' piu' quello vecchio gia' consumato qui.
+            editor.putBoolean(KEY_STATUS_BAR_ENABLED, prefs.getBoolean(KEY_STATUS_BAR_ENABLED_BACKUP, false));
+            editor.putBoolean(KEY_REGEN_POPUP_ENABLED, prefs.getBoolean(KEY_REGEN_POPUP_ENABLED_BACKUP, true));
+            editor.putBoolean(KEY_REFUEL_POPUP_ENABLED, prefs.getBoolean(KEY_REFUEL_POPUP_ENABLED_BACKUP, true));
+            editor.remove(KEY_STATUS_BAR_ENABLED_BACKUP);
+            editor.remove(KEY_REGEN_POPUP_ENABLED_BACKUP);
+            editor.remove(KEY_REFUEL_POPUP_ENABLED_BACKUP);
+        }
+        editor.apply();
+    }
+
+    public static String getSubscriptionStatus(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SUB_STATUS, "FREE");
+    }
+
+    public static String getSubscriptionTier(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SUB_TIER, "STANDARD");
+    }
+
+    public static String getSubscriptionExpiresAt(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SUB_EXPIRES_AT, null);
+    }
+
+    // Default false apposta (fail-closed): finche' non arriva almeno un heartbeat/owner
+    // riuscito in questa installazione, ogni funzione a gate premium (vedi StatusBarOverlay in
+    // TrackingService.refreshStatusBar()) resta disattivata invece di assumere "attivo" alla
+    // cieca.
+    public static boolean isSubscriptionActive(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SUB_IS_ACTIVE, false);
+    }
+
+    public static boolean isCloudSyncPaused(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SYNC_PAUSED, false);
+    }
+
+    public static void setCloudSyncPaused(Context ctx, boolean paused) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_SYNC_PAUSED, paused).apply();
+    }
+
+    public static String getSubExpiryWarningDismissedFor(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SUB_EXPIRY_WARNING_DISMISSED_FOR, null);
+    }
+
+    public static void setSubExpiryWarningDismissedFor(Context ctx, String expiresAt) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SUB_EXPIRY_WARNING_DISMISSED_FOR, expiresAt).apply();
     }
 
     // Disassociazione "a sorpresa" lato server (SyncWorker riceve 409 "Device is not paired
@@ -217,5 +344,32 @@ public class Prefs {
 
     public static void setRefuelPopupEnabled(Context ctx, boolean enabled) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_REFUEL_POPUP_ENABLED, enabled).apply();
+    }
+
+    // Barra di stato in background (2026-08-02, vedi StatusBarOverlay) - default OFF a
+    // differenza dei popup sopra: e' una finestra SEMPRE visibile mentre l'app e' in
+    // background (non un avviso occasionale), meglio che l'utente la accenda esplicitamente
+    // la prima volta invece di trovarsela addosso senza preavviso dopo un aggiornamento.
+    public static boolean isStatusBarEnabled(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_STATUS_BAR_ENABLED, false);
+    }
+
+    public static void setStatusBarEnabled(Context ctx, boolean enabled) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_STATUS_BAR_ENABLED, enabled).apply();
+    }
+
+    // Su questa ROM custom non c'e' un'app Impostazioni raggiungibile che possa risolvere
+    // ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (stesso limite gia' documentato altrove per
+    // altri intent di sistema) - confermato sul campo 2026-08-02: l'intent "riesce" a partire
+    // (nessuna ActivityNotFoundException) ma finisce in un gestore generico che mostra solo
+    // un toast di sistema "cannot handle operation", mai il vero dialogo di esenzione. Non ha
+    // senso ritentare ad ogni apertura app (solo un toast fastidioso ripetuto) - una volta
+    // tentato, non si richiede piu' finche' l'utente non reinstalla l'app.
+    public static boolean hasRequestedBatteryOptExemption(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_BATTERY_OPT_REQUESTED, false);
+    }
+
+    public static void setRequestedBatteryOptExemption(Context ctx) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_BATTERY_OPT_REQUESTED, true).apply();
     }
 }

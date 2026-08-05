@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icona della barra di stato - finestra overlay SEPARATA da overlay_status_bar.xml (vedi
+     StatusBarOverlay.java per il perche': l'unica parte davvero toccabile della barra, mentre
+     quella dei dati resta "not touchable" per lasciar passare i tocchi all'app sotto).
+
+     Due zone verticali (richiesta esplicita 2026-08-02, dopo aver scoperto che il tocco sulla
+     sola icona funzionava in modo incoerente): la zona icona (top, 100dp) coincide in altezza
+     con la notification bar del LAUNCHER di questa vettura (una fascia di sistema a tutta
+     larghezza, non nostra) - un tocco li' a volte veniva intercettato dal launcher invece che
+     da noi (funzionava solo con un'app in vero fullscreen sopra, es. CarPlay). La zona freccia
+     sotto (40dp, finestra totale 140dp) sta OLTRE quei 100px, fuori dalla competenza del
+     launcher - e' quindi la SOLA zona davvero cliccabile in modo affidabile, e tutta la sua
+     area (non solo la freccia disegnata) e' il target di tocco per comodita'.
+
+     BUG TROVATO SUL CAMPO (2026-08-02 sera, log catturato grazie a StatusBarOverlay.setLogger()):
+     usare @mipmap/ic_launcher (adaptive icon) o android:background="?attr/..." qui dava
+     InflateException - questa finestra viene inflata da un Context di Service, non
+     un'Activity con tema completo. Vedi @mipmap/ic_launcher_foreground (PNG semplice, non
+     adaptive) e i due drawable @drawable/glass_icon_*_bg (tinta piatta diretta, mai un
+     ?attr/) per i dettagli. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <!-- Zona icona (100dp, non cliccabile) - stessa altezza della notification bar del
+         launcher, solo decorativa/di riconoscimento brand. -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:background="@drawable/glass_icon_square_bg"
+        android:gravity="center">
+        <ImageView
+            android:layout_width="46dp" android:layout_height="46dp"
+            android:src="@mipmap/ic_launcher_foreground"
+            android:contentDescription="@null"/>
+    </FrameLayout>
+
+    <!-- Zona freccia (40dp, TUTTA cliccabile - non solo la freccia disegnata) - stessa
+         larghezza (match_parent) della zona icona sopra, per costruzione: mai uno scalino
+         tra le due. Vedi StatusBarOverlay.toggleCollapse() per la rotazione tra sx/dx
+         (ic_chevron_up.xml e' disegnata puntando in su, ruotata +-90 gradi via codice). -->
+    <FrameLayout
+        android:id="@+id/status_bar_toggle_zone"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:background="@drawable/glass_icon_arrow_bg"
+        android:clickable="true" android:focusable="true"
+        android:gravity="center">
+        <ImageView android:id="@+id/iv_status_bar_arrow"
+            android:layout_width="22dp" android:layout_height="22dp"
+            android:src="@drawable/ic_chevron_up"
+            android:contentDescription="@null"/>
+    </FrameLayout>
+</LinearLayout>

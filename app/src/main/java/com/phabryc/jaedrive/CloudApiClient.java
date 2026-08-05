@@ -64,8 +64,46 @@ public class CloudApiClient {
         return resp.getString("tripId");
     }
 
-    public static void heartbeat(String deviceToken) throws IOException, JSONException {
-        postJson("/api/device/heartbeat", deviceToken, new JSONObject());
+    // Stato abbonamento cloud (vedi cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md) - status/tier
+    // sono stringhe letterali dal server (FREE|PREMIUM, STANDARD|GARAGE) invece di un enum:
+    // solo mostrate/persistite, mai confrontate con logica complessa lato client, un enum
+    // aggiungerebbe solo un punto di mappatura da tenere sincrono col server senza reale
+    // beneficio. isActive e' gia' calcolato lato server (tiene conto di expiresAt scaduto).
+    public static class SubscriptionInfo {
+        public final String status;
+        public final String tier;
+        public final String expiresAt; // ISO 8601, nullable (mai scaduto/mai stato premium)
+        public final boolean isActive;
+
+        SubscriptionInfo(String status, String tier, String expiresAt, boolean isActive) {
+            this.status = status;
+            this.tier = tier;
+            this.expiresAt = expiresAt;
+            this.isActive = isActive;
+        }
+    }
+
+    // Condiviso da heartbeat() e getOwnerProfile(), stesso oggetto "subscription" annidato in
+    // entrambe le risposte. Null solo se il campo manca del tutto (non dovrebbe succedere con
+    // un server aggiornato, ma un client vecchio/nuovo scollegati non devono mai crashare per
+    // questo - vedi SyncWorker, tratta null come "nessuna informazione, non toccare lo stato").
+    private static SubscriptionInfo parseSubscription(JSONObject resp) throws JSONException {
+        if (!resp.has("subscription") || resp.isNull("subscription")) return null;
+        JSONObject s = resp.getJSONObject("subscription");
+        return new SubscriptionInfo(
+            s.optString("status", "FREE"),
+            s.optString("tier", "STANDARD"),
+            s.isNull("expiresAt") ? null : s.optString("expiresAt", null),
+            s.optBoolean("isActive", false));
+    }
+
+    // Ritorna lo stato abbonamento invece di scartare la risposta (era void fino al
+    // 2026-08-04): e' l'UNICO punto che permette a SyncWorker di accorgersi che un
+    // abbonamento scaduto e' tornato attivo (o viceversa) senza dover aprire Impostazioni -
+    // vedi SyncWorker.doWork().
+    public static SubscriptionInfo heartbeat(String deviceToken) throws IOException, JSONException {
+        JSONObject resp = postJson("/api/device/heartbeat", deviceToken, new JSONObject());
+        return parseSubscription(resp);
     }
 
     public static class OwnerProfile {
@@ -73,24 +111,27 @@ public class CloudApiClient {
         public final String lastName;
         public final String email;
         public final String photoUrl; // nullable, URL esterno (es. foto Google) - vedi CLOUD card
+        public final SubscriptionInfo subscription; // nullable, vedi parseSubscription()
 
-        OwnerProfile(String firstName, String lastName, String email, String photoUrl) {
+        OwnerProfile(String firstName, String lastName, String email, String photoUrl, SubscriptionInfo subscription) {
             this.firstName = firstName;
             this.lastName = lastName;
             this.email = email;
             this.photoUrl = photoUrl;
+            this.subscription = subscription;
         }
     }
 
-    // Nome/cognome/email/foto dell'account a cui e' associata quest'auto - mostrati nella
-    // card CLOUD di Impostazioni (vedi MainActivity.refreshCloudSection()).
+    // Nome/cognome/email/foto/abbonamento dell'account a cui e' associata quest'auto -
+    // mostrati nella card CLOUD di Impostazioni (vedi MainActivity.refreshCloudSection()).
     public static OwnerProfile getOwnerProfile(String deviceToken) throws IOException, JSONException {
         JSONObject resp = getJson("/api/device/owner", deviceToken);
         return new OwnerProfile(
             resp.optString("firstName", null),
             resp.optString("lastName", null),
             resp.optString("email", null),
-            resp.isNull("photoUrl") ? null : resp.optString("photoUrl", null));
+            resp.isNull("photoUrl") ? null : resp.optString("photoUrl", null),
+            parseSubscription(resp));
     }
 
     // Cancellazione di un singolo viaggio dal cloud - chiamata solo se l'utente conferma

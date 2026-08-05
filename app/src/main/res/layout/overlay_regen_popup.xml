@@ -1,47 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Popup dedicato al cambio livello rigenerazione (vedi OverlayPopup.showRegenLevel()) -
-     layout diverso dal popup generico (overlay_popup.xml): logo in alto a sinistra accanto
-     al titolo, valore su una riga a parte sotto, piu' grande - richiesto esplicitamente
-     dall'utente dopo aver visto la prima versione (centrata, testo unico) sul campo. Logo
-     ingrandito e valore centrato su richiesta successiva (2026-08-02: il logo a 40dp era
-     "una macchia", irriconoscibile). Raddoppiato di nuovo lo stesso giorno (64dp ancora
-     poco visibile). -->
+     layout diverso dal popup generico (overlay_popup.xml). Ridisegnato il 2026-08-02
+     (richiesta esplicita utente): tolta l'etichetta testuale "Livello di rigenerazione" (il
+     contesto e' gia' chiaro dall'icona rigenerazione accanto al valore), logo JaeDrive da
+     solo centrato sulla prima riga, icona rigenerazione (la stessa usata nella status bar,
+     ic_restart) ben visibile a sinistra del valore sulla riga sotto. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/glass_card_glow_bg"
-    android:padding="28dp"
+    android:padding="20dp"
+    android:gravity="center_horizontal"
     android:minWidth="320dp">
 
+    <!-- BUG TROVATO SUL CAMPO (2026-08-03, stesso di overlay_popup.xml): jd_logo.png e'
+         un'immagine RETTANGOLARE 1424x368 (rapporto 3.87:1), non quadrata - forzarla in un
+         ImageView quadrato lasciava meta' del box vuoto sopra/sotto. Stesso fix li':
+         adjustViewBounds+wrap_content calcola la larghezza corretta da solo (~232dp a 60dp di
+         altezza) - a questa dimensione ci sta comodamente nel minWidth=320dp esistente, senza
+         bisogno di allargarlo come per il popup rifornimento. -->
+    <ImageView
+        android:layout_width="wrap_content"
+        android:layout_height="60dp"
+        android:adjustViewBounds="true"
+        android:layout_marginBottom="20dp"
+        android:src="@drawable/jd_logo"
+        android:contentDescription="@null"/>
+
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical">
         <ImageView
-            android:layout_width="128dp"
-            android:layout_height="128dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_marginEnd="14dp"
-            android:src="@drawable/jd_logo"
+            android:src="@drawable/ic_restart"
+            android:tint="@color/on_surface_variant"
             android:contentDescription="@null"/>
         <TextView
-            android:id="@+id/tv_regen_title"
+            android:id="@+id/tv_regen_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/overlay_regen_title"
-            android:textColor="@color/on_surface_variant"
-            android:textSize="20sp"
+            android:gravity="center"
+            android:textColor="@color/on_surface"
+            android:textSize="44sp"
             android:textStyle="bold"/>
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/tv_regen_value"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:gravity="center"
-        android:textColor="@color/on_surface"
-        android:textSize="44sp"
-        android:textStyle="bold"/>
 </LinearLayout>
