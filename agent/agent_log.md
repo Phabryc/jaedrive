@@ -33,18 +33,42 @@ Installato e configurato l'ambiente di compilazione automatizzato (JDK 17 + Andr
 ### 🧪 Comandi di Verifica Eseguiti
 - `.\gradlew.bat assembleDebug assembleRelease` -> **BUILD SUCCESSFUL** (Esito: Debug APK 10.7 MB con mock; Release APK 8.96 MB privo di mock).
 
-### 📋 Handover & Passaggio Consegne per l'Agente Successivo
-- **Immagine SDK Pronta**: L'immagine `system-images;android-33;google_apis;x86_64` è scaricata e scompattata al 100% su `D:\.android-sdk`.
-- **AVD Configurato**: L'AVD `JaeDrive_Emulator` è configurato su `D:\.android\avd` con risoluzione **1440 × 1770** pixel.
-- **Attivazione Hypervisor Driver (AEHD)**: Su Windows occorre eseguire una volta sola da PowerShell con privilegi di Amministratore lo script `D:\.android-sdk\extras\google\Android_Emulator_Hypervisor_Driver\silent_install.bat` per registrare il servizio kernel `aehd.sys`.
-- **Avvio Emulatore**:
-  ```powershell
-  $env:JAVA_HOME = "C:\Users\Cucci\.jdk-17"
-  $env:ANDROID_HOME = "D:\.android-sdk"
-  $env:ANDROID_AVD_HOME = "D:\.android\avd"
-  & "$env:ANDROID_HOME\emulator\emulator.exe" -avd JaeDrive_Emulator -gpu host
-  ```
-- **Constraints**: Non importare mai `com.phabryc.jaedrive.mock.VehicleSimulator` in `src/main`, ma passare sempre per l'interfaccia/bridge `VehicleMockBridge` per preservare il pulito nelle build di produzione.
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo (o su Altro PC)
+
+1. **Compilazione Progetto**:
+   - Entrambe le varianti sono compilate e pronte in `app/build/outputs/apk/debug/JaeDrive.apk` (10.7 MB, con mock) e `app/build/outputs/apk/release/JaeDrive.apk` (8.96 MB, priva di mock).
+
+2. **Infrastruttura Emulazione Configurata**:
+   - **Immagine SDK**: `system-images;android-33;google_apis;x86_64` scaricata ed estratta in `$env:ANDROID_HOME`. (*Nota*: Su Windows host x86_64 usare sempre l'immagine x86_64 in quanto QEMU2 rifiuta immagini ARM64).
+   - **Driver Acceleration (AEHD)**: `aehd.sys` installato con successo (`STATE: 4 RUNNING`).
+   - **AVD JaeDrive_Emulator**: Configurato in `$env:ANDROID_AVD_HOME` con risoluzione **1440 × 1770** pixel (head unit Jaecoo 7) e quota dati **6 GB** (`disk.dataPartition.size=6442450944`).
+
+3. **Comandi per la Ripresa su un Altro PC o Prossima Sessione**:
+   - Verificare uno spazio libero di almeno **8 GB** sull'unità scelta e configurare le variabili d'ambiente:
+     ```powershell
+     $env:JAVA_HOME = "C:\Users\Cucci\.jdk-17"  # O percorso JDK su nuova macchina
+     $env:ANDROID_HOME = "D:\.android-sdk"      # O percorso SDK dinamico
+     $env:ANDROID_AVD_HOME = "D:\.android\avd"  # O percorso AVD dinamico
+     $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\cmdline-tools\latest\bin;$env:ANDROID_HOME\emulator;$env:ANDROID_HOME\platform-tools;$env:PATH"
+     ```
+   - In caso di prima installazione del driver su nuova macchina Windows:
+     ```powershell
+     # Da PowerShell (Amministratore):
+     cd $env:ANDROID_HOME\extras\google\Android_Emulator_Hypervisor_Driver; .\silent_install.bat
+     ```
+   - Avvio Emulatore, Deploy APK e Lancio App:
+     ```powershell
+     # 1. Avvio Emulatore
+     & "$env:ANDROID_HOME\emulator\emulator.exe" -avd JaeDrive_Emulator -gpu host
+
+     # 2. Attesa Completamento Boot (sys.boot_completed == 1)
+     & "$env:ANDROID_HOME\platform-tools\adb.exe" wait-for-device
+     do { Start-Sleep -Seconds 2 } until ((& "$env:ANDROID_HOME\platform-tools\adb.exe" shell getprop sys.boot_completed).Trim() -eq "1")
+
+     # 3. Installazione APK Debug ed Avvio Activity
+     & "$env:ANDROID_HOME\platform-tools\adb.exe" install -r "app\build\outputs\apk\debug\JaeDrive.apk"
+     & "$env:ANDROID_HOME\platform-tools\adb.exe" shell am start -n com.phabryc.jaedrive/.MainActivity
+     ```
 
 ---
 
