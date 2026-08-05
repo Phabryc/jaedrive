@@ -4,6 +4,33 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-05] - Nuova Funzione: Merge Viaggi Consecutivi + Fix Riquadro Mappa Senza Traccia
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`
+- **Status**: `COMPLETED` (codice, build verificata, testato dal vivo su emulatore con dati reali) — `REQUIRES_USER_TEST` sulla vettura reale (traccia GPS vera, non testabile sull'emulatore per assenza di un location provider)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Richiesta esplicita utente: poter unire 2 o più viaggi AUTO consecutivi in uno solo dallo Storico, utile quando una pausa (es. pranzo) durante un unico spostamento fa si' che JaeDrive lo registri come piu' viaggi separati (il gear torna in PARK durante la sosta). Aggiunta anche una piccola correzione collegata: il dettaglio viaggio mostrava un mappamondo vuoto e inutile quando un viaggio non ha traccia GPS valida (es. proprio un viaggio unito il cui GPX di partenza era vuoto).
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **[`TripMerger.java`](app/src/main/java/com/phabryc/jaedrive/TripMerger.java)** (nuovo): calcola il GPX unito (estrae i `<trkpt>` originali COSI' COME SONO scritti via regex, mai riparsati campo-per-campo, per non perdere estensioni) inserendo tra una tratta e l'altra un punto sintetico di pausa (stessa posizione dell'ultimo punto reale, nuova estensione `<jd:pauseEndTime>`) e le statistiche unite (km/litri sommati, consumo medio RICALCOLATO dai totali, mai media delle medie).
+- **[`TripPoint.java`](app/src/main/java/com/phabryc/jaedrive/TripPoint.java)**/**[`GpxReader.java`](app/src/main/java/com/phabryc/jaedrive/GpxReader.java)**: aggiunto il campo `timeMillis` (il `<time>` del trkpt, prima mai letto) e `pauseEndMillis` (non-null solo per il punto sintetico di pausa) - servono a MainActivity per disegnare il marker rosso di pausa con gli orari.
+- **[`MainActivity.java`](app/src/main/java/com/phabryc/jaedrive/MainActivity.java)**: nuovo pulsante "UNISCI" nella barra di selezione dello Storico (accanto a "ELIMINA"), validazione (almeno 2 viaggi, tutti AUTO, **consecutivi** - nessun altro viaggio non selezionato compreso cronologicamente tra due di quelli scelti), dialogo di conferma, poi `mergeSelectedTrips()`: scrive il nuovo GPX, inserisce il `TripRecord` unito, cancella righe/file originali, e per i viaggi gia' caricati sul cloud li elimina li' SUBITO (senza conferma separata come nella cancellazione manuale - un doppione permanente online non sarebbe un'alternativa ragionevole), poi il viaggio unito si carica da solo al prossimo sync. Marker rosso di pausa disegnato sulla mappa dettaglio (`buildPauseMarker()`, nuovo drawable `ic_pause_marker.xml`) con titolo/orari al tocco.
+- **Fix collegato**: `renderTripDetail()` ora usa SEMPRE la vista schematica offline (`TripTraceView`, che gia' da sola disegna "Nessuna traccia GPS salvata" per una lista vuota) quando `points.size() < 2`, anche con internet disponibile - prima in quel caso veniva comunque creata la vera mappa online, che senza punti mostra solo un mappamondo vuoto. Il riquadro (560dp, pensato per una mappa/traccia vera) si restringe anche lui a 120dp quando non c'e' nulla da disegnare, invece di lasciare uno spazio vuoto enorme intorno a una riga di testo.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew assembleDebug assembleRelease` → **BUILD SUCCESSFUL** ad ogni giro.
+- Test end-to-end dal vivo sull'emulatore: creati 2 viaggi reali via iniezione gear (con `cmd car_service enable-uxr false` per evitare il blocco UX Automotive durante la "guida" simulata), verificato che il merge produca statistiche corrette (km sommati, consumo ricalcolato dai totali, non media), che i due originali spariscano e vengano rimossi anche dal cloud reale (log confermato), e che il dettaglio non vada in crash. Verificato anche visivamente il fix del riquadro mappa/traccia mancante.
+- **Non verificato**: il marker rosso di pausa sulla mappa (l'emulatore non genera veri punti GPS, i viaggi di test avevano 0 punti/nessun punto di pausa da disegnare) - la logica segue lo stesso schema gia' verificato di `buildTripMarker()` (partenza/arrivo), ma va confermata sulla vettura reale con una traccia GPS vera.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Open Questions / Pending Tasks**: validare sul campo (auto reale) che il marker di pausa compaia nel punto giusto con gli orari corretti, su un vero viaggio con pausa interrotta a meta'.
+- **Constraints / Warning**: il merge e' scope-limitato ai soli viaggi AUTO (i trip manuali A/B non hanno una traccia GPS propria, "unirli" non avrebbe lo stesso senso) - se in futuro si vuole estenderlo anche ai manuali va ripensata da zero la logica di combinazione (non c'e' nessun file da concatenare).
+
+---
+
 ## [2026-08-05] - Fix Densità Emulatore (240→160dpi, confermata da dump reale) + Centratura Icona/Freccia Status Bar
 
 ### 👤 Agent Metadata
