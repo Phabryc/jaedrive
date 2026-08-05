@@ -25,10 +25,10 @@ Installato e configurato l'ambiente di compilazione automatizzato (JDK 17 + Andr
    - **[`VehicleMockBridge.java`](file:///d:/P/JaeDrive/app/src/release/java/com/phabryc/jaedrive/mock/VehicleMockBridge.java)** (versione `src/release`): Variante **No-Op** vuota per le build di produzione. Nessuna classe o risorsa mock inclusa nell'APK di Release.
    - **[`VDInfoClient.java`](file:///d:/P/JaeDrive/app/src/main/java/com/phabryc/jaedrive/VDInfoClient.java)**: Integrata la chiamata condizionale verso `VehicleMockBridge`.
 
-3. **Cartella Centralizzata Agenti (`agent/`)**
+3. **Cartella Centralizzata Agenti (`agent/`) & Troubleshooting Emulazione**
    - **[`agent/README.md`](file:///d:/P/JaeDrive/agent/README.md)**: Definizione delle regole della cartella e del protocollo standard di comunicazione tra agenti AI.
    - **[`agent/agent_log.md`](file:///d:/P/JaeDrive/agent/agent_log.md)**: Spostato registro storico nella cartella centralizzata.
-   - **[`agent/SIMULATOR.md`](file:///d:/P/JaeDrive/agent/SIMULATOR.md)**: Spostata e formattata la guida per l'allestimento dell'emulatore AVD (1440x1770) sia per Windows che per Linux.
+   - **[`agent/SIMULATOR.md`](file:///d:/P/JaeDrive/agent/SIMULATOR.md)**: Aggiornata la guida con la migrazione dell'SDK e dell'AVD su disco **`D:\.android-sdk`** ed **`D:\.android\avd`** (per superare il limite di spazio su `C:\`), le istruzioni per le immagini ARM64 (`system-images;android-33;google_apis;arm64-v8a`) e l'accettazione automatizzata delle licenze SDK.
 
 ### 🧪 Comandi di Verifica Eseguiti
 - `.\gradlew.bat assembleDebug assembleRelease` -> **BUILD SUCCESSFUL** (Esito: Debug APK 10.7 MB con mock; Release APK 8.96 MB privo di mock).
