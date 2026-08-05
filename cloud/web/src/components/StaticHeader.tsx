@@ -23,20 +23,20 @@ export function StaticHeader() {
           </Link>
           <nav className="flex items-center gap-4">
             <Link
-              to="/plans"
-              className={`text-sm font-medium underline-offset-4 hover:underline transition ${
-                isPlans ? "text-accent font-semibold" : "text-onsurface-variant hover:text-onsurface"
-              }`}
-            >
-              {t("landing.plansLink")}
-            </Link>
-            <Link
               to="/features"
               className={`text-sm font-medium underline-offset-4 hover:underline transition ${
                 isFeatures ? "text-accent font-semibold" : "text-onsurface-variant hover:text-onsurface"
               }`}
             >
               {t("landing.featuresLink")}
+            </Link>
+            <Link
+              to="/plans"
+              className={`text-sm font-medium underline-offset-4 hover:underline transition ${
+                isPlans ? "text-accent font-semibold" : "text-onsurface-variant hover:text-onsurface"
+              }`}
+            >
+              {t("landing.plansLink")}
             </Link>
           </nav>
         </div>

@@ -15,8 +15,12 @@ export default function Dashboard() {
   useEffect(() => {
     api.vehicles().then((v) => {
       setVehicles(v);
-      // First-login-with-zero-vehicles case, see cloud/DESIGN.md §11.
-      if (v.length === 0) navigate("/pair", { replace: true });
+      if (v.length === 0) {
+        navigate("/pair", { replace: true });
+      } else if (v.length === 1) {
+        // Se c'e' una sola auto nel garage, la seleziona automaticamente
+        navigate(`/vehicles/${v[0].id}/trips`, { replace: true });
+      }
     });
   }, [navigate]);
 
