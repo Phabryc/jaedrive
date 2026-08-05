@@ -734,7 +734,14 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> showPairingCode(root, result));
             } catch (Exception e) {
                 appendLog("[Cloud] Errore avvio pairing: " + e);
-                runOnUiThread(() -> showPairingError(root, getString(R.string.dialog_pairing_error_network)));
+                // 429 (rate-limit per-VIN, vedi cloud/server/src/routes/device.ts) e' un caso
+                // atteso e distinto da un vero problema di rete - senza questo controllo
+                // l'utente vedeva "verifica che l'auto abbia accesso a internet", fuorviante
+                // quando la connessione funzionava perfettamente.
+                int msgRes = (e instanceof CloudApiClient.ApiException && ((CloudApiClient.ApiException) e).httpCode == 429)
+                    ? R.string.dialog_pairing_error_rate_limited
+                    : R.string.dialog_pairing_error_network;
+                runOnUiThread(() -> showPairingError(root, getString(msgRes)));
             }
         }, "JaeDrive-PairingStart").start();
     }
@@ -793,17 +800,51 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Il token NON viene salvato subito alla ricezione (comportamento fino al 2026-08-05) -
+    // lato server il Vehicle/Device sono gia' stati creati al claim, ma l'app deve provare
+    // di aver davvero completato l'handshake (non solo ricevuto il token) prima di
+    // considerarsi associata, altrimenti un crash/interruzione proprio qui lascerebbe il
+    // cloud con un'auto "aggiunta" ma per sempre "non sincronizzata" senza che l'app lo sappia
+    // mai (vedi agent_log.md). La prova e' il primo PATCH /vehicle riuscito con marca/modello/
+    // motorizzazione gia' scelti in onboarding - lo stesso checkpoint che il server usa per
+    // marcare `devices.confirmed_at` (vedi cloud/server/src/routes/device.ts) e ripulire dopo
+    // 30s un pairing mai confermato.
     private void finishPairingSuccess(View root, String deviceToken) {
         stopPairingPolling();
+
+        if (!Prefs.isVehicleInfoSet(this)) {
+            // Nessuna info veicolo locale ancora impostata (caso raro: l'onboarding e'
+            // obbligatorio prima di poter arrivare qui) - niente da sincronizzare come prova
+            // dell'handshake, si salva il token cosi' com'era prima di questo cambiamento.
+            completePairingLocally(root, deviceToken);
+            return;
+        }
+
+        TextView tvStatusMessage = root.findViewById(R.id.tv_pairing_status_message);
+        tvStatusMessage.setText(getString(R.string.dialog_pairing_syncing));
+        String brand = Prefs.getVehicleBrand(this);
+        String model = Prefs.getVehicleModel(this);
+        String powertrain = Prefs.getVehiclePowertrain(this);
+        new Thread(() -> {
+            try {
+                CloudApiClient.updateVehicleInfo(deviceToken, brand, model, powertrain);
+                runOnUiThread(() -> completePairingLocally(root, deviceToken));
+            } catch (Exception e) {
+                appendLog("[Cloud] Handshake pairing fallito (sync marca/modello): " + e);
+                // Token scartato di proposito - l'app resta "non associata" localmente, il
+                // Device/Vehicle orfano lato server viene ripulito dal cron di cleanup se
+                // non arriva nessuna conferma entro la finestra di grazia.
+                runOnUiThread(() -> showPairingError(root, getString(R.string.dialog_pairing_error_network)));
+            }
+        }, "JaeDrive-PairingHandshake").start();
+    }
+
+    private void completePairingLocally(View root, String deviceToken) {
         Prefs.setCloudPairing(this, deviceToken, null);
         if (pendingPairingVin != null) Prefs.setSyncedVin(this, pendingPairingVin);
         refreshCloudSection();
         SyncScheduler.enqueueSync(this); // eventuali trip gia' in attesa partono subito
-        // Se l'onboarding marca/modello era gia' stato completato PRIMA di questo pairing,
-        // il cloud non l'ha mai ricevuto (prima non c'era un'auto associata a cui inviarlo) -
-        // lo mandiamo ora.
-        syncVehicleInfoIfNeeded();
-        appendLog("[Cloud] Auto associata all'account");
+        appendLog("[Cloud] Auto associata e sincronizzata con l'account");
 
         setPairingSection(root, "status");
         TextView tvStatusMessage = root.findViewById(R.id.tv_pairing_status_message);

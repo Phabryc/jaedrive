@@ -4,6 +4,77 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-06] - Pairing: Conferma Handshake Obbligatoria Prima di Considerarsi Associato (App+Web+Server) + Rate-Limit con Messaggio Chiaro
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`, `[cloud]`
+- **Status**: `COMPLETED` (codice, build/type-check verificati) — `REQUIRES_USER_TEST` (migrazione DB da applicare, poi test end-to-end reale)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Causa radice del bug scoperto ieri ("auto associata ma marca/modello non sincronizzati"): il pairing veniva considerato "riuscito" lato server al solo `claim` (crea `vehicles`+`devices`) e lato app alla sola ricezione del token via poll - nessuno dei due prova che l'app abbia DAVVERO completato l'handshake. Un dialogo chiuso, un crash, o un processo ucciso subito dopo la ricezione del token lasciavano un'auto "aggiunta" sul cloud per sempre, senza via di recupero automatico. Su proposta dell'utente, ridisegnato il flusso cosi' che "pairing completo" significhi sempre "l'app ha sincronizzato con successo almeno le info base del veicolo" - non il claim, non il solo delivery del token.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+
+**Schema/DB**:
+- **[`cloud/server/prisma/schema.prisma`](cloud/server/prisma/schema.prisma)**: nuovo campo `Device.confirmedAt` (`confirmed_at`, nullable).
+- **[`cloud/server/prisma/migrations/20260806000000_device_confirmed_at/migration.sql`](cloud/server/prisma/migrations/20260806000000_device_confirmed_at/migration.sql)**: scritta a mano (nessun Postgres locale disponibile in sessione per `prisma migrate dev` - l'utente ha rifiutato l'avvio di un container Docker temporaneo), seguendo lo stesso pattern `ADD COLUMN IF NOT EXISTS` delle migrazioni precedenti. `npx prisma generate` eseguito per rigenerare i tipi (non richiede DB).
+
+**Server**:
+- **[`cloud/server/src/routes/device.ts`](cloud/server/src/routes/device.ts)** `PATCH /vehicle`: al primo successo, se `device.confirmedAt` e' ancora null, lo imposta a `now()` - questo E' il checkpoint "handshake completato" (non trip, non heartbeat, per richiesta esplicita dell'utente: "almeno quando ha sincronizzato le info di base, non i viaggi").
+- **[`cloud/server/src/cron/pairingCleanup.ts`](cloud/server/src/cron/pairingCleanup.ts)** (nuovo): ogni 15s, cancella i `devices` con `confirmed_at IS NULL` piu' vecchi di 30s; se il `vehicle` risultante non ha piu' ne' altri device ne' trip, cancella anche quello (libera VIN/ivi_sn per un nuovo pairing legittimo). Query difensiva: non tocca un vehicle che nel frattempo ha ricevuto un secondo pairing riuscito o che aveva gia' dati propri (re-pairing).
+- **[`cloud/server/src/index.ts`](cloud/server/src/index.ts)**: `startPairingCleanupCron()` avviato all'avvio, stesso pattern di `startSubscriptionNotifierCron()`.
+- **[`cloud/server/src/routes/user.ts`](cloud/server/src/routes/user.ts)**: `POST /pairing/claim` ora ritorna anche `deviceId` (prima solo `vehicleId`) - serve al web per interrogare il nuovo endpoint. Nuovo `GET /devices/:deviceId/confirm-status` (`{ confirmed: boolean }`, 404 se il device non esiste piu' - ripulito perche' mai confermato).
+
+**Web**:
+- **[`cloud/web/src/pages/Pair.tsx`](cloud/web/src/pages/Pair.tsx)**: su richiesta esplicita dell'utente ("nel cloud rimani con la finestra 'caricamento' fino alla ricezione della conferma dall'app o al timeout"), il redirect a `/vehicles/:id/trips` non parte piu' subito dopo il claim - nuovo stato `"waiting"` con spinner (`pair.waitingForApp`), polling di `deviceConfirmStatus()` ogni 2s finche' `confirmed:true` (poi naviga), 404 (handshake fallito, messaggio `pair.handshakeFailed`, si resta sul form) o timeout locale di 35s (`pair.handshakeTimeout`, margine sopra i 30s server). `cancelledRef` evita `setState` dopo unmount.
+- **[`cloud/web/src/lib/api.ts`](cloud/web/src/lib/api.ts)**: `claimPairingCode()` tipizzato con `deviceId`; nuovo `deviceConfirmStatus()`.
+- **Stringhe**: `pair.waitingForApp`/`pair.handshakeFailed`/`pair.handshakeTimeout` in `i18n/it.ts`/`i18n/en.ts`.
+
+**Android**:
+- **[`app/src/main/java/com/phabryc/jaedrive/MainActivity.java`](app/src/main/java/com/phabryc/jaedrive/MainActivity.java)**: `finishPairingSuccess()` NON salva piu' subito `Prefs.setCloudPairing()` alla ricezione del token (comportamento fino a ieri). Ora, se `Prefs.isVehicleInfoSet()`, chiama `CloudApiClient.updateVehicleInfo()` **direttamente col token in memoria** (bypassando il vecchio `syncVehicleInfoIfNeeded()`, che avrebbe fatto nulla perche' richiede `isCloudPaired()` gia' vero - dipendenza circolare risolta passando il token esplicitamente) - solo al successo chiama il nuovo `completePairingLocally()` (che fa quello che `finishPairingSuccess()` faceva prima: salva token/VIN, refresh UI, enqueue sync, messaggio di successo). Al fallimento, token scartato, errore mostrato (`showPairingError`), l'app resta "non associata" - coerente col cleanup server-side. Se le info veicolo non sono ancora impostate localmente (caso raro, l'onboarding e' obbligatorio prima del pairing), fallback al comportamento precedente via `completePairingLocally()` diretto.
+- **Messaggio di errore rate-limit distinto** (dalla richiesta separata dell'utente sul punto 2, "almeno...un messaggio chiaro"): `startPairing()` ora distingue `ApiException` con `httpCode == 429` (rate-limit per-VIN, vedi voce di ieri) dal generico errore di rete, mostrando `dialog_pairing_error_rate_limited` ("Troppi tentativi di associazione per questo veicolo oggi. Riprova più tardi.") invece del fuorviante "Errore di connessione. Verifica che l'auto abbia accesso a internet".
+- **Stringhe**: `dialog_pairing_error_rate_limited`, `dialog_pairing_syncing` in `values/strings.xml`/`values-it/strings.xml`.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `npx tsc --noEmit` (server) → exit 0.
+- `npx tsc --noEmit` (web) → exit 0.
+- `npx prisma generate` → OK (tipi `Device.confirmedAt` disponibili).
+- `./gradlew :app:assembleDebug` → **BUILD SUCCESSFUL**.
+- **Non ancora testato end-to-end**: richiede (1) applicare la migrazione sul DB di produzione (`prisma migrate deploy`, gia' automatico nel `CMD` del container ad ogni avvio - basta il redeploy Portainer), (2) installare la nuova build sull'emulatore/auto, (3) rifare un pairing completo osservando: popup app passa da "in attesa sul sito" a "Sincronizzazione dati veicolo..." dopo il claim, il sito passa da form a spinner "in attesa dell'app" e poi naviga da solo ai viaggi, `devices.confirmed_at` valorizzato nel DB.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: tutte le modifiche nel working tree, non ancora committate/pushate (in attesa di conferma utente) ne' redeploy fatto.
+- **Open Questions / Pending Tasks**:
+  1. Redeploy Portainer necessario prima che qualunque pairing funzioni di nuovo (la migrazione va applicata, `prisma migrate deploy` gira gia' automaticamente nel container CMD).
+  2. Test end-to-end completo del nuovo flusso (vedi sopra) - non fatto in questa sessione per finire l'implementazione prima del redeploy.
+  3. Se il test rivela che l'attesa web di 35s e' percepita come troppo lunga in condizioni di rete lenta reali (non solo emulatore), il numero e' facilmente regolabile (`CONFIRM_TIMEOUT_MS` in `Pair.tsx`, `CONFIRMATION_GRACE_MS` in `pairingCleanup.ts` - vanno tenuti in linea tra loro, il primo con un margine sopra il secondo).
+- **Constraints / Warning**: `Device.confirmedAt` e' un checkpoint APPLICATIVO (primo sync marca/modello), non un flag di sicurezza - non va confuso con `verifyPairingSignature()` (voce di ieri), che gira PRIMA e indipendentemente, al momento di `pairing/start`. I due meccanismi sono complementari: uno impedisce che l'auto venga reclamata dalla persona sbagliata, l'altro garantisce che un claim legittimo non lasci comunque lo stato a meta'.
+
+---
+
+## [2026-08-05] - Verifica End-to-End Pairing con Firma HMAC Completata
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[cloud]`, `[app]`
+- **Status**: `COMPLETED`
+
+### 📌 Sintesi della Funzionalità / Modifica
+Seguito diretto della voce precedente (fix chiave HMAC). Dopo il redeploy del server fatto dall'utente, ripetuto il test dal vivo sull'emulatore: primo tentativo su `JD-EMU-0001TEST` bloccato dal rate-limit per-VIN (3/giorno gia' esauriti da sessioni di test precedenti sullo stesso identificativo fisso) - **comportamento corretto, non un bug**, conferma che anche quella protezione funziona. Su richiesta dell'utente ("cambia l'IVI simulato"), impostato un nuovo valore univoco (`adb shell settings put global ivi.sn "JD-EMU-234916TEST"`) e riavviata l'app (necessario: `readVehicleIdentifier()` lo rilegge solo una volta all'avvio, `vinResolved` non si aggiorna a runtime). Con l'identificativo fresco, il pairing e' andato a buon fine end-to-end: popup con codice (`ZNYT46Y6`) e QR generati correttamente, nessun errore in logcat.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `adb shell settings put global ivi.sn "JD-EMU-<timestamp>TEST"` + `am force-stop`/`am start` per far rileggere il nuovo valore.
+- Verificato in Impostazioni → Info Sistema che "N. serie DMC" mostrasse il nuovo valore prima di ritentare.
+- Impostazioni → CLOUD → ASSOCIA AUTO → popup con codice+QR mostrato correttamente, "In attesa che tu completi l'associazione sul sito..." - nessuna riga `[Cloud] Errore avvio pairing` nel logcat per questo tentativo.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Stato Attuale**: la firma HMAC su `pairing/start` (vedi le due voci precedenti) e' verificata funzionante end-to-end in produzione, incluso il rate-limit per-VIN. Nessun lavoro di codice pendente su questo fronte.
+- **Open Questions / Pending Tasks**: il popup di pairing e' rimasto in stato "in attesa" (mai completato da `POST /api/user/pairing/claim` - avrebbe richiesto login sul sito jaedrive.com con l'account reale dell'utente, non necessario per verificare la sola firma). Se serve testare anche il lato claim (creazione veicolo, token dispositivo), va fatto volontariamente dall'utente inserendo il codice mostrato su jaedrive.com/pair prima che scada (10 minuti).
+- **Constraints / Warning**: l'identificativo `ivi.sn` simulato su questo emulatore va sempre reimpostato con un valore univoco prima di un nuovo test di pairing se i tentativi precedenti sullo stesso valore hanno gia' esaurito la quota di 3/giorno - altrimenti si ottiene `SWAP_LIMIT_EXCEEDED`-style `429` invece di un vero test del flusso.
+
+---
+
 ## [2026-08-05] - Fix Critico: Chiave HMAC Interpretata Diversamente tra Server e App (Pairing Sempre Fallito)
 
 ### 👤 Agent Metadata

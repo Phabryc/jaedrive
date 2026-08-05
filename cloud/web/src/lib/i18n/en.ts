@@ -91,6 +91,9 @@ export const en: Record<keyof typeof it, string> = {
   "pair.invalidCode": "Invalid or expired code.",
   "pair.submitButton": "Link car",
   "pair.placeholderExample": "E.g. K7H2P9QX",
+  "pair.waitingForApp": "Code accepted! Waiting for the app in the car to complete pairing...",
+  "pair.handshakeFailed": "The app didn't confirm the pairing. Try again with a new code from the car.",
+  "pair.handshakeTimeout": "Timed out waiting for the app. Try again with a new code from the car.",
 
   "dashboard.addVehicle": "+ Add car",
   "dashboard.notSynced": "Brand/model not synced yet",

@@ -433,9 +433,28 @@ export async function userRoutes(app: FastifyInstance) {
         await sendTransactionalEmail("PAIRING_NEW_VEHICLE", user.email, { name, vehicleName, vin: vehicle.vin });
       }
 
-      return reply.send({ vehicleId: vehicle.id });
+      // deviceId incluso apposta (in aggiunta a vehicleId, gia' usato dal redirect esistente)
+      // - il web lo usa per interrogare GET /devices/:id/confirm-status e sapere quando
+      // l'app ha davvero completato l'handshake, invece di considerare il pairing riuscito
+      // al solo claim (vedi agent_log.md 2026-08-06).
+      return reply.send({ vehicleId: vehicle.id, deviceId: device.id });
     },
   );
+
+  // Polling lato web dopo un claim: true solo quando l'app ha completato l'handshake (primo
+  // PATCH /api/device/vehicle riuscito, vedi routes/device.ts e schema.prisma
+  // Device.confirmedAt) - non al solo claim, che crea gia' Vehicle/Device ma non prova che
+  // l'app li abbia mai ricevuti. 404 se il device non esiste piu' (ripulito da
+  // cron/pairingCleanup.ts perche' mai confermato entro la finestra di grazia) - il web lo
+  // tratta come pairing fallito, non come "ancora in attesa".
+  app.get("/devices/:deviceId/confirm-status", async (req, reply) => {
+    const { deviceId } = req.params as { deviceId: string };
+    const device = await prisma.device.findUnique({ where: { id: deviceId }, include: { vehicle: true } });
+    if (!device || !device.vehicle || device.vehicle.userId !== req.authUser!.id) {
+      return reply.code(404).send({ error: "Device not found" });
+    }
+    return reply.send({ confirmed: Boolean(device.confirmedAt) });
+  });
 
   app.get("/vehicles/:id/trips", async (req, reply) => {
     const { id } = req.params as { id: string };

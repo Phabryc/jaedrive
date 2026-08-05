@@ -136,6 +136,7 @@
     <string name="dialog_pairing_code_message">Su jaedrive.com inserisci questo codice, oppure inquadra il QR con lo smartphone:</string>
     <string name="dialog_pairing_qr_description">QR code per aprire la pagina di associazione su jaedrive.com</string>
     <string name="dialog_pairing_waiting">In attesa che tu completi l\'associazione sul sito...</string>
+    <string name="dialog_pairing_syncing">Sincronizzazione dati veicolo...</string>
     <string name="dialog_pairing_success">Associata! Quest\'auto e\' ora collegata al tuo account.</string>
 
     <!-- Abbonamento (2026-08-04, vedi cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md) -->
@@ -151,6 +152,7 @@
     <string name="dialog_pairing_error_vin_too_short">Inserisci un VIN valido (almeno 5 caratteri).</string>
     <string name="dialog_pairing_error_network">Errore di connessione. Verifica che l\'auto abbia accesso a internet e riprova.</string>
     <string name="dialog_pairing_error_expired">Codice scaduto senza essere usato. Riprova.</string>
+    <string name="dialog_pairing_error_rate_limited">Troppi tentativi di associazione per questo veicolo oggi. Riprova più tardi.</string>
     <string name="dialog_btn_retry">RIPROVA</string>
     <string name="dialog_btn_close">CHIUDI</string>
     <string name="dialog_vehicle_onboarding_title">Configura la tua auto</string>

@@ -133,6 +133,7 @@
     <string name="dialog_pairing_code_message">On jaedrive.com, enter this code or scan the QR code with your phone:</string>
     <string name="dialog_pairing_qr_description">QR code to open the pairing page on jaedrive.com</string>
     <string name="dialog_pairing_waiting">Waiting for you to complete linking on the site...</string>
+    <string name="dialog_pairing_syncing">Syncing vehicle data...</string>
     <string name="dialog_pairing_success">Linked! This car is now connected to your account.</string>
 
     <!-- Subscription (2026-08-04, see cloud/ANDROID_SUBSCRIPTION_HANDSHAKE.md) -->
@@ -148,6 +149,7 @@
     <string name="dialog_pairing_error_vin_too_short">Enter a valid VIN (at least 5 characters).</string>
     <string name="dialog_pairing_error_network">Connection error. Check that the car has internet access and try again.</string>
     <string name="dialog_pairing_error_expired">Code expired without being used. Try again.</string>
+    <string name="dialog_pairing_error_rate_limited">Too many pairing attempts for this vehicle today. Try again later.</string>
     <string name="dialog_btn_retry">TRY AGAIN</string>
     <string name="dialog_btn_close">CLOSE</string>
     <string name="dialog_vehicle_onboarding_title">Set up your car</string>

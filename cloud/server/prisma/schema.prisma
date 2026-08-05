@@ -122,6 +122,15 @@ model Device {
   lastSeenAt      DateTime? @map("last_seen_at")
   createdAt       DateTime  @default(now()) @map("created_at")
 
+  // Impostato al primo PATCH /api/device/vehicle riuscito (sync marca/modello/motorizzazione)
+  // dopo il pairing - non al solo delivery del token, che da solo non prova che l'app abbia
+  // davvero completato l'handshake (vedi agent_log.md 2026-08-05/06: un pairing interrotto
+  // dopo la creazione del Device ma prima che l'app tornasse a leggere il token via poll
+  // lasciava un'auto "aggiunta" sul cloud ma per sempre "non sincronizzata"). Un device mai
+  // confermato entro la finestra di grazia viene ripulito da cron/pairingCleanup.ts insieme
+  // al Vehicle, se quest'ultimo non ha altri device/trip.
+  confirmedAt     DateTime? @map("confirmed_at")
+
   trips           Trip[]
   pairingRequests PairingRequest[]
 

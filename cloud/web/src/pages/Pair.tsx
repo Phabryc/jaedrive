@@ -6,6 +6,14 @@ import { Button } from "../components/Button";
 import { useLanguage } from "../lib/i18n/LanguageContext";
 import { useProfile } from "../lib/ProfileContext";
 
+// Deve restare in linea con la finestra di grazia server (CONFIRMATION_GRACE_MS in
+// cloud/server/src/cron/pairingCleanup.ts, 30s) con un margine per il round-trip di rete -
+// se il polling qui scade prima che il server pulisca il device, il prossimo giro di
+// polling lo avrebbe comunque trovato non confermato; nessun danno, solo un timeout percepito
+// leggermente in anticipo rispetto alla pulizia server.
+const CONFIRM_POLL_INTERVAL_MS = 2000;
+const CONFIRM_TIMEOUT_MS = 35000;
+
 export default function Pair() {
   const { profile } = useProfile();
   const { t } = useLanguage();
@@ -15,21 +23,61 @@ export default function Pair() {
   const [code, setCode] = useState(codeFromUrl?.toUpperCase() ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // "idle": form di inserimento codice. "waiting": codice accettato, in attesa che l'app
+  // sull'auto completi l'handshake (vedi waitForConfirmation) - qui il redirect alla pagina
+  // viaggi NON parte piu' al solo claim (vedi agent_log.md 2026-08-06): il claim crea
+  // gia' Vehicle/Device lato server, ma solo l'handshake prova che l'app li abbia ricevuti.
+  const [phase, setPhase] = useState<"idle" | "waiting">("idle");
   // Guards the auto-submit-from-QR-link effect below so it fires at most once, even if the
   // component re-renders before the claim request resolves.
   const autoSubmitted = useRef(false);
+  // Evita setState dopo unmount se l'utente naviga via mentre il polling e' in corso.
+  const cancelledRef = useRef(false);
+  useEffect(() => () => { cancelledRef.current = true; }, []);
 
   async function claim(value: string) {
     setError(null);
     setBusy(true);
     try {
-      const { vehicleId } = await api.claimPairingCode(value.trim());
-      navigate(`/vehicles/${vehicleId}/trips`);
+      const { vehicleId, deviceId } = await api.claimPairingCode(value.trim());
+      setBusy(false);
+      setPhase("waiting");
+      waitForConfirmation(vehicleId, deviceId, Date.now() + CONFIRM_TIMEOUT_MS);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("pair.invalidCode"));
-    } finally {
       setBusy(false);
     }
+  }
+
+  async function waitForConfirmation(vehicleId: string, deviceId: string, deadline: number) {
+    if (cancelledRef.current) return;
+    try {
+      const { confirmed } = await api.deviceConfirmStatus(deviceId);
+      if (confirmed) {
+        navigate(`/vehicles/${vehicleId}/trips`);
+        return;
+      }
+    } catch (err) {
+      // 404 = il device e' stato ripulito lato server perche' mai confermato (vedi
+      // cron/pairingCleanup.ts) - un fallimento definitivo, non ha senso continuare a
+      // pollare. Altri errori (rete transitoria) vengono invece ignorati e ritentati finche'
+      // non scade il timeout locale.
+      if (err instanceof ApiError && err.status === 404) {
+        if (!cancelledRef.current) {
+          setPhase("idle");
+          setError(t("pair.handshakeFailed"));
+        }
+        return;
+      }
+    }
+    if (Date.now() >= deadline) {
+      if (!cancelledRef.current) {
+        setPhase("idle");
+        setError(t("pair.handshakeTimeout"));
+      }
+      return;
+    }
+    setTimeout(() => waitForConfirmation(vehicleId, deviceId, deadline), CONFIRM_POLL_INTERVAL_MS);
   }
 
   useEffect(() => {
@@ -87,6 +135,18 @@ export default function Pair() {
               </Button>
             </form>
           </div>
+        </div>
+      </AppShell>
+    );
+  }
+
+  if (phase === "waiting") {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-md text-center">
+          <h1 className="mb-4 text-xl font-semibold">{t("pair.title")}</h1>
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+          <p className="text-sm text-onsurface-variant">{t("pair.waitingForApp")}</p>
         </div>
       </AppShell>
     );

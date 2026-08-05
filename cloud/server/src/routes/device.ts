@@ -340,6 +340,14 @@ export async function deviceRoutes(app: FastifyInstance) {
 
         try {
           const vehicle = await prisma.vehicle.update({ where: { id: device.vehicleId }, data });
+          // Prima sincronizzazione riuscita dopo il pairing = prova che l'app ha davvero
+          // ricevuto il token e completato l'handshake, non solo che il claim sia avvenuto
+          // sul sito - vedi Device.confirmedAt in schema.prisma e cron/pairingCleanup.ts.
+          // Solo se non gia' confermato: nessun bisogno di riscrivere lo stesso timestamp
+          // ad ogni PATCH successiva (es. correzione VIN, vedi commento sopra la route).
+          if (!device.confirmedAt) {
+            await prisma.device.update({ where: { id: device.id }, data: { confirmedAt: new Date() } });
+          }
           return reply.send({ brand: vehicle.brand, model: vehicle.model, powertrain: vehicle.powertrain, vin: vehicle.vin });
         } catch (err: any) {
           // Collisione VIN (unique) - un'altra auto ha gia' questo VIN, es. due dispositivi

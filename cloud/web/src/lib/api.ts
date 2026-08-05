@@ -103,7 +103,13 @@ export const api = {
   deleteVehicle: (id: string) => request<void>(`/vehicles/${id}`, { method: "DELETE" }),
 
   claimPairingCode: (code: string) =>
-    request<{ vehicleId: string }>("/pairing/claim", { method: "POST", body: JSON.stringify({ code }) }),
+    request<{ vehicleId: string; deviceId: string }>("/pairing/claim", { method: "POST", body: JSON.stringify({ code }) }),
+
+  // Polling post-claim (vedi Pair.tsx) - true solo quando l'app ha completato l'handshake
+  // (primo PATCH /api/device/vehicle riuscito), non al solo claim. 404 se il device e' stato
+  // ripulito perche' mai confermato entro la finestra di grazia (vedi agent_log.md 2026-08-06).
+  deviceConfirmStatus: (deviceId: string) =>
+    request<{ confirmed: boolean }>(`/devices/${deviceId}/confirm-status`),
 
   trips: (vehicleId: string, params: { page?: number; kind?: string; from?: string; to?: string } = {}) => {
     const qs = new URLSearchParams();

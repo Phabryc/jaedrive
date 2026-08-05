@@ -10,6 +10,7 @@ import { userRoutes } from "./routes/user.js";
 import { adminRoutes } from "./routes/admin.js";
 
 import { startSubscriptionNotifierCron } from "./cron/subscriptionNotifier.js";
+import { startPairingCleanupCron } from "./cron/pairingCleanup.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,6 +31,7 @@ await app.register(adminRoutes, { prefix: "/api/admin" });
 
 // Start automated subscription notifier cron
 startSubscriptionNotifierCron();
+startPairingCleanupCron();
 
 // Serves the built React SPA (see cloud/web) from the same process/port as the API - no
 // separate frontend container, see DESIGN.md §2 and §13.

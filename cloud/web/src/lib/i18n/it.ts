@@ -101,6 +101,9 @@ export const it = {
   "pair.invalidCode": "Codice non valido o scaduto.",
   "pair.submitButton": "Collega auto",
   "pair.placeholderExample": "Es. K7H2P9QX",
+  "pair.waitingForApp": "Codice accettato! In attesa che l'app sull'auto completi l'associazione...",
+  "pair.handshakeFailed": "L'app non ha confermato l'associazione. Riprova generando un nuovo codice dall'auto.",
+  "pair.handshakeTimeout": "Tempo scaduto in attesa dell'app. Riprova generando un nuovo codice dall'auto.",
 
   // Dashboard (elenco auto dell'utente)
   "dashboard.addVehicle": "+ Aggiungi auto",
