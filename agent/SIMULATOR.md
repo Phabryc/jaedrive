@@ -139,6 +139,31 @@ if (Test-Path $configPath) {
 ```
 *(Nota per agenti AI/Headless: aggiungere `-no-window` se viene eseguito su server privo di display GUI).*
 
+### 3.4 Script Launcher Locale 1-Click per Windows (`run_emulator.bat`)
+
+Su macchine Windows è possibile creare uno script `.bat` locale (ignorato da git) che avvia l'emulatore risolvendo dinamicamente i percorsi:
+
+```cmd
+@echo off
+setlocal
+
+set TEMP_PS1=%TEMP%\launch_emulator_temp_%RANDOM%.ps1
+
+echo # JaeDrive Emulator Launcher Script > "%TEMP_PS1%"
+echo $sdkPath = if (Test-Path "D:\.android-sdk") { "D:\.android-sdk" } else { "$env:USERPROFILE\.android-sdk" } >> "%TEMP_PS1%"
+echo $avdPath = if (Test-Path "D:\.android\avd") { "D:\.android\avd" } else { "$env:USERPROFILE\.android\avd" } >> "%TEMP_PS1%"
+echo $env:JAVA_HOME = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { "$env:USERPROFILE\.jdk-17" } >> "%TEMP_PS1%"
+echo $env:ANDROID_HOME = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $sdkPath } >> "%TEMP_PS1%"
+echo $env:ANDROID_AVD_HOME = if ($env:ANDROID_AVD_HOME) { $env:ANDROID_AVD_HOME } else { $avdPath } >> "%TEMP_PS1%"
+echo $env:PATH = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\emulator;$env:ANDROID_HOME\platform-tools;$env:PATH" >> "%TEMP_PS1%"
+echo ^& "$env:ANDROID_HOME\emulator\emulator.exe" -avd JaeDrive_Emulator -gpu host >> "%TEMP_PS1%"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%TEMP_PS1%"
+
+if exist "%TEMP_PS1%" del "%TEMP_PS1%"
+endlocal
+```
+
 ---
 
 ## 4. Guida alla Configurazione: Linux
