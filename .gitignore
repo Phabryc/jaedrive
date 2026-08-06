@@ -58,3 +58,6 @@ photo/
 # === OS noise ===
 .DS_Store
 Thumbs.db
+
+# Local emulator launcher script
+run_emulator.bat
