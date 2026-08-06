@@ -4,6 +4,32 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-06] - Avvio dell'Emulatore Android Automotive ed Esecuzione JaeDrive Riusciti End-to-End
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Leo AG (Antigravity / Gemini 3.6 Flash)
+- **Scope / Subsystem**: `[app]`, `[agent]`
+- **Status**: `COMPLETED` (compilazione, installazione, esecuzione e mock telemetria verificati end-to-end)
+
+### 📌 Sintesi della Funzionalità / Modifica
+1. **Correzione Immagine SDK**: Utilizzata l'immagine corretta **`system-images;android-33;android-automotive;x86_64`** (scoperta da Claude nei test su Linux), che include il framework ed il servizio di sistema `CarService` di Android Automotive a runtime.
+2. **Setup AVD**: Ricreato l'AVD `JaeDrive_Emulator` con l'immagine Android Automotive, risoluzione **1440 × 1770 @ 160dpi** (densità nativa dal dump della vettura).
+3. **Avvio & Deploy**: Avviato l'emulatore con acceleratore hardware **AEHD** e GPU host, atteso il boot completo (`sys.boot_completed == 1`), installato `JaeDrive.apk` (10.7 MB Debug) e lanciata l'activity principale `com.phabryc.jaedrive/.MainActivity`.
+4. **Verifica Logcat**:
+   - `CarService` connesso: `onServiceConnected: ComponentInfo{com.android.car/com.android.car.CarService}`.
+   - Fallback Mock automatico: `[VDB] [EMULAZIONE DEBUG] Bus VDB OEM non rilevato. Avvio VehicleSimulator per test su Emulatore...`.
+   - Flusso telemetria mock generato: pacchetti `TIRE_PRESSURE_WARNING`, `ENDURANCE_KM=340`, `ENERGY_RECYCLE_LEVEL=1`.
+   - Discovery VHAL: rilevate 25 proprietà esposte dal VHAL (`INFO_MAKE=Toy Vehicle`, `INFO_MODEL=Speedy Model`).
+
+### 🧪 Comandi di Verifica Eseguiti
+- `sdkmanager --sdk_root=D:\.android-sdk "system-images;android-33;android-automotive;x86_64"` -> **SUCCESS**.
+- `avdmanager create avd -n JaeDrive_Emulator -k "system-images;android-33;android-automotive;x86_64"` -> **SUCCESS**.
+- `adb install -r app/build/outputs/apk/debug/JaeDrive.apk` -> **Success**.
+- `adb shell am start -n com.phabryc.jaedrive/.MainActivity` -> **SUCCESS**.
+- `adb logcat -d -s JaeDrive VehicleSimulator VehicleMockBridge` -> Logcat confermato al 100% funzionante con simulatore attivo.
+
+---
+
 ## [2026-08-06] - Conferma Handshake Pairing Validata sul Campo dall'Utente + TODO: Email Prematura
 
 ### 👤 Agent Metadata
