@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copiato identico da app/src/main/res/drawable/glass_card_glow_bg.xml (richiesta esplicita
+     utente 2026-08-08: onboarding veicolo del probe identico a quello dell'app principale). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="10dp"/>
+    <solid android:color="@color/glass_card_fill"/>
+    <stroke android:width="2dp" android:color="@color/glass_border_primary"/>
+</shape>

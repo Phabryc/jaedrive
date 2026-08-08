@@ -28,7 +28,6 @@ import android.util.DisplayMetrics;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -276,49 +275,165 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------------------------------
-    // 0. Onboarding operatore (2026-08-08, richiesta esplicita utente): chiede marca/modello/
-    // motorizzazione reali PRIMA di avviare la scansione, cosi' dump.txt contiene sia quello
-    // che l'operatore ha dichiarato sia i byte marca/piattaforma/motorizzazione/trazione
-    // rilevati automaticamente via VDB (vedi dumpVehicleConfig()) - il confronto tra i due e'
+    // 0. Onboarding operatore (2026-08-08, richiesta esplicita utente): STESSO dialog marca/
+    // modello/motorizzazione dell'app principale (chip a cascata, stesso VehicleCatalog, stesso
+    // stile grafico - vedi dialog_vehicle_onboarding.xml, copiato da app/ insieme ai drawable/
+    // colori che referenzia), non testo libero: solo cosi' la risposta si confronta 1:1 coi
+    // byte marca/piattaforma/motorizzazione/trazione rilevati via VDB in dumpVehicleConfig() -
     // esattamente il dato empirico che manca per costruire il dizionario "codice piattaforma
-    // interno -> nome commerciale" (l'OEM stesso non lo conosce, solo codename tipo T1EJ).
-    // Campi liberi (non il catalogo chiuso di VehicleCatalog.java in app/): questo strumento
-    // gira anche su auto Chery/altre sotto-marche mai viste in JaeDrive. Non blocca la
-    // scansione se lasciato vuoto - l'operatore potrebbe non saperlo con certezza.
+    // interno -> nome commerciale" (l'OEM stesso non lo conosce, solo codename tipo T1EJ). A
+    // differenza dell'app, qui il pulsante "SKIP" e' sempre visibile (mai obbligatorio: questo
+    // strumento gira anche su auto/marche fuori dal catalogo JAECOO/OMODA note a JaeDrive) e non
+    // c'e' alcuna sezione VIN (nessun pairing/cloud nel probe).
     // ------------------------------------------------------------------
     private interface VehicleInfoCallback {
         void onReady(String operatorVehicleInfo);
     }
 
     private void showVehicleInfoDialog(VehicleInfoCallback callback) {
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(pad, pad, pad, pad);
+        View root = getLayoutInflater().inflate(R.layout.dialog_vehicle_onboarding, null);
+        LinearLayout brandContainer = root.findViewById(R.id.vehicle_brand_container);
+        TextView modelLabel = root.findViewById(R.id.tv_vehicle_model_label);
+        LinearLayout modelContainer = root.findViewById(R.id.vehicle_model_container);
+        TextView powertrainLabel = root.findViewById(R.id.tv_vehicle_powertrain_label);
+        LinearLayout powertrainContainer = root.findViewById(R.id.vehicle_powertrain_container);
+        TextView btnSkip = root.findViewById(R.id.btn_vehicle_onboarding_close);
+        TextView btnConfirm = root.findViewById(R.id.btn_vehicle_onboarding_confirm);
 
-        EditText etBrand = new EditText(this);
-        etBrand.setHint("Brand (e.g. Jaecoo, Omoda, Chery)");
-        EditText etModel = new EditText(this);
-        etModel.setHint("Model (e.g. 5, 7, 8, 9)");
-        EditText etPowertrain = new EditText(this);
-        etPowertrain.setHint("Powertrain / trim (e.g. ICE 2WD, HEV, PHEV, EV)");
-        layout.addView(etBrand);
-        layout.addView(etModel);
-        layout.addView(etPowertrain);
+        // Stato mutabile catturato dalle lambda sotto (array di 1 elemento, stesso pattern di
+        // MainActivity.showVehicleOnboardingDialog() nell'app - le variabili locali in Java
+        // devono essere effectively final per essere catturate da una lambda).
+        String[] selected = {null, null, null};
 
-        new AlertDialog.Builder(this)
-            .setTitle("What car is this?")
-            .setMessage("Optional - used to cross-check the values detected automatically further down. Leave blank if unknown.")
-            .setView(layout)
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setView(root)
             .setCancelable(false)
-            .setPositiveButton("START SCAN", (dialog, which) -> {
-                String info = "brand=\"" + etBrand.getText().toString().trim()
-                    + "\" model=\"" + etModel.getText().toString().trim()
-                    + "\" powertrain=\"" + etPowertrain.getText().toString().trim() + "\"";
-                callback.onReady(info);
-            })
-            .setNegativeButton("SKIP", (dialog, which) -> callback.onReady("(not provided by operator)"))
-            .show();
+            .create();
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+
+        btnSkip.setOnClickListener(v -> {
+            dialog.dismiss();
+            callback.onReady("(not provided by operator)");
+        });
+
+        Runnable updateConfirmState = () -> btnConfirm.setAlpha(
+            (selected[0] != null && selected[1] != null && selected[2] != null) ? 1f : 0.4f);
+
+        Runnable[] populatePowertrain = new Runnable[1];
+        Runnable[] populateModel = new Runnable[1];
+        Runnable[] populateBrand = new Runnable[1];
+
+        populatePowertrain[0] = () -> {
+            powertrainContainer.removeAllViews();
+            if (selected[0] == null || selected[1] == null) {
+                powertrainLabel.setVisibility(View.GONE);
+                powertrainContainer.setVisibility(View.GONE);
+                return;
+            }
+            powertrainLabel.setVisibility(View.VISIBLE);
+            powertrainContainer.setVisibility(View.VISIBLE);
+            for (String pt : VehicleCatalog.powertrainsFor(selected[0], selected[1])) {
+                TextView chip = buildOnboardingChip(VehicleCatalog.powertrainLabel(pt), pt.equals(selected[2]));
+                chip.setOnClickListener(v -> {
+                    selected[2] = pt;
+                    populatePowertrain[0].run();
+                    updateConfirmState.run();
+                });
+                addWeightedChip(powertrainContainer, chip);
+            }
+        };
+
+        populateModel[0] = () -> {
+            modelContainer.removeAllViews();
+            if (selected[0] == null) {
+                modelLabel.setVisibility(View.GONE);
+                modelContainer.setVisibility(View.GONE);
+                return;
+            }
+            modelLabel.setVisibility(View.VISIBLE);
+            modelContainer.setVisibility(View.VISIBLE);
+            for (String model : VehicleCatalog.modelsFor(selected[0])) {
+                TextView chip = buildOnboardingChip(selected[0] + " " + model, model.equals(selected[1]));
+                chip.setOnClickListener(v -> {
+                    if (!model.equals(selected[1])) {
+                        selected[1] = model;
+                        selected[2] = null;
+                    }
+                    populateModel[0].run();
+                    populatePowertrain[0].run();
+                    updateConfirmState.run();
+                });
+                addWeightedChip(modelContainer, chip);
+            }
+        };
+
+        populateBrand[0] = () -> {
+            brandContainer.removeAllViews();
+            for (String brand : VehicleCatalog.BRANDS) {
+                TextView chip = buildOnboardingChip(brand, brand.equals(selected[0]));
+                chip.setOnClickListener(v -> {
+                    if (!brand.equals(selected[0])) {
+                        selected[0] = brand;
+                        selected[1] = null;
+                        selected[2] = null;
+                    }
+                    populateBrand[0].run();
+                    populateModel[0].run();
+                    populatePowertrain[0].run();
+                    updateConfirmState.run();
+                });
+                addWeightedChip(brandContainer, chip);
+            }
+        };
+
+        populateBrand[0].run();
+        populateModel[0].run();
+        populatePowertrain[0].run();
+        updateConfirmState.run();
+
+        btnConfirm.setOnClickListener(v -> {
+            if (selected[0] == null || selected[1] == null || selected[2] == null) return;
+            dialog.dismiss();
+            callback.onReady(VehicleCatalog.displayName(selected[0], selected[1], selected[2]));
+        });
+
+        dialog.show();
+    }
+
+    // Chip di selezione singola - copiati identici da MainActivity.buildOnboardingChip()/
+    // styleOnboardingChip()/addWeightedChip()/dp() dell'app principale.
+    private TextView buildOnboardingChip(String text, boolean selected) {
+        TextView chip = new TextView(this);
+        chip.setText(text);
+        chip.setTextSize(15);
+        chip.setGravity(android.view.Gravity.CENTER);
+        chip.setClickable(true);
+        chip.setFocusable(true);
+        styleOnboardingChip(chip, selected);
+        return chip;
+    }
+
+    private void styleOnboardingChip(TextView chip, boolean selected) {
+        if (selected) {
+            chip.setBackgroundResource(R.drawable.segment_selected_bg);
+            chip.setTextColor(getColor(R.color.on_primary));
+        } else {
+            chip.setBackgroundResource(R.drawable.badge_chip_neutral);
+            chip.setTextColor(getColor(R.color.on_surface_variant));
+        }
+    }
+
+    private void addWeightedChip(LinearLayout container, TextView chip) {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        int padV = (int) dp(14);
+        if (container.getChildCount() > 0) params.leftMargin = (int) dp(8);
+        chip.setPadding((int) dp(8), padV, (int) dp(8), padV);
+        chip.setLayoutParams(params);
+        container.addView(chip);
+    }
+
+    private float dp(float value) {
+        return value * getResources().getDisplayMetrics().density;
     }
 
     private void runFullScan(boolean systemFilesFull, String operatorVehicleInfo) {

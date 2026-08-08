@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sottoinsieme dei colori Aetheris di app/src/main/res/values/colors.xml (stessi nomi,
+     stessi valori) - copiati qui solo per rendere il dialog di onboarding veicolo del probe
+     visivamente identico a quello dell'app principale (richiesta esplicita utente 2026-08-08),
+     senza aggiungere una dipendenza tra i due moduli Gradle separati. -->
+<resources>
+    <color name="surface_container_highest">#353534</color>
+    <color name="on_surface">#E5E2E1</color>
+    <color name="on_surface_variant">#BCC8D1</color>
+    <color name="primary">#8FD6FF</color>
+    <color name="primary_container">#00BFFF</color>
+    <color name="on_primary">#003549</color>
+    <color name="secondary_container">#394857</color>
+    <color name="on_secondary_container">#A7B7C8</color>
+    <color name="glass_card_fill">#99191919</color>
+    <color name="glass_border_primary">#4D00BFFF</color>
+</resources>
