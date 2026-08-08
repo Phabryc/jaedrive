@@ -1327,6 +1327,24 @@
                         android:textStyle="bold" android:fontFamily="@font/geist_mono"/>
                 </LinearLayout>
 
+                <!-- VIN automobilistico reale (2026-08-08, richiesta esplicita utente): campo
+                     separato da ivi.sn sopra, mai usato per il pairing - vedi
+                     MainActivity.resolveAndSyncRealVin(). Etichetta statica "VIN", a
+                     differenza della card sopra non cambia mai dinamicamente. -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:background="@drawable/card_bg"
+                    android:padding="24dp"
+                    android:layout_marginBottom="28dp">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="@string/label_vin_real" android:textColor="@color/on_surface_variant" android:textSize="20sp"/>
+                    <TextView android:id="@+id/tv_vehicle_real_vin" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:text="@string/label_vin_unavailable" android:textColor="@color/on_surface" android:textSize="26sp"
+                        android:textStyle="bold" android:fontFamily="@font/geist_mono"/>
+                </LinearLayout>
+
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

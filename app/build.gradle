@@ -21,6 +21,22 @@ android {
         aidl true
     }
 
+    // Build "release" offuscata/firmata (2026-08-07, richiesta esplicita utente: pronta da
+    // distribuire quando serve) - prima non esisteva questo blocco: AGP crea comunque un
+    // build type "release" di default anche senza dichiararlo, ma SENZA offuscamento
+    // (minifyEnabled false di default) e senza signingConfig esplicita (stesso identico
+    // problema gia' risolto nel modulo probe/: INSTALL_PARSE_FAILED_NO_CERTIFICATES).
+    // Nessun keystore di produzione: l'APK si installa via USB, non passa da nessuno store,
+    // quindi la firma debug basta - stesso ragionamento e stesso pattern gia' verificato in
+    // probe/build.gradle.
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
+        }
+    }
+
     // Nome file ufficiale dell'APK invece del generico "app-debug.apk" (piu' comodo
     // da riconoscere una volta copiato su chiavetta USB per l'installazione).
     applicationVariants.all { variant ->

@@ -46,6 +46,7 @@ import org.osmdroid.views.overlay.Marker;
 import org.osmdroid.views.overlay.Polyline;
 
 import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -55,6 +56,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 // UI secondo il design system "Aetheris Automotive" (Google Stitch, progetto
 // "Jaecoo Trip Monitor"): nav drawer verticale fissa + 4 sezioni (Dashboard,
@@ -146,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvAppVersion;
     private TextView tvVehicleVin;
     private TextView tvVinLabel;
+    private TextView tvVehicleRealVin;
     private TextView tvVehicleModel;
     private TextView tvCloudStatus, tvCloudSubtitle, btnCloudPair, btnCloudUnpair;
     private ImageView btnCloudRefresh;
@@ -341,6 +345,7 @@ public class MainActivity extends AppCompatActivity {
         tvAppVersion = findViewById(R.id.tv_app_version);
         tvVehicleVin = findViewById(R.id.tv_vehicle_vin);
         tvVinLabel = findViewById(R.id.tv_vin_label);
+        tvVehicleRealVin = findViewById(R.id.tv_vehicle_real_vin);
         tvVehicleModel = findViewById(R.id.tv_vehicle_model);
         tvCloudStatus = findViewById(R.id.tv_cloud_status);
         tvCloudSubtitle = findViewById(R.id.tv_cloud_subtitle);
@@ -407,6 +412,8 @@ public class MainActivity extends AppCompatActivity {
         // Chiamata il piu' presto possibile (non dipende dal car service, solo da
         // ContentResolver) - vedi readVehicleIdentifier() per i dettagli.
         readVehicleIdentifier();
+        // Campo separato, mai usato per il pairing - vedi resolveAndSyncRealVin().
+        resolveAndSyncRealVin();
         // Obbligatorio solo se marca/modello/motorizzazione non sono mai stati impostati -
         // vedi Prefs.isVehicleInfoSet()/VehicleCatalog. Non cancellabile in questo caso
         // (nessun bottone CHIUDI, nessun dismiss col tasto indietro).
@@ -727,10 +734,14 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception ignored) {
         }
         String finalVersionName = versionName;
+        // Inviato in aggiunta a vin/ivi.sn (mai al suo posto - vedi commento su vinResolved)
+        // cosi' il server puo' riconoscere una riassociazione dopo sostituzione infotainment
+        // a parita' di VIN reale, vedi routes/user.ts "pairing/claim".
+        String realVinForPairing = realVinResolved ? tvVehicleRealVin.getText().toString().trim() : null;
 
         new Thread(() -> {
             try {
-                CloudApiClient.PairingStart result = CloudApiClient.pairingStart(vin, finalVersionName);
+                CloudApiClient.PairingStart result = CloudApiClient.pairingStart(vin, realVinForPairing, finalVersionName);
                 runOnUiThread(() -> showPairingCode(root, result));
             } catch (Exception e) {
                 appendLog("[Cloud] Errore avvio pairing: " + e);
@@ -1274,7 +1285,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void mergeSelectedTrips(List<TripRecord> sortedTrips) {
-        String mergedFileName = "Percorso_" + DateFormat.format("yyyyMMdd_HHmmss", sortedTrips.get(0).startTime) + ".gpx";
+        // BUG TROVATO SUL CAMPO (2026-08-07): il nome andava generato SEMPRE diverso da
+        // quello di un file .gpx originale gia' esistente. Usando lo startTime del primo
+        // viaggio selezionato (arrotondato al secondo dal formato) il nome coincideva quasi
+        // sempre col nome del SUO STESSO file .gpx originale (generato da
+        // TrackingService.startTrip() con un timestamp preso a pochi ms di distanza dalla
+        // stessa chiamata) - il file veniva scritto correttamente con la traccia unita, ma
+        // il loop di pulizia qui sotto lo cancellava subito dopo credendo di cancellare
+        // l'originale del primo viaggio (stesso path), lasciando il viaggio unito senza
+        // traccia GPS. Il suffisso "_merged" garantisce che il path non collida mai con
+        // nessun file .gpx generato da TrackingService.
+        String mergedFileName = "Percorso_" + DateFormat.format("yyyyMMdd_HHmmss", sortedTrips.get(0).startTime) + "_merged.gpx";
         File mergedGpxFile = new File(getFilesDir(), mergedFileName);
         try (java.io.OutputStreamWriter w = new java.io.OutputStreamWriter(new java.io.FileOutputStream(mergedGpxFile))) {
             w.write(TripMerger.buildMergedGpx(sortedTrips, mergedFileName));
@@ -1300,7 +1321,10 @@ public class MainActivity extends AppCompatActivity {
             if (r.cloudTripId != null) cloudIdsToDelete.add(r.cloudTripId);
             if (r.gpxPath != null) {
                 File f = new File(r.gpxPath);
-                if (f.exists()) f.delete();
+                // Non cancellare mai il file appena scritto col GPX unito, nel caso
+                // (non dovrebbe piu' succedere col suffisso "_merged" sopra, ma qui per
+                // sicurezza) il path di un originale coincidesse col suo path.
+                if (!f.getAbsolutePath().equals(mergedGpxFile.getAbsolutePath()) && f.exists()) f.delete();
             }
             if (r.logPath != null) {
                 File f = new File(r.logPath);
@@ -3221,18 +3245,16 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // VIN in Impostazioni: nessuna lettura elettronica del VIN vero e' piu' tentata (rimossa
-    // il 2026-08-02, sia il tentativo VDB - ID_VIN/ID_VIN_ALT, vedi VDInfoClient - sia
-    // sys.vehicle.hardware.vin.code via SystemProperties/reflection). Confermato via
-    // decompile di ENG MODE (com.desaysv.engmode, stesso identico meccanismo di lettura)
-    // che quella system property esiste davvero sul sistema, ma il suo manifest dichiara
-    // android:sharedUserId="android.uid.system" - un dominio di privilegio irraggiungibile
-    // da JaeDrive (stesso muro gia' incontrato con CAR_IDENTIFICATION/CAR_MILEAGE, non
-    // superabile da nessuna tecnica lato-app senza installare JaeDrive come priv-app, gia'
-    // scartato per rischio sull'auto quotidiana dell'utente). Si usa quindi direttamente
-    // "ivi.sn" (S/N del DMC, suggerito dallo sviluppatore DSA) come unico identificativo
-    // automatico - non un VIN vero, ma l'unico dato univoco per-veicolo realisticamente
-    // ottenibile.
+    // VIN in Impostazioni: il tentativo via VDB (ID_VIN/ID_VIN_ALT, vedi VDInfoClient) e via
+    // sys.vehicle.hardware.vin.code (SystemProperties/reflection) restano bloccati - quella
+    // system property esiste davvero (confermato via decompile di ENG MODE, com.desaysv.
+    // engmode) ma il suo manifest dichiara android:sharedUserId="android.uid.system",
+    // irraggiungibile da JaeDrive senza installarla come priv-app (scartato per rischio
+    // sull'auto quotidiana dell'utente). L'identificativo automatico resta quindi "ivi.sn"
+    // (S/N del DMC, suggerito dallo sviluppatore DSA) - non e' un VIN vero, ma e' STABILE e
+    // UNIVOCO per pairing/cloud (richiesta esplicita utente 2026-08-08: usare sempre questo
+    // come chiave, mai il VIN reale sotto, che invece cambierebbe identita' se l'unita'
+    // infotainment venisse sostituita pur restando la stessa auto).
     private boolean vinResolved = false;
 
     // Aggiorna l'etichetta "S/N DMC" in Impostazioni (tvVinLabel) e, se non-null, quella
@@ -3249,7 +3271,7 @@ public class MainActivity extends AppCompatActivity {
 
     // Suggerita dallo sviluppatore DSA: restituisce il numero di serie del DMC (l'unita'
     // infotainment - "IVI Serial Number"), non il VIN - vedi commento su vinResolved per il
-    // perche' e' l'unico identificativo automatico usato da JaeDrive.
+    // perche' e' l'unico identificativo automatico usato da JaeDrive per pairing/cloud.
     private static final String SETTING_IVI_SN_FALLBACK = "ivi.sn";
 
     // Qualunque stringa non vuota va bene, non e' un VIN da validare in un formato preciso.
@@ -3313,6 +3335,87 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> Toast.makeText(this, getString(R.string.toast_vin_error), Toast.LENGTH_LONG).show());
             }
         }, "JaeDrive-VinSync").start();
+    }
+
+    // ------------------------------------------------------------------
+    // VIN AUTOMOBILISTICO REALE (2026-08-08, richiesta esplicita utente): campo separato,
+    // mostrato ACCANTO a ivi.sn in Impostazioni, mai usato come chiave di pairing (vedi
+    // commento su vinResolved sopra per il perche'). Scoperto analizzando un dump di
+    // JaeDriveProbe che "persist.sys.tbox.vin" espone il VIN in chiaro con un semplice
+    // `getprop` (nessun permesso speciale) - un percorso completamente diverso da quello
+    // bloccato via VDB/CarPropertyManager (property del TBox/Neusoft, non del gateway VDB
+    // Desay). Confermato dall'utente sui documenti del veicolo: il valore e' il VIN VERO.
+    // Non e' pero' garantito che questa property sia popolata su ogni vettura di questa
+    // piattaforma (dipende dal provisioning del TBox) - per questo il valore viene validato
+    // nel FORMATO (17 caratteri, alfabeto ISO 3779) prima di essere accettato: se assente/
+    // vuoto/malformato il campo resta semplicemente "non disponibile", senza alcun impatto
+    // sul pairing (che continua a usare solo ivi.sn).
+    private boolean realVinResolved = false;
+
+    private static final String TBOX_VIN_PROPERTY = "persist.sys.tbox.vin";
+    private static final Pattern VIN_FORMAT = Pattern.compile("^[A-HJ-NPR-Z0-9]{17}$");
+
+    private String readTboxVinProperty() {
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"getprop", TBOX_VIN_PROPERTY});
+            String raw;
+            try (InputStream is = p.getInputStream()) {
+                StringBuilder out = new StringBuilder();
+                byte[] buf = new byte[256];
+                int n;
+                while ((n = is.read(buf)) != -1) out.append(new String(buf, 0, n));
+                raw = out.toString().trim();
+            }
+            p.waitFor(3, TimeUnit.SECONDS);
+            if (raw.isEmpty()) return null;
+            String vin = raw.toUpperCase(Locale.US);
+            if (!VIN_FORMAT.matcher(vin).matches()) {
+                appendLog("[getprop] " + TBOX_VIN_PROPERTY + " = \"" + raw + "\" (formato non valido, ignorato)");
+                return null;
+            }
+            return vin;
+        } catch (Exception e) {
+            appendLog("[getprop] Errore lettura " + TBOX_VIN_PROPERTY + ": " + e);
+            return null;
+        }
+    }
+
+    // Chiamato una volta in onCreate, dopo readVehicleIdentifier(). Mostra subito l'ultimo
+    // valore salvato localmente (se presente) cosi' la UI non "sparisce" per un fallimento
+    // temporaneo di lettura, poi tenta una lettura fresca IN BACKGROUND (readTboxVinProperty()
+    // lancia un processo shell - mai da eseguire sul thread UI, a differenza di
+    // readIviSnFallback() che e' solo un ContentResolver locale): se cambia rispetto a quella
+    // salvata, aggiorna Prefs (persistenza locale, richiesta esplicita utente) e - solo se
+    // l'auto e' gia' associata al cloud - lo invia col PATCH dedicato (persistenza cloud).
+    private void resolveAndSyncRealVin() {
+        String cached = Prefs.getRealVin(this);
+        if (cached != null && !cached.isEmpty()) {
+            tvVehicleRealVin.setText(cached);
+            realVinResolved = true;
+        }
+
+        new Thread(() -> {
+            String fresh = readTboxVinProperty();
+            if (fresh == null) return;
+            appendLog("[getprop] " + TBOX_VIN_PROPERTY + " = \"" + fresh + "\" (VIN reale)");
+            runOnUiThread(() -> {
+                tvVehicleRealVin.setText(fresh);
+                realVinResolved = true;
+            });
+            if (fresh.equals(cached)) return;
+            Prefs.setRealVin(this, fresh);
+
+            String token = Prefs.getCloudDeviceToken(this);
+            if (token == null) return; // non ancora associata - il valore locale basta per ora
+            if (fresh.equals(Prefs.getSyncedRealVin(this))) return;
+            try {
+                CloudApiClient.updateVehicleRealVin(token, fresh);
+                Prefs.setSyncedRealVin(this, fresh);
+                appendLog("[Cloud] VIN reale sincronizzato: " + fresh);
+            } catch (Exception e) {
+                appendLog("[Cloud] Errore sincronizzazione VIN reale: " + e);
+            }
+        }, "JaeDrive-RealVinResolve").start();
     }
 
     // Sperimentale (2026-07-25): ID_TIRE_PRESSURE_WARNING ha un vero chiamante confermato nel

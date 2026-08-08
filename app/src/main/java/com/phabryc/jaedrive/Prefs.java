@@ -22,6 +22,12 @@ public class Prefs {
     private static final String KEY_VEHICLE_MODEL = "vehicle_model";
     private static final String KEY_VEHICLE_POWERTRAIN = "vehicle_powertrain";
     private static final String KEY_SYNCED_VIN = "synced_vin";
+    // VIN automobilistico reale (campo separato da synced_vin/ivi.sn, richiesta esplicita
+    // utente 2026-08-08) - vedi MainActivity.resolveAndSyncRealVin(). REAL_VIN e' l'ultimo
+    // valore risolto localmente via getprop; SYNCED_REAL_VIN e' l'ultimo gia' confermato sul
+    // cloud, per evitare PATCH ripetute quando non e' cambiato nulla.
+    private static final String KEY_REAL_VIN = "real_vin";
+    private static final String KEY_SYNCED_REAL_VIN = "synced_real_vin";
     private static final String KEY_CLOUD_UNPAIRED_REMOTELY = "cloud_unpaired_remotely";
     // Ultimo livello carburante (%) visto da TrackingService, persistito ad ogni lettura -
     // sopravvive al riavvio del processo/servizio cosi' la lettura successiva (vicina alla
@@ -42,11 +48,13 @@ public class Prefs {
     private static final String KEY_SUB_EXPIRES_AT = "sub_expires_at";
     private static final String KEY_SUB_IS_ACTIVE = "sub_is_active";
     // Backup della configurazione utente dei 3 switch PREMIUM (2026-08-05, richiesta esplicita
-    // utente) - scritto in setSubscriptionSnapshot() PRIMA di forzarli a false, cosi' alla
-    // riattivazione dell'abbonamento si puo' ripristinare esattamente cio' che l'utente aveva
-    // scelto invece di lasciare tutto spento. La sola PRESENZA di queste chiavi (non il loro
-    // valore) e' usata come flag "backup gia' fatto per questa scadenza" - vedi
-    // setSubscriptionSnapshot().
+    // utente; esteso 2026-08-07 anche a clearCloudPairing()) - scritto PRIMA di forzarli a
+    // false sia da setSubscriptionSnapshot() (sospensione temporanea) sia da
+    // clearCloudPairing() (disassociazione), cosi' alla prossima conferma di un abbonamento
+    // davvero attivo (stesso pairing riattivato o pairing nuovo) si puo' ripristinare
+    // esattamente cio' che l'utente aveva scelto invece di lasciare tutto spento. La sola
+    // PRESENZA di queste chiavi (non il loro valore) e' usata come flag "backup gia' fatto,
+    // in attesa di ripristino" - vedi setSubscriptionSnapshot()/clearCloudPairing().
     private static final String KEY_STATUS_BAR_ENABLED_BACKUP = "status_bar_enabled_backup";
     private static final String KEY_REGEN_POPUP_ENABLED_BACKUP = "regen_popup_enabled_backup";
     private static final String KEY_REFUEL_POPUP_ENABLED_BACKUP = "refuel_popup_enabled_backup";
@@ -138,14 +146,26 @@ public class Prefs {
     // qualsiasi, accendere i 3 switch, disassociare, e riassociare/disassociare all'infinito
     // continuando ad avere le funzioni PREMIUM gratis in locale, perche' isSubscriptionActive()
     // tornava false ma gli switch restavano "true" per sempre (nessuno li rimetteva a false
-    // fuori da setSubscriptionSnapshot(), mai chiamato da qui). A differenza di
-    // setSubscriptionSnapshot() (usato per una scadenza temporanea, con backup/ripristino),
-    // qui la disattivazione e' definitiva e SENZA backup: un'associazione rimossa e' un reset
-    // deliberato, non una sospensione momentanea - un futuro pairing riparte da zero, l'utente
-    // dovra' riaccendere a mano cio' che vuole, niente da "ripristinare" che potrebbe riaprire
-    // la stessa scappatoia.
+    // fuori da setSubscriptionSnapshot(), mai chiamato da qui).
+    //
+    // BUG TROVATO SUL CAMPO #2 (2026-08-07, segnalato dall'utente): il fix sopra azzerava gli
+    // switch qui SENZA MAI fare un backup (a differenza di setSubscriptionSnapshot(), usato per
+    // una sospensione temporanea) - un utente che disassociava e riassociava la stessa
+    // auto/account perdeva per sempre la propria scelta sui 3 switch, dovendoli riaccendere a
+    // mano ogni volta, anche in un semplice ciclo disassocia/riassocia con lo stesso account
+    // sempre attivo. La preoccupazione originale ("un account diverso non deve ereditare le
+    // preferenze del precedente") non e' in realta' un problema di sicurezza: tutti e 3 i
+    // trigger reali ricontrollano SEMPRE Prefs.isSubscriptionActive() a runtime, in aggiunta
+    // allo switch (difesa in profondita', vedi TrackingService.refreshStatusBar() e il check
+    // regen/rifornimento) - un valore di backup ripristinato resta comunque bloccato finche' un
+    // abbonamento davvero attivo non lo sblocca. Ora il backup si fa QUI PRIMA di azzerare
+    // (stesso schema/guard di setSubscriptionSnapshot(): solo se non gia' presente, per non
+    // sovrascrivere un backup di una sospensione temporanea non ancora ripristinato) - il
+    // ripristino avviene da solo al prossimo setSubscriptionSnapshot(..., isActive=true), che
+    // sia dopo una riattivazione dello stesso abbonamento o dopo una nuova associazione.
     public static void clearCloudPairing(Context ctx) {
-        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        SharedPreferences prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit()
             .remove(KEY_CLOUD_DEVICE_TOKEN)
             .remove(KEY_CLOUD_VEHICLE_ID)
             .remove(KEY_SUB_STATUS)
@@ -153,17 +173,16 @@ public class Prefs {
             .remove(KEY_SUB_EXPIRES_AT)
             .remove(KEY_SUB_IS_ACTIVE)
             .remove(KEY_SYNC_PAUSED)
-            .remove(KEY_SUB_EXPIRY_WARNING_DISMISSED_FOR)
-            // Backup della configurazione switch PREMIUM (vedi setSubscriptionSnapshot()) -
-            // uno scenario di riassociazione con un account diverso non deve ripristinare le
-            // preferenze salvate per l'account precedente.
-            .remove(KEY_STATUS_BAR_ENABLED_BACKUP)
-            .remove(KEY_REGEN_POPUP_ENABLED_BACKUP)
-            .remove(KEY_REFUEL_POPUP_ENABLED_BACKUP)
-            .putBoolean(KEY_STATUS_BAR_ENABLED, false)
-            .putBoolean(KEY_REGEN_POPUP_ENABLED, false)
-            .putBoolean(KEY_REFUEL_POPUP_ENABLED, false)
-            .apply();
+            .remove(KEY_SUB_EXPIRY_WARNING_DISMISSED_FOR);
+        if (!prefs.contains(KEY_STATUS_BAR_ENABLED_BACKUP)) {
+            editor.putBoolean(KEY_STATUS_BAR_ENABLED_BACKUP, prefs.getBoolean(KEY_STATUS_BAR_ENABLED, false));
+            editor.putBoolean(KEY_REGEN_POPUP_ENABLED_BACKUP, prefs.getBoolean(KEY_REGEN_POPUP_ENABLED, true));
+            editor.putBoolean(KEY_REFUEL_POPUP_ENABLED_BACKUP, prefs.getBoolean(KEY_REFUEL_POPUP_ENABLED, true));
+        }
+        editor.putBoolean(KEY_STATUS_BAR_ENABLED, false);
+        editor.putBoolean(KEY_REGEN_POPUP_ENABLED, false);
+        editor.putBoolean(KEY_REFUEL_POPUP_ENABLED, false);
+        editor.apply();
     }
 
     // Scritto insieme da CloudApiClient.heartbeat() (SyncWorker, sfondo) e getOwnerProfile()
@@ -331,6 +350,26 @@ public class Prefs {
 
     public static void setSyncedVin(Context ctx, String vin) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SYNCED_VIN, vin).apply();
+    }
+
+    // VIN automobilistico reale - persistenza locale (richiesta esplicita utente
+    // 2026-08-08), indipendente dal fatto che l'auto sia gia' associata al cloud o meno.
+    public static String getRealVin(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_REAL_VIN, null);
+    }
+
+    public static void setRealVin(Context ctx, String vin) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_REAL_VIN, vin).apply();
+    }
+
+    // Ultimo VIN reale gia' confermato sul cloud - evita PATCH ripetute (vedi
+    // MainActivity.resolveAndSyncRealVin()), stesso ruolo di getSyncedVin() per ivi.sn.
+    public static String getSyncedRealVin(Context ctx) {
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SYNCED_REAL_VIN, null);
+    }
+
+    public static void setSyncedRealVin(Context ctx, String vin) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_SYNCED_REAL_VIN, vin).apply();
     }
 
     // -1 (nessuna lettura ancora persistita, es. primissimo avvio in assoluto) invece di 0:

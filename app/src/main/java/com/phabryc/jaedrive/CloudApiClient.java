@@ -86,12 +86,17 @@ public class CloudApiClient {
         }
     }
 
-    public static PairingStart pairingStart(String vin, String appVersion) throws IOException, JSONException {
+    // realVin (opzionale, richiesta esplicita utente 2026-08-08): VIN automobilistico reale
+    // gia' validato lato client (vedi MainActivity.readTboxVinProperty()), usato SOLO lato
+    // server per riconoscere "stessa auto, nuovo infotainment" quando vin/ivi.sn cambia -
+    // vin resta comunque l'identificativo di pairing, mai sostituito da questo campo.
+    public static PairingStart pairingStart(String vin, String realVin, String appVersion) throws IOException, JSONException {
         String timestamp = String.valueOf(System.currentTimeMillis());
         String signature = hmacSha256Hex(getPairingHmacKey(), vin + "|" + timestamp);
 
         JSONObject body = new JSONObject();
         body.put("vin", vin);
+        if (realVin != null) body.put("realVin", realVin);
         body.put("timestamp", timestamp);
         body.put("signature", signature);
         if (appVersion != null) body.put("appVersion", appVersion);
@@ -213,14 +218,29 @@ public class CloudApiClient {
         readResponse(conn);
     }
 
-    // Aggiornamento del solo VIN (route condivisa con updateVehicleInfo(), vedi routes/device.ts
-    // PATCH /vehicle - accetta un body parziale) - usato da MainActivity.syncVinIfNeeded() per
-    // correggere sul cloud un'auto associata in passato con VIN manuale o con l'identificativo
-    // di fallback (Prefs.getOrCreateDeviceGuid()), non appena il VIN reale risulta disponibile
-    // via Settings.Global("ivi.sn").
+    // Aggiornamento del solo VIN/ivi.sn (route condivisa con updateVehicleInfo(), vedi
+    // routes/device.ts PATCH /vehicle - accetta un body parziale) - usato da
+    // MainActivity.refreshVinFromCar() per correggere sul cloud un'auto associata in passato
+    // con un identificativo di fallback (Prefs.getOrCreateDeviceGuid()) o inserito a mano,
+    // non appena ivi.sn risulta disponibile via Settings.Global.
     public static void updateVehicleVin(String deviceToken, String vin) throws IOException, JSONException {
         JSONObject body = new JSONObject();
         body.put("vin", vin);
+        HttpURLConnection conn = open("/api/device/vehicle", "PATCH", deviceToken);
+        conn.setDoOutput(true);
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+        }
+        readResponse(conn);
+    }
+
+    // VIN automobilistico reale (campo separato da vin/ivi.sn, vedi schema.prisma
+    // Vehicle.realVin) - richiesta esplicita utente 2026-08-08: salvato sul cloud non appena
+    // MainActivity.resolveAndSyncRealVin() lo trova valido, indipendentemente da vin che
+    // resta sempre l'identificativo di pairing.
+    public static void updateVehicleRealVin(String deviceToken, String realVin) throws IOException, JSONException {
+        JSONObject body = new JSONObject();
+        body.put("realVin", realVin);
         HttpURLConnection conn = open("/api/device/vehicle", "PATCH", deviceToken);
         conn.setDoOutput(true);
         try (OutputStream os = conn.getOutputStream()) {
