@@ -111,6 +111,8 @@ export const it = {
 
   // Settings
   "settings.title": "Impostazioni",
+  "settings.vinLabel": "VIN",
+  "settings.vinUnavailable": "VIN non ancora disponibile",
   "settings.deleteVehicle": "Elimina auto",
   "settings.deleteVehicleConfirm": 'Eliminare "{{name}}" e tutti i suoi viaggi? L\'operazione non può essere annullata.',
   "settings.newNamePlaceholder": "Nuovo nome",

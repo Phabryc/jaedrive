@@ -99,6 +99,8 @@ export const en: Record<keyof typeof it, string> = {
   "dashboard.notSynced": "Brand/model not synced yet",
 
   "settings.title": "Settings",
+  "settings.vinLabel": "VIN",
+  "settings.vinUnavailable": "VIN not available yet",
   "settings.deleteVehicle": "Delete car",
   "settings.deleteVehicleConfirm": 'Delete "{{name}}" and all its trips? This cannot be undone.',
   "settings.newNamePlaceholder": "New name",

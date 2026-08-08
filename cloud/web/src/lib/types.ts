@@ -1,7 +1,11 @@
 export interface Vehicle {
   id: string;
   userId: string;
+  // Chiave di pairing (ivi.sn, S/N del DMC), non il VIN automobilistico reale - vedi realVin.
   vin: string;
+  // VIN reale, quando disponibile (richiesta esplicita utente 2026-08-08) - piu' facile da
+  // confrontare coi documenti del veicolo di `vin`, che e' solo un identificativo interno.
+  realVin: string | null;
   nickname: string;
   // Impostati dall'onboarding obbligatorio Android (VehicleCatalog.java) - null finche'
   // l'app non ha ancora inviato la prima sincronizzazione.

@@ -386,15 +386,58 @@ export async function userRoutes(app: FastifyInstance) {
         }
       }
 
-      // Resolve the vehicle by VIN - see DESIGN.md §7 step 5 for the three cases.
-      const existing = await prisma.vehicle.findUnique({ where: { vin: pairing.vin } });
+      // Resolve the vehicle by VIN (ivi.sn - see DESIGN.md §7 step 5 for the three cases).
+      let existing = await prisma.vehicle.findUnique({ where: { vin: pairing.vin } });
+
+      // Riassociazione dopo sostituzione infotainment (richiesta esplicita utente
+      // 2026-08-08): "vin" (ivi.sn, il S/N del DMC) cambia quando l'unita' fisica viene
+      // sostituita, ma il VIN automobilistico reale resta lo stesso - stessa auto, non una
+      // nuova. Se non troviamo il veicolo per ivi.sn ma abbiamo un realVin valido, proviamo
+      // a risolverlo per quello: se un veicolo con quel realVin esiste gia', lo aggiorniamo
+      // sostituendo il vecchio ivi.sn col nuovo (storico trip/nickname/abbonamento intatti)
+      // invece di crearne uno nuovo. Se realVin non e' disponibile (property non esposta su
+      // quella vettura) il comportamento resta quello di sempre: nuovo ivi.sn = nuova auto.
+      //
+      // RISCHIO RESIDUO (stessa classe gia' accettata per `vin`, vedi la firma HMAC su
+      // pairing/start e DESIGN.md §7): questo rende `vehicles.real_vin` un altro campo
+      // "primo che lo reclama vince", ma un VIN reale e' ANCORA MENO segreto di ivi.sn (sul
+      // libretto/documenti, sulla targhetta nel vano motore, spesso su annunci di vendita -
+      // NON necessariamente a vista dal parabrezza, confermato dall'utente 2026-08-08 sulla
+      // propria Jaecoo) - chi ha gia' reverse-engineered l'app per forgiare la firma HMAC
+      // (prerequisito identico al rischio gia' accettato su `vin`, nessuna app "patchata"
+      // necessaria: la chiave estratta basta per firmare richieste HTTP dirette) potrebbe
+      // pre-registrare il VIN reale di un'auto conosciuta sotto un proprio account,
+      // bloccando il vero proprietario con un 409 al primo pairing. Nessun guadagno diretto
+      // per l'attaccante (puro sabotaggio mirato, non furto dati/account) - rischio residuo
+      // accettato per questo motivo. Stesso backstop gia' esistente: routes/admin.ts
+      // GET /vehicles/lookup ora cerca anche per realVin, cosi' il supporto puo' liberare
+      // un veicolo squattato segnalato dal vero proprietario (che conosce il proprio VIN
+      // reale, non l'ivi.sn fittizio usato per squattarlo).
+      if (!existing && pairing.realVin) {
+        const byRealVin = await prisma.vehicle.findUnique({ where: { realVin: pairing.realVin } });
+        if (byRealVin) {
+          if (byRealVin.userId !== userId) {
+            return reply.code(409).send({ error: "This vehicle is already paired to a different account" });
+          }
+          existing = await prisma.vehicle.update({ where: { id: byRealVin.id }, data: { vin: pairing.vin } });
+        }
+      }
+
       if (existing && existing.userId !== userId) {
         return reply.code(409).send({ error: "This vehicle is already paired to a different account" });
       }
 
+      // Veicolo risolto per ivi.sn diretto (non per riassociazione sopra) ma senza ancora un
+      // realVin salvato, o cambiato rispetto a quello inviato ora: lo aggiorniamo qui, stesso
+      // principio di "salva il dato reale non appena diventa disponibile" gia' usato per gli
+      // altri campi onboarding.
+      if (existing && pairing.realVin && existing.realVin !== pairing.realVin) {
+        existing = await prisma.vehicle.update({ where: { id: existing.id }, data: { realVin: pairing.realVin } });
+      }
+
       const vehicle =
         existing ??
-        (await prisma.vehicle.create({ data: { userId, vin: pairing.vin } }));
+        (await prisma.vehicle.create({ data: { userId, vin: pairing.vin, realVin: pairing.realVin ?? null } }));
 
       const rawToken = generateDeviceToken();
       const device = await prisma.device.create({

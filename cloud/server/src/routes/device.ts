@@ -56,6 +56,11 @@ export async function deviceRoutes(app: FastifyInstance) {
           required: ["vin", "timestamp", "signature"],
           properties: {
             vin: { type: "string", minLength: 5, maxLength: 32 },
+            // VIN automobilistico reale, opzionale - vedi schema.prisma Vehicle.realVin.
+            // Formato gia' validato lato app (17 caratteri ISO 3779) prima dell'invio, qui
+            // solo un limite di lunghezza generoso, non e' questo il posto per rifiutare un
+            // pairing per un formato leggermente diverso.
+            realVin: { type: "string", minLength: 5, maxLength: 32, nullable: true },
             timestamp: { type: "string" },
             signature: { type: "string" },
             appVersion: { type: "string", nullable: true },
@@ -65,8 +70,9 @@ export async function deviceRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
-      const { vin, timestamp, signature, appVersion, headunitId } = req.body as {
+      const { vin, realVin, timestamp, signature, appVersion, headunitId } = req.body as {
         vin: string;
+        realVin?: string | null;
         timestamp: string;
         signature: string;
         appVersion?: string;
@@ -81,6 +87,7 @@ export async function deviceRoutes(app: FastifyInstance) {
       }
 
       const normalizedVin = vin.trim().toUpperCase();
+      const normalizedRealVin = realVin ? realVin.trim().toUpperCase() : null;
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const recentStarts = await prisma.pairingRequest.count({
         where: { vin: normalizedVin, createdAt: { gte: oneDayAgo } },
@@ -92,7 +99,14 @@ export async function deviceRoutes(app: FastifyInstance) {
       const code = generatePairingCode();
       const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
       const pairing = await prisma.pairingRequest.create({
-        data: { code, vin: normalizedVin, deviceHint: appVersion ?? null, headunitId: headunitId ?? null, expiresAt },
+        data: {
+          code,
+          vin: normalizedVin,
+          realVin: normalizedRealVin,
+          deviceHint: appVersion ?? null,
+          headunitId: headunitId ?? null,
+          expiresAt,
+        },
       });
 
       return reply.send({ pairingRequestId: pairing.id, code: pairing.code, expiresAt: pairing.expiresAt });
@@ -301,12 +315,14 @@ export async function deviceRoutes(app: FastifyInstance) {
     });
 
     // Brand/model/powertrain dall'onboarding obbligatorio Android (vedi VehicleCatalog.java),
-    // e/o il VIN reale - letto via Settings.Global("ivi.sn") su suggerimento dello sviluppatore
-    // DSA, vedi MainActivity.tryReadIviSn()/syncVinIfNeeded(). Aggiornamento parziale: il device
-    // puo' richiamarla con solo uno dei campi (es. solo il VIN, quando corregge automaticamente
-    // un pairing fatto in passato con VIN manuale/identificativo di fallback, senza dover
-    // rispedire marca/modello/motorizzazione). Nickname resta gestito solo lato utente/web, non
-    // qui - vedi PATCH /api/user/vehicles/:id.
+    // e/o il VIN reale (campo `realVin`, separato da `vin`/ivi.sn - vedi schema.prisma
+    // Vehicle.realVin e MainActivity.readTboxVinProperty(), richiesta esplicita utente
+    // 2026-08-08). `vin` resta accettato per compatibilita' ma l'app non lo invia piu' da
+    // questa route: e' la chiave di pairing, non cambia mai via PATCH, solo via
+    // POST /pairing/claim (riassociazione a parita' di realVin). Aggiornamento parziale: il
+    // device puo' richiamarla con solo uno dei campi (es. solo realVin quando si rende
+    // disponibile dopo il pairing, senza dover rispedire marca/modello/motorizzazione).
+    // Nickname resta gestito solo lato utente/web, non qui - vedi PATCH /api/user/vehicles/:id.
     protectedApp.patch(
       "/vehicle",
       {
@@ -319,6 +335,7 @@ export async function deviceRoutes(app: FastifyInstance) {
               model: { type: "string", minLength: 1, maxLength: 20 },
               powertrain: { type: "string", minLength: 1, maxLength: 20 },
               vin: { type: "string", minLength: 5, maxLength: 32 },
+              realVin: { type: "string", minLength: 5, maxLength: 32, nullable: true },
             },
           },
         },
@@ -326,17 +343,19 @@ export async function deviceRoutes(app: FastifyInstance) {
       async (req, reply) => {
         const device = req.authDevice!;
         if (!device.vehicleId) return reply.code(409).send({ error: "Device is not paired to a vehicle" });
-        const { brand, model, powertrain, vin } = req.body as {
+        const { brand, model, powertrain, vin, realVin } = req.body as {
           brand?: string;
           model?: string;
           powertrain?: string;
           vin?: string;
+          realVin?: string | null;
         };
-        const data: { brand?: string; model?: string; powertrain?: string; vin?: string } = {};
+        const data: { brand?: string; model?: string; powertrain?: string; vin?: string; realVin?: string } = {};
         if (brand !== undefined) data.brand = brand;
         if (model !== undefined) data.model = model;
         if (powertrain !== undefined) data.powertrain = powertrain;
         if (vin !== undefined) data.vin = vin.trim().toUpperCase();
+        if (realVin !== undefined && realVin !== null) data.realVin = realVin.trim().toUpperCase();
 
         try {
           const vehicle = await prisma.vehicle.update({ where: { id: device.vehicleId }, data });
@@ -344,18 +363,26 @@ export async function deviceRoutes(app: FastifyInstance) {
           // ricevuto il token e completato l'handshake, non solo che il claim sia avvenuto
           // sul sito - vedi Device.confirmedAt in schema.prisma e cron/pairingCleanup.ts.
           // Solo se non gia' confermato: nessun bisogno di riscrivere lo stesso timestamp
-          // ad ogni PATCH successiva (es. correzione VIN, vedi commento sopra la route).
+          // ad ogni PATCH successiva (es. aggiornamento realVin, vedi commento sopra la route).
           if (!device.confirmedAt) {
             await prisma.device.update({ where: { id: device.id }, data: { confirmedAt: new Date() } });
           }
-          return reply.send({ brand: vehicle.brand, model: vehicle.model, powertrain: vehicle.powertrain, vin: vehicle.vin });
+          return reply.send({
+            brand: vehicle.brand,
+            model: vehicle.model,
+            powertrain: vehicle.powertrain,
+            vin: vehicle.vin,
+            realVin: vehicle.realVin,
+          });
         } catch (err: any) {
-          // Collisione VIN (unique) - un'altra auto ha gia' questo VIN, es. due dispositivi
-          // associati per errore allo stesso veicolo con VIN diversi in passato. Non e' un
-          // errore di rete: lo segnaliamo distintamente cosi' l'app puo' loggarlo invece di
-          // ritentare all'infinito come farebbe per un errore generico.
+          // Collisione unique su "vin" o "real_vin" - un'altro veicolo ha gia' questo stesso
+          // identificativo (es. due device associati per errore con lo stesso VIN reale).
+          // Non e' un errore di rete: lo segnaliamo distintamente cosi' l'app puo' loggarlo
+          // invece di ritentare all'infinito come farebbe per un errore generico.
           if (err?.code === "P2002") {
-            return reply.code(409).send({ error: "VIN already in use by another vehicle" });
+            const target = Array.isArray(err?.meta?.target) ? err.meta.target.join(",") : String(err?.meta?.target ?? "");
+            const field = target.includes("real_vin") ? "VIN" : "identifier";
+            return reply.code(409).send({ error: `This ${field} is already in use by another vehicle` });
           }
           throw err;
         }

@@ -245,7 +245,13 @@ export default function Settings() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium">{v.nickname}</p>
-                        <p className="font-mono text-xs text-onsurface-variant">{v.vin}</p>
+                        {v.realVin ? (
+                          <p className="font-mono text-xs text-onsurface-variant" title={t("settings.vinLabel")}>
+                            {t("settings.vinLabel")}: {v.realVin}
+                          </p>
+                        ) : (
+                          <p className="font-mono text-xs text-onsurface-variant/60">{t("settings.vinUnavailable")}</p>
+                        )}
                       </div>
                       <Button variant="danger" size="sm" onClick={() => deleteVehicle(v.id, v.nickname)}>
                         {t("settings.deleteVehicle")}

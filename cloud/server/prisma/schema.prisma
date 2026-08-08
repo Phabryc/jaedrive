@@ -62,7 +62,19 @@ model Vehicle {
   id         String   @id @default(uuid())
   userId     String   @map("user_id")
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Chiave di pairing/unicita' (in pratica "ivi.sn", il S/N del DMC - vedi app
+  // MainActivity.readVehicleIdentifier()), NON il VIN automobilistico reale - cambia se
+  // l'unita' infotainment viene sostituita. Vedi realVin sotto per la riconciliazione.
   vin        String   @unique
+  // VIN automobilistico reale, quando disponibile e nel formato ISO 3779 valido (vedi app
+  // MainActivity.readTboxVinProperty()) - richiesta esplicita utente 2026-08-08. Usato in
+  // routes/user.ts POST /pairing/claim per riconoscere "stessa auto, nuovo infotainment"
+  // quando `vin` (ivi.sn) cambia ma questo VIN resta lo stesso: il pairing aggiorna `vin`
+  // sul Vehicle esistente invece di crearne uno nuovo. Mostrato al proprietario sul web e
+  // in app (piu' facile da confrontare coi documenti del veicolo di ivi.sn). Nullable: non
+  // tutte le vetture di questa piattaforma espongono la property sorgente - in quel caso il
+  // comportamento resta quello di sempre (nessuna riassociazione automatica).
+  realVin    String?  @unique @map("real_vin")
   nickname   String   @default("La mia auto")
   // Impostati dall'onboarding obbligatorio lato Android (brand->model->powertrain a
   // cascata, vedi VehicleCatalog.java), non piu' dal tentativo di rilevazione automatica
@@ -142,6 +154,9 @@ model PairingRequest {
   id            String   @id @default(uuid())
   code          String   @unique
   vin           String
+  // VIN reale opzionale portato da POST /pairing/start a POST /pairing/claim per la
+  // riconciliazione "stesso VIN, ivi.sn diverso" - vedi Vehicle.realVin.
+  realVin       String?  @map("real_vin")
   deviceHint    String?  @map("device_hint")
   headunitId    String?  @map("headunit_id")
   status        String   @default("pending") // pending | claimed | expired

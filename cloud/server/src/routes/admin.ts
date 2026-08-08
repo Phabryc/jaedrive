@@ -283,19 +283,36 @@ export async function adminRoutes(app: FastifyInstance) {
   // vero proprietario rimasto bloccato con un 409. Lookup by VIN cosi' l'admin (che di
   // solito conosce solo il VIN segnalato dall'utente, non l'id interno) puo' vedere chi lo
   // ha reclamato prima di decidere se sganciarlo.
+  //
+  // Cerca anche per realVin (2026-08-08): la stessa identica classe di rischio esiste ora
+  // anche sul VIN automobilistico reale (vedi schema.prisma Vehicle.realVin e
+  // routes/user.ts "pairing/claim" - la riconciliazione per realVin usa lo stesso schema
+  // "primo che lo reclama vince"). Un VIN reale e' MENO segreto di ivi.sn (sul libretto/
+  // documenti, sulla targhetta nel vano motore, spesso su annunci di vendita - vedi
+  // DESIGN.md §7 sul motivo della firma HMAC), quindi questo backstop e' particolarmente
+  // importante qui: il vero proprietario conosce il proprio VIN reale ma NON l'ivi.sn
+  // fittizio con cui un eventuale squatter potrebbe averlo pre-registrato, quindi la
+  // ricerca per solo `vin` non basterebbe a trovarlo.
   app.get("/vehicles/lookup", async (req, reply) => {
     const { vin } = req.query as { vin?: string };
     if (!vin || vin.trim().length < 5) return reply.code(400).send({ error: "Missing or invalid vin" });
+    const normalized = vin.trim().toUpperCase();
 
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { vin: vin.trim().toUpperCase() },
-      include: { user: { select: { id: true, email: true, displayName: true } } },
-    });
+    const vehicle =
+      (await prisma.vehicle.findUnique({
+        where: { vin: normalized },
+        include: { user: { select: { id: true, email: true, displayName: true } } },
+      })) ??
+      (await prisma.vehicle.findUnique({
+        where: { realVin: normalized },
+        include: { user: { select: { id: true, email: true, displayName: true } } },
+      }));
     if (!vehicle) return reply.code(404).send({ error: "No vehicle claims this VIN" });
 
     return reply.send({
       id: vehicle.id,
       vin: vehicle.vin,
+      realVin: vehicle.realVin,
       nickname: vehicle.nickname,
       brand: vehicle.brand,
       model: vehicle.model,
