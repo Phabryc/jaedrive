@@ -1,6 +1,7 @@
 package com.phabryc.jaedriveprobe;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.car.Car;
 import android.car.VehiclePropertyIds;
 import android.car.hardware.CarPropertyConfig;
@@ -27,6 +28,8 @@ import android.util.DisplayMetrics;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -103,6 +106,20 @@ public class MainActivity extends Activity {
     };
     private static final int MAX_CMD_ID = 0xFF;
 
+    // Config veicolo bit-packed (2026-08-08, seguito indagine marca/modello/motorizzazione):
+    // modulo diverso da quelli sopra (0xE0006, non 0x5xxxx) e servito da un service Android
+    // completamente diverso da CARINFO - il VDRouter di SVSetting.apk sceglie il connector
+    // in base ai 16 bit alti del modulo (0xE0006 >> 16 = 0xE = VEHICLE_DEVICE nel suo enum
+    // ServiceType, decompilato da VDServiceDef.smali). L'azione di binding di questo service e'
+    // vuota nell'OEM (bind per nome componente esplicito, non per action string), da cui
+    // l'Intent.setClassName() sotto invece del pattern Intent(action).setPackage() usato per
+    // CARINFO_ACTION. getOnce() del client OEM (VDBus/VDRouter/VDConnector) e' stato verificato
+    // nello smali risolversi nella stessa identica transazione Binder IVDBus.get() gia'
+    // implementata nell'AIDL qui sotto - nessun metodo nuovo da aggiungere all'interfaccia.
+    private static final String VDEV_PKG = "com.desaysv.ivi.vds.vdev";
+    private static final String VDEV_SERVICE_CLASS = "com.desaysv.ivi.vds.vdev.service.VehicleDevice";
+    private static final int MODULE_PROJECT_CONFIG = 0xE0006;
+
     // TBox (2026-08-07, stessa indagine): il modulo telematico si integra con le app
     // dell'head unit tramite un ContentProvider Android (com.desaysv.ivi.extra.vdb.event.id.
     // carlan.VDExValueCarLan$TBoxRequest/TBoxResponse, fornitore Neusoft), non il bus VDB.
@@ -170,10 +187,12 @@ public class MainActivity extends Activity {
         btnStart.setOnClickListener(v -> {
             btnStart.setEnabled(false);
             btnRetryCopy.setEnabled(false);
-            fullLog.setLength(0);
-            tvLog.setText("");
             boolean systemFilesFull = cbSystemFiles.isChecked();
-            new Thread(() -> runFullScan(systemFilesFull), "ProbeScan").start();
+            showVehicleInfoDialog(operatorVehicleInfo -> {
+                fullLog.setLength(0);
+                tvLog.setText("");
+                new Thread(() -> runFullScan(systemFilesFull, operatorVehicleInfo), "ProbeScan").start();
+            });
         });
         btnRetryCopy.setOnClickListener(v -> {
             btnStart.setEnabled(false);
@@ -256,11 +275,58 @@ public class MainActivity extends Activity {
         mainHandler.post(() -> tvStatus.setText(s));
     }
 
-    private void runFullScan(boolean systemFilesFull) {
+    // ------------------------------------------------------------------
+    // 0. Onboarding operatore (2026-08-08, richiesta esplicita utente): chiede marca/modello/
+    // motorizzazione reali PRIMA di avviare la scansione, cosi' dump.txt contiene sia quello
+    // che l'operatore ha dichiarato sia i byte marca/piattaforma/motorizzazione/trazione
+    // rilevati automaticamente via VDB (vedi dumpVehicleConfig()) - il confronto tra i due e'
+    // esattamente il dato empirico che manca per costruire il dizionario "codice piattaforma
+    // interno -> nome commerciale" (l'OEM stesso non lo conosce, solo codename tipo T1EJ).
+    // Campi liberi (non il catalogo chiuso di VehicleCatalog.java in app/): questo strumento
+    // gira anche su auto Chery/altre sotto-marche mai viste in JaeDrive. Non blocca la
+    // scansione se lasciato vuoto - l'operatore potrebbe non saperlo con certezza.
+    // ------------------------------------------------------------------
+    private interface VehicleInfoCallback {
+        void onReady(String operatorVehicleInfo);
+    }
+
+    private void showVehicleInfoDialog(VehicleInfoCallback callback) {
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(pad, pad, pad, pad);
+
+        EditText etBrand = new EditText(this);
+        etBrand.setHint("Brand (e.g. Jaecoo, Omoda, Chery)");
+        EditText etModel = new EditText(this);
+        etModel.setHint("Model (e.g. 5, 7, 8, 9)");
+        EditText etPowertrain = new EditText(this);
+        etPowertrain.setHint("Powertrain / trim (e.g. ICE 2WD, HEV, PHEV, EV)");
+        layout.addView(etBrand);
+        layout.addView(etModel);
+        layout.addView(etPowertrain);
+
+        new AlertDialog.Builder(this)
+            .setTitle("What car is this?")
+            .setMessage("Optional - used to cross-check the values detected automatically further down. Leave blank if unknown.")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("START SCAN", (dialog, which) -> {
+                String info = "brand=\"" + etBrand.getText().toString().trim()
+                    + "\" model=\"" + etModel.getText().toString().trim()
+                    + "\" powertrain=\"" + etPowertrain.getText().toString().trim() + "\"";
+                callback.onReady(info);
+            })
+            .setNegativeButton("SKIP", (dialog, which) -> callback.onReady("(not provided by operator)"))
+            .show();
+    }
+
+    private void runFullScan(boolean systemFilesFull, String operatorVehicleInfo) {
         log("========================================");
         log("JaeDriveProbe - scan starting");
         log("========================================");
         log("System files: " + (systemFilesFull ? "ON (all desaysv/vds/tbox packages)" : "OFF (signal-decoding APKs only)"));
+        log("Operator-reported vehicle: " + operatorVehicleInfo);
         log("Build.MANUFACTURER=" + Build.MANUFACTURER + " Build.BRAND=" + Build.BRAND);
         log("Build.MODEL=" + Build.MODEL + " Build.DEVICE=" + Build.DEVICE + " Build.PRODUCT=" + Build.PRODUCT);
         log("Build.DISPLAY=" + Build.DISPLAY);
@@ -278,6 +344,9 @@ public class MainActivity extends Activity {
 
         status("Desay VDB bus (this may take a minute)...");
         dumpVdbSweep();
+
+        status("Vehicle config (brand/platform/motorization bytes)...");
+        dumpVehicleConfig();
 
         status("TBox status (Neusoft ContentProvider)...");
         dumpTboxProvider();
@@ -558,6 +627,188 @@ public class MainActivity extends Activity {
         try {
             unbindService(connection);
         } catch (Exception ignored) {
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 4a. Config veicolo bit-packed - stesso modulo VDB del part number (0xE0006) ma servizio
+    // Android diverso (VEHICLE_DEVICE, vedi costanti sopra), usato da CarConfigUtil/EolConfig
+    // in SVSetting.apk (decompilato) per determinare marca/piattaforma/motorizzazione/trazione
+    // SENZA la lista di ~230 part number che JaeDrive aveva individuato in precedenza: si legge
+    // il part number piu' 8 stringhe di "config" (una decimale a cifra singola invertita per
+    // marca/piattaforma - vehicle.persist.combo.config, sette esadecimali per gli altri byte -
+    // vehicle.persist.project.ext.configs[2..7]) e se ne estraggono singoli byte/nibble a offset
+    // fissi, esattamente come fa EolConfig.getCheryEolConfig() nell'OEM (verificato leggendo lo
+    // smali istruzione per istruzione, non dedotto dai nomi dei metodi):
+    //   marca        = combo[13] (0=Chery, 4=Omoda, 6=Jaecoo; combo[25]==0 conferma)
+    //   piattaforma  = combo[1]  (codename interno, es. 9=T1EJ=Jaecoo 7 - unico confermato finora)
+    //   motorizzazione = (configs5[4]>>4)&3 (1=PHEV, 2=EV, 3=HEV se anche configs7[2]&0xF==1)
+    //   trazione     = configs6[2]&7 (0/1/5/7=2WD, 2/3/4/6=4WD - stesso flag mIs4Wd/mIs2Wd gia'
+    //                  citato nei commenti di EnergyFlowUtil.java in app/)
+    // NON esiste nel codice OEM un dizionario "piattaforma -> nome commerciale" (solo codename
+    // interni) - per questo l'onboarding operatore sopra chiede il nome vero: il confronto va
+    // fatto a mano guardando dump.txt finche' non si accumulano abbastanza test sul campo.
+    // ------------------------------------------------------------------
+    private void dumpVehicleConfig() {
+        log("--- VEHICLE CONFIG (brand/platform/motorization/drivetrain bytes, module 0xE0006) ---");
+        CountDownLatch connected = new CountDownLatch(1);
+        final IVDBus[] holder = new IVDBus[1];
+        ServiceConnection connection = new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder binder) {
+                holder[0] = IVDBus.Stub.asInterface(binder);
+                log("Connected to VEHICLE_DEVICE VDB service: " + name);
+                connected.countDown();
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                holder[0] = null;
+            }
+        };
+        try {
+            Intent intent = new Intent();
+            intent.setClassName(VDEV_PKG, VDEV_SERVICE_CLASS);
+            boolean ok = bindService(intent, connection, Context.BIND_AUTO_CREATE);
+            log("bindService VEHICLE_DEVICE: " + (ok ? "started" : "FAILED - service not present on this device"));
+            if (!ok) return;
+        } catch (Exception e) {
+            log("bindService VEHICLE_DEVICE error: " + e);
+            return;
+        }
+        try {
+            if (!connected.await(8, TimeUnit.SECONDS)) {
+                log("Timeout connecting to vehicle config service");
+                return;
+            }
+        } catch (InterruptedException ignored) {
+        }
+        IVDBus vdev = holder[0];
+        if (vdev == null) {
+            log("IVDBus null after bind (vehicle config)");
+            return;
+        }
+
+        String partNumber = readConfigString(vdev, "vehicle.persist.project.pn");
+        log("Part number (vehicle.persist.project.pn) = " + partNumber);
+
+        String comboRaw = readConfigString(vdev, "vehicle.persist.combo.config");
+        int[] combo = comboRaw != null ? decodeDigitsReversed(comboRaw) : null;
+        log("vehicle.persist.combo.config raw=" + comboRaw + " decoded=" + (combo != null ? Arrays.toString(combo) : "null"));
+
+        int[][] extConfigs = new int[8][]; // indici 1..7 usati (chiave senza suffisso = "1")
+        for (int i = 1; i <= 7; i++) {
+            String key = "vehicle.persist.project.ext.configs" + (i == 1 ? "" : String.valueOf(i));
+            String raw = readConfigString(vdev, key);
+            extConfigs[i] = raw != null ? decodeHexBytes(raw) : null;
+            log(key + " raw=" + raw + " decoded=" + (extConfigs[i] != null ? Arrays.toString(extConfigs[i]) : "null"));
+        }
+
+        Integer brand = arrayGet(combo, 13);
+        Integer brandTiebreak = arrayGet(combo, 25);
+        Integer platform = arrayGet(combo, 1);
+        Integer configs5at4 = arrayGet(extConfigs[5], 4);
+        Integer configs6at2 = arrayGet(extConfigs[6], 2);
+        Integer configs7at2 = arrayGet(extConfigs[7], 2);
+
+        log("Derived brand byte (combo[13]) = " + brand + " -> " + brandName(brand)
+            + " | tie-break (combo[25]) = " + brandTiebreak + " (expected 0)");
+        log("Derived platform byte (combo[1]) = " + platform + platformNote(platform));
+        Integer powertrain = configs5at4 != null ? (configs5at4 >> 4) & 3 : null;
+        Integer hevFlag = configs7at2 != null ? configs7at2 & 0xF : null;
+        log("Derived powertrain byte ((configs5[4]>>4)&3) = " + powertrain + " -> " + powertrainName(powertrain, hevFlag));
+        Integer driveForm = configs6at2 != null ? configs6at2 & 7 : null;
+        log("Derived drivetrain byte (configs6[2]&7) = " + driveForm + " -> " + driveFormName(driveForm));
+
+        try {
+            unbindService(connection);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String readConfigString(IVDBus vdev, String type) {
+        try {
+            Bundle payload = new Bundle();
+            payload.putString("type", type);
+            VDEvent request = new VDEvent(MODULE_PROJECT_CONFIG, payload);
+            VDEvent response = vdev.get(request);
+            if (response == null) return null;
+            Bundle result = response.getPayload();
+            if (result == null) return null;
+            return result.getString("value");
+        } catch (Exception e) {
+            log("  " + type + " -> read error: " + e.getClass().getSimpleName() + " " + e.getMessage());
+            return null;
+        }
+    }
+
+    // Replica di Utils.stringToByte() decompilato da SVSetting.apk: coppie consecutive di 2
+    // caratteri esadecimali -> un byte (0-255) per elemento.
+    private int[] decodeHexBytes(String s) {
+        int n = s.length() / 2;
+        int[] out = new int[n];
+        for (int i = 0; i < n; i++) {
+            try {
+                out[i] = Integer.parseInt(s.substring(i * 2, i * 2 + 2), 16);
+            } catch (Exception e) {
+                out[i] = 0;
+            }
+        }
+        return out;
+    }
+
+    // Replica di Utils.stringToIntArray() decompilato da SVSetting.apk: un elemento per
+    // carattere (singola cifra decimale 0-9), letti in ordine INVERTITO rispetto alla stringa
+    // grezza - comportamento verificato istruzione per istruzione nello smali, non intuitivo.
+    private int[] decodeDigitsReversed(String s) {
+        int n = s.length();
+        int[] out = new int[n];
+        for (int i = 0; i < n; i++) {
+            char c = s.charAt(n - i - 1);
+            try {
+                out[i] = Integer.parseInt(String.valueOf(c));
+            } catch (Exception e) {
+                out[i] = 0;
+            }
+        }
+        return out;
+    }
+
+    private Integer arrayGet(int[] arr, int idx) {
+        if (arr == null || idx >= arr.length) return null;
+        return arr[idx];
+    }
+
+    private String brandName(Integer b) {
+        if (b == null) return "unknown (array too short/unavailable)";
+        if (b == 0) return "Chery (base)";
+        if (b == 4) return "Omoda";
+        if (b == 6) return "Jaecoo";
+        return "unrecognized brand code " + b + " (not yet seen - log it, don't guess)";
+    }
+
+    private String platformNote(Integer p) {
+        if (p == null) return " -> unknown (array too short/unavailable)";
+        if (p == 9) return " -> T1EJ (confirmed = Jaecoo 7, verified via Build.DISPLAY on this project's own car)";
+        return " -> unknown platform codename (no confirmed mapping yet - correlate with the operator answer above)";
+    }
+
+    private String powertrainName(Integer v, Integer hevFlag) {
+        if (v == null) return "unknown";
+        switch (v) {
+            case 1: return "PHEV";
+            case 2: return "EV/BEV";
+            case 3: return (hevFlag != null && hevFlag == 1) ? "HEV" : "HEV (unconfirmed - HEV-flag byte was " + hevFlag + ", expected 1)";
+            default: return "ICE (value 0/other) or unrecognized code " + v;
+        }
+    }
+
+    private String driveFormName(Integer v) {
+        if (v == null) return "unknown";
+        switch (v) {
+            case 0: case 1: case 5: case 7: return "2WD";
+            case 2: case 3: case 4: case 6: return "4WD";
+            default: return "unrecognized code " + v;
         }
     }
 
