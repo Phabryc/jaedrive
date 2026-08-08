@@ -4,6 +4,103 @@ Questo registro contiene lo storico delle modifiche, scelte architetturali ed ev
 
 ---
 
+## [2026-08-08] - VIN Automobilistico Reale: Doppio Identificativo (ivi.sn + VIN) con Riconciliazione al Cambio Infotainment
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`, `[cloud/server]`, `[cloud/web]`
+- **Status**: `COMPLETED` (compila su app/server/web) — `REQUIRES_USER_TEST` (pairing/riassociazione reale mai testati end-to-end), `REQUIRES_DEPLOY` (migration Prisma non applicata, nessun DB raggiungibile da questa sessione)
+
+### 📌 Sintesi della Funzionalità
+Nato dall'analisi dello zip corrotto del probe (voce precedente in questo log): il report decifrato conteneva `persist.sys.tbox.vin` in chiaro nel dump `getprop`, e l'utente ha confermato che è il VIN vero della sua auto (verificato sui documenti) - una fonte mai sfruttata prima, del tutto diversa da quella storicamente bloccata via VDB/CarPropertyManager (uid=system, vedi `VDInfoClient`/ENG MODE). Su richiesta esplicita dell'utente, il VIN reale è stato aggiunto come **secondo identificativo separato**, mai sostituendo `ivi.sn` (S/N del DMC) come chiave di pairing/unicità - e usato per riconoscere una riassociazione dopo sostituzione dell'unità infotainment (stessa auto, `ivi.sn` diverso ma VIN reale uguale) senza contarla come una nuova auto.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **App** (`app/src/main/java/com/phabryc/jaedrive/`):
+  - `MainActivity.java`: nuovo `readTboxVinProperty()` (legge `persist.sys.tbox.vin` via `getprop`, valida il formato ISO 3779 a 17 caratteri prima di accettarlo, mai un valore non validato spacciato per VIN) e `resolveAndSyncRealVin()` (lettura in background - mai sul thread UI, a differenza di `ivi.sn` che è solo un `ContentResolver` locale - con persistenza locale immediata e sync cloud solo se già associata). `readVehicleIdentifier()`/`refreshVinFromCar()` restano **invariati**: `ivi.sn` è e resta l'unico identificativo di pairing.
+  - `Prefs.java`: nuove chiavi `real_vin`/`synced_real_vin`, stesso pattern già usato per `synced_vin`.
+  - `CloudApiClient.java`: `pairingStart()` ora invia anche `realVin` (opzionale, mai al posto di `vin`); nuovo `updateVehicleRealVin()`.
+  - `activity_main.xml`/`strings.xml` (IT+EN): nuova card "VIN" in Impostazioni, accanto a quella esistente "S/N DMC", etichetta statica (non più commutata dinamicamente - la card storica torna al comportamento originale pre-sessione).
+- **Cloud server** (`cloud/server/`):
+  - `prisma/schema.prisma` + migration `20260808130000_vehicle_real_vin`: `Vehicle.realVin` (nuovo, `@unique`, nullable) e `PairingRequest.realVin`, separati dal campo `vin` esistente (che resta la chiave di pairing/ivi.sn).
+  - `routes/device.ts`: `/pairing/start` accetta `realVin` opzionale; `PATCH /vehicle` accetta `realVin` separatamente da `vin` (che l'app non invia più da questa route - la correzione di `vin` resta possibile solo per compatibilità).
+  - `routes/user.ts` `/pairing/claim`: se `ivi.sn` non risolve nessun veicolo ma `realVin` corrisponde a uno già esistente dello stesso utente, **riassocia** sostituendo il vecchio `vin` col nuovo invece di creare un nuovo Vehicle (storico trip/nickname/abbonamento intatti).
+  - `routes/admin.ts` `GET /vehicles/lookup`: ora cerca anche per `realVin`, non solo `vin` - backstop necessario per il rischio sotto.
+- **Cloud web** (`cloud/web/`): `types.ts` (`Vehicle.realVin`), `Settings.tsx` (mostra il VIN reale nella card veicolo quando disponibile - richiesta esplicita utente: più facile da confrontare coi documenti di `vin`/ivi.sn, che è solo un id interno), nuove chiavi i18n IT/EN.
+
+### ⚠️ Rischio di Sicurezza Accettato (discusso esplicitamente con l'utente)
+`vehicles.real_vin` è ora un altro campo "primo che lo reclama vince" (stessa classe già accettata per `vin`, vedi firma HMAC su `pairing/start` e `DESIGN.md` §7) - ma un VIN reale è ANCORA meno segreto di `ivi.sn` (sul libretto/documenti, targhetta nel vano motore, spesso su annunci di vendita - **non necessariamente a vista dal parabrezza**, confermato dall'utente sulla propria Jaecoo). Chi ha già decompilato l'app per forgiare la firma HMAC (nessuna "app patchata" necessaria: la sola chiave estratta basta per firmare richieste HTTP dirette via script, senza installare nulla) potrebbe pre-registrare il VIN reale di un'auto conosciuta sotto un proprio account, bloccando il vero proprietario con un 409 al primo pairing. Nessun guadagno diretto per l'attaccante (puro sabotaggio mirato, non furto dati/account) - rischio residuo accettato per questo motivo, con lo stesso backstop già esistente (`GET /admin/vehicles/lookup`, ora esteso a `realVin`).
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew :app:compileDebugJavaWithJavac` -> **BUILD SUCCESSFUL**.
+- `npx prisma generate` (schema aggiornato) -> **OK**, nessun DB raggiungibile da questa sessione per `prisma migrate dev/deploy`.
+- `npx tsc --noEmit` su `cloud/server` e `cloud/web` -> **OK**, nessun errore.
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Open Questions / Pending Tasks**: applicare la migration `20260808130000_vehicle_real_vin` in deploy (`npm run prisma:migrate:deploy`); testare sul campo un pairing reale con VIN presente e, se possibile, simulare una sostituzione DMC (nuovo `ivi.sn`, stesso VIN) per verificare la riassociazione in `pairing/claim`.
+- **Constraints / Warning**: `MINIMAL_APK_PACKAGES` nel probe (voce precedente) e la costante `TBOX_VIN_PROPERTY`/`VIN_FORMAT` qui sono entrambe basate su una singola vettura di riferimento (la Jaecoo 7 dell'utente) - da confermare su un modello/firmware diverso prima di assumerle universali su tutta la piattaforma `g7ph_t22_int`.
+
+---
+
+## [2026-08-08] - JaeDriveProbe: Copia USB Verificata (CRC32+fsync), Retry Recupero, Checkbox "System files"
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[probe]`
+- **Status**: `COMPLETED` (`:probe:assembleRelease` OK, nuovo APK ricopiato su chiavetta) — `REQUIRES_USER_TEST` (verifica su vettura reale del flusso RETRY USB COPY e della checkbox)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Analizzato sul campo un export `JaeDriveProbe_20260808_102314.zip` (1.7 GB) trovato sulla chiavetta USB: risultava corrotto (nessun EOCD, `unzip`/Python lo rifiutano). Parsing manuale dei local file header (`PK\x03\x04`) ha mostrato che tutte le entry fino a `com.desaysv.setting.apk` erano coerenti, ma oltre la fine dei suoi dati dichiarati comparivano ~600 MB extra contenenti due entry NON cifrate e totalmente estranee al probe (`media/helpimg/sd_PresenterConsole02/03.png`) — frammenti di file già cancellati rimasti nei cluster FAT32 non ancora sovrascritti. Il vecchio `copyToUsb()` dichiarava la copia riuscita appena il loop `read/write` finiva senza eccezioni, senza flush forzato né verifica: una chiavetta scollegata o un'app killata a metà copia lasciava sulla destinazione un file della dimensione "giusta" ma con dati non arrivati fisicamente, coda inclusa. La password AES-256 dello zip (offuscata via XOR in `MainActivity.ZIP_PW_OBFUSCATED`) è stata comunque decodificata e verificata: `JaeProbe2026!`.
+
+Su richiesta esplicita dell'utente, riscritto il flusso di export:
+1. La copia su USB ora viene **verificata** (lunghezza + CRC32, con `FileOutputStream.getFD().sync()` prima del controllo) prima di essere dichiarata riuscita.
+2. Lo zip in memoria interna dell'app viene cancellato **solo** dopo una copia verificata; se la verifica fallisce resta lì e un nuovo pulsante **RETRY USB COPY** (visibile automaticamente quando l'app trova un archivio pendente in `getFilesDir()`) permette di ricopiarlo senza rifare l'intera scansione.
+3. Aggiunta una checkbox **"System files"** (default ON = comportamento identico a prima, copia tutti i pacchetti desaysv/desay/.vds./tbox/neusoft). Con la checkbox OFF, il probe copia solo le 5 APK strettamente necessarie a decodificare i segnali già gestiti in `VDInfoClient.java` (dispatcher confermati): `com.desaysv.setting`, `com.desaysv.ivi.vds.carinfo`, `com.desaysv.ivi.vds.carlan`, `com.desaysv.ivi.vds.carstate`, `com.desaysv.engmode` — evita di dover trascinare mostri come `SVSetting.apk` (641 MB non compresso) quando basta verificare se le formule già note valgono anche su un'altra vettura.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **[`probe/src/main/java/com/phabryc/jaedriveprobe/MainActivity.java`](probe/src/main/java/com/phabryc/jaedriveprobe/MainActivity.java)**:
+  - `copyToUsb()` → `copyToUsbVerified()` + nuovi helper `copyOneFileVerified()` (fsync + confronto lunghezza/CRC32) e `computeCrc32()`.
+  - `runFullScan()` ora accetta `boolean systemFilesFull` (letto dalla checkbox sul thread UI prima di avviare il thread `ProbeScan`), cancella lo zip interno solo a copia verificata, e a fine scansione richiama `checkForPendingInternalZip()` per aggiornare la visibilità del pulsante di retry.
+  - `dumpSystemApks(boolean systemFilesFull)`: nuovo filtro `isMinimalApkPackage()` contro la costante `MINIMAL_APK_PACKAGES` quando la checkbox è OFF.
+  - Nuovi metodi `checkForPendingInternalZip()`, `findPendingInternalZip()`, `retryPendingCopy()` per il recupero di un archivio già costruito ma mai copiato con successo.
+- **[`probe/src/main/res/layout/activity_main.xml`](probe/src/main/res/layout/activity_main.xml)**: aggiunta `CheckBox` `cb_system_files` (sopra START SCAN, checked di default) e `Button` `btn_retry_copy` (sotto START SCAN, `visibility="gone"` di default).
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew :probe:compileDebugJavaWithJavac` -> **BUILD SUCCESSFUL** (solo warning Java 8 preesistenti).
+- `./gradlew :probe:assembleRelease` -> **BUILD SUCCESSFUL**, `probe/build/outputs/apk/release/JaeDriveProbe.apk` (195 943 byte).
+- Copiato il nuovo APK in `/media/phabryc/USB STICK/probe/JaeDriveProbe.apk` (sostituendo la build del 2026-08-07), verificato con `sha256sum` che sorgente e destinazione combaciano byte per byte.
+- **Non ancora testato su vettura/emulatore reale** il nuovo flusso end-to-end (checkbox OFF/ON, interruzione volontaria della copia USB per verificare che il RETRY funzioni davvero).
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Open Questions / Pending Tasks**: verificare sul campo che `RETRY USB COPY` recuperi correttamente un archivio dopo un'interruzione reale (non solo simulata), e che la checkbox OFF produca davvero solo le 5 APK attese (l'elenco `MINIMAL_APK_PACKAGES` è stato derivato dai commenti/riferimenti in `VDInfoClient.java` più i decompilati locali fuori repo in `~/Desktop/Desktop/*_dec`, non testato a runtime).
+- **Constraints / Warning**: lo zip corrotto originale (`JaeDriveProbe_20260808_102314.zip`, 1.7 GB, ancora sulla chiavetta) NON è stato cancellato — contiene comunque le entry `dump.txt` + APK fino a `com.desaysv.ivi.vds.sms.apk` recuperabili con la password `JaeProbe2026!`, utile come riferimento se serve confrontare/estrarre quei dati prima di sovrascriverlo con un nuovo export.
+
+---
+
+## [2026-08-07] - Fix Bug Critico: Traccia GPS Persa Dopo Unione Viaggi (Merge)
+
+### 👤 Agent Metadata
+- **Agent Nickname / Model**: Laptop Claude (Claude Code / Sonnet 5)
+- **Scope / Subsystem**: `[app]`
+- **Status**: `COMPLETED` (causa trovata, fix scritto, `compileDebugJavaWithJavac` OK) — `REQUIRES_USER_TEST` (verifica su vettura reale con traccia GPS vera)
+
+### 📌 Sintesi della Funzionalità / Modifica
+Bug segnalato dall'utente dal campo: dopo aver unito 2+ viaggi dallo Storico (feature `TripMerger`, voce del 2026-08-05), il viaggio risultante non aveva traccia GPS. La feature era stata verificata solo su emulatore con viaggi a 0 punti GPS (nessun location provider), quindi questo scenario non era mai stato testato con punti reali - esattamente il gap gia' segnalato come `REQUIRES_USER_TEST` in quella voce.
+
+**Causa radice**: collisione di nomi file. `MainActivity.mergeSelectedTrips()` generava il nome del GPX unito come `"Percorso_" + format(sortedTrips.get(0).startTime, "yyyyMMdd_HHmmss") + ".gpx"` - lo stesso identico schema (arrotondato al secondo) usato da `TrackingService.startTrip()` per nominare il file GPX ORIGINALE di quel primo viaggio (entrambi derivati da `System.currentTimeMillis()` chiamato a pochi ms di distanza). Il nuovo file veniva scritto correttamente con la traccia unita, sovrascrivendo il file del primo viaggio originale (stesso path) - ma subito dopo, il loop di pulizia che cancella i file dei viaggi originali (`r.gpxPath`) cancellava quello stesso path, credendo di ripulire l'originale. Il `TripRecord` unito restava nel DB con un `gpxPath` che puntava a un file ormai inesistente.
+
+### 🛠️ Dettagli Tecnici & File Modificati
+- **[`MainActivity.java`](app/src/main/java/com/phabryc/jaedrive/MainActivity.java)** `mergeSelectedTrips()`: nome del file GPX unito ora con suffisso `_merged` (`"..._merged.gpx"`), garantito diverso da qualunque nome generato da `TrackingService`. Aggiunta anche una protezione difensiva nel loop di cancellazione: non cancella mai un file il cui path coincide con quello appena scritto per il viaggio unito, indipendentemente dallo schema di naming.
+
+### 🧪 Comandi di Verifica Eseguiti
+- `./gradlew :app:compileDebugJavaWithJavac` → **BUILD SUCCESSFUL** (solo warning Java 8 preesistenti, nessun errore).
+- **Non ancora testato end-to-end su vettura reale** (richiede unire 2+ viaggi AUTO reali con punti GPS effettivi e verificare che il dettaglio mostri la traccia).
+
+### 📋 Handover & Passaggio Consegne per l'Agente Successivo
+- **Open Questions / Pending Tasks**: test sul campo del merge con traccia GPS reale (non emulatore) - unire 2+ viaggi, aprire il dettaglio del viaggio unito, verificare che la mappa/traccia mostri tutti i punti (incluso il marker rosso di pausa tra le tratte, anche questo mai verificato con punti reali).
+- **Constraints / Warning**: nessun'altra parte del codice genera nomi file `.gpx` con lo stesso schema `"Percorso_" + yyyyMMdd_HHmmss + ".gpx"` di `TrackingService`, quindi il fix e' isolato - ma se in futuro si aggiungono altri punti che scrivono file con quello stesso schema (es. un secondo tipo di merge, un import), vale la pena ricontrollare collisioni di nome allo stesso modo.
+
+---
+
 ## [2026-08-06] - Avvio dell'Emulatore Android Automotive ed Esecuzione JaeDrive Riusciti End-to-End
 
 ### 👤 Agent Metadata
