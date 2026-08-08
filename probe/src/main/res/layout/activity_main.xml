@@ -30,7 +30,7 @@
         android:text="System files"
         android:textColor="#FFFFFF"
         android:textSize="16sp"
-        android:checked="true"
+        android:checked="false"
         android:layout_marginBottom="8dp"/>
 
     <Button
