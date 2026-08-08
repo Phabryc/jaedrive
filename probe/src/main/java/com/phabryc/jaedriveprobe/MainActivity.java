@@ -14,6 +14,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -22,7 +24,9 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.text.format.DateFormat;
 import android.util.DisplayMetrics;
+import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -47,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.CRC32;
 
 // JaeDriveProbe (2026-08-05, richiesta esplicita utente): strumento diagnostico
 // standalone, indipendente da JaeDrive - pensato per essere installato su vetture
@@ -64,6 +69,8 @@ public class MainActivity extends Activity {
     private TextView tvLog;
     private TextView tvStatus;
     private Button btnStart;
+    private Button btnRetryCopy;
+    private CheckBox cbSystemFiles;
     private final StringBuilder fullLog = new StringBuilder();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -82,10 +89,38 @@ public class MainActivity extends Activity {
     private static final int MODULE_READONLY_INFO = 0x50004;
     private static final int MODULE_DOANOSE = 0x50007;
     private static final int MODULE_CAR_COMPUTER = 0x50015;
+    // MODULE_HVAC (2026-08-07, indagine climatizzazione remota in sosta): mai sondato prima,
+    // scoperto decompilando le app di sistema Desay (com.desaysv.ivi.vdb.event.id.carinfo.
+    // VDEventCarInfo.MODULE_HVAC). E' il modulo dove vivono ID_PARKING_AC_REQ/DISP/LIGHT_SWITCH
+    // (0xe/0xf/0xb, classe com.desaysv.ivi.extra.project.carinfo.HvacID) - lo scopo e' vedere
+    // se questi cmdId rispondono con un valore reale su questa vettura (VDBus.get() non
+    // scriverebbe comunque nulla, e' sempre e solo una lettura, coerente con lo scopo
+    // diagnostico/non invasivo dello strumento).
+    private static final int MODULE_HVAC = 0x5000a;
     private static final int[] MODULES_TO_SWEEP = {
-        MODULE_CAR_SETTING, MODULE_NEW_ENERGY, MODULE_READONLY_INFO, MODULE_DOANOSE, MODULE_CAR_COMPUTER
+        MODULE_CAR_SETTING, MODULE_NEW_ENERGY, MODULE_READONLY_INFO, MODULE_DOANOSE, MODULE_CAR_COMPUTER,
+        MODULE_HVAC
     };
     private static final int MAX_CMD_ID = 0xFF;
+
+    // TBox (2026-08-07, stessa indagine): il modulo telematico si integra con le app
+    // dell'head unit tramite un ContentProvider Android (com.desaysv.ivi.extra.vdb.event.id.
+    // carlan.VDExValueCarLan$TBoxRequest/TBoxResponse, fornitore Neusoft), non il bus VDB.
+    // Qui si interrogano SOLO le URI di sola lettura/stato (mai "Request" che sono in realta'
+    // comandi attuatori, es. CallRequest compone davvero una chiamata, PowerDownHVRequest
+    // agisce sulla batteria alta tensione - queste non vanno mai eseguite da uno strumento
+    // diagnostico passivo, tantomeno su un'auto che potrebbe non essere la propria).
+    private static final String TBOX_AUTHORITY = "tbox.automotive.neusoft.com";
+    private static final String[] TBOX_STATUS_QUERIES = {
+        "TSPConnectionStateRequest", // stato connessione con il Telematics Service Provider (dati/cloud)
+        "SIMCardInfoRequest",
+        "NetworkStatusRequest",
+        "TBoxVersionRequest",
+        "VINRequest",
+        "KL15StateRequest",
+        "CellInfoRequest",
+        "IMEIInfoRequest",
+    };
 
     // Password dell'archivio finale, tenuta fuori dalla vista come stringa letterale (richiesta
     // esplicita utente: offuscare l'apk) - una String costante finirebbe comunque in chiaro nel
@@ -98,6 +133,22 @@ public class MainActivity extends Activity {
         0x10, 0x3B, 0x3F, 0x0A, 0x28, 0x35, 0x38, 0x3F, 0x68, 0x6A, 0x68, 0x6C, 0x7B
     };
     private static final int ZIP_PW_XOR_KEY = 0x5A;
+
+    // Set minimo di APK necessarie a decodificare i segnali VDB gia' gestiti in JaeDrive
+    // (vedi VDInfoClient.java in app/): SVSetting.apk e' il dispatcher confermato per quasi
+    // tutte le formule (ID_TRIP, ID_ENDURANCE_KM/TOTAL_RANGE, ID_ENERGY_RECYCLE_LEVEL,
+    // ID_TIRE_PRESSURE_WARNING, SUM_FUEL, ecc.), SVVDSCarInfo.apk espone il dispatcher di
+    // protocollo/moduli del bus (com/desaysv/ivi/vds/carinfo/a/a.smali), CarLan/CarState/
+    // EngMode sono gli altri tre gia' decompilati durante le indagini TBox/HVAC/VIN. Usato
+    // quando la checkbox "System files" e' disattivata - un dump molto piu' leggero/veloce
+    // su un'auto sconosciuta, quando serve solo verificare se queste formule valgono anche li'.
+    private static final String[] MINIMAL_APK_PACKAGES = {
+        "com.desaysv.setting",
+        "com.desaysv.ivi.vds.carinfo",
+        "com.desaysv.ivi.vds.carlan",
+        "com.desaysv.ivi.vds.carstate",
+        "com.desaysv.engmode",
+    };
 
     private static char[] getZipPassword() {
         char[] pw = new char[ZIP_PW_OBFUSCATED.length];
@@ -114,11 +165,84 @@ public class MainActivity extends Activity {
         tvLog = findViewById(R.id.tv_log);
         tvStatus = findViewById(R.id.tv_status);
         btnStart = findViewById(R.id.btn_start_scan);
+        btnRetryCopy = findViewById(R.id.btn_retry_copy);
+        cbSystemFiles = findViewById(R.id.cb_system_files);
         btnStart.setOnClickListener(v -> {
             btnStart.setEnabled(false);
+            btnRetryCopy.setEnabled(false);
             fullLog.setLength(0);
             tvLog.setText("");
-            new Thread(this::runFullScan, "ProbeScan").start();
+            boolean systemFilesFull = cbSystemFiles.isChecked();
+            new Thread(() -> runFullScan(systemFilesFull), "ProbeScan").start();
+        });
+        btnRetryCopy.setOnClickListener(v -> {
+            btnStart.setEnabled(false);
+            btnRetryCopy.setEnabled(false);
+            fullLog.setLength(0);
+            tvLog.setText("");
+            new Thread(this::retryPendingCopy, "ProbeRetryCopy").start();
+        });
+        checkForPendingInternalZip();
+    }
+
+    // ------------------------------------------------------------------
+    // Recupero: se una scansione precedente ha costruito l'archivio ma la copia su USB e'
+    // stata interrotta (vedi copyToUsbVerified()), lo zip resta nella memoria interna
+    // dell'app - richiesta esplicita utente (2026-08-08, dopo aver trovato sul campo un
+    // archivio su USB troncato/corrotto): invece di dover rifare l'intera scansione, offrire
+    // di ricopiarlo cosi' com'e'.
+    // ------------------------------------------------------------------
+    private void checkForPendingInternalZip() {
+        File pending = findPendingInternalZip();
+        mainHandler.post(() -> {
+            if (pending != null) {
+                btnRetryCopy.setVisibility(View.VISIBLE);
+                btnRetryCopy.setEnabled(true);
+                btnRetryCopy.setText("RETRY USB COPY (" + pending.getName() + ")");
+            } else {
+                btnRetryCopy.setVisibility(View.GONE);
+            }
+        });
+    }
+
+    private File findPendingInternalZip() {
+        File[] files = getFilesDir().listFiles((dir, name) -> name.startsWith("JaeDriveProbe_") && name.endsWith(".zip"));
+        if (files == null || files.length == 0) return null;
+        File newest = files[0];
+        for (File f : files) {
+            if (f.lastModified() > newest.lastModified()) newest = f;
+        }
+        return newest;
+    }
+
+    private void retryPendingCopy() {
+        log("========================================");
+        log("Retrying USB copy of a previously built archive");
+        log("========================================");
+        File pending = findPendingInternalZip();
+        if (pending == null) {
+            log("No pending archive found in internal storage.");
+            status("Nothing to retry");
+            mainHandler.post(() -> {
+                btnStart.setEnabled(true);
+                checkForPendingInternalZip();
+            });
+            return;
+        }
+        log("Found: " + pending.getName() + " (" + (pending.length() / 1024 / 1024) + " MB)");
+        status("Copying to USB...");
+        boolean copiedToUsb = copyToUsbVerified(pending);
+        if (copiedToUsb) {
+            boolean deleted = pending.delete();
+            log(deleted ? "Copy verified OK, internal copy removed."
+                : "Copy verified OK, but could not remove internal copy: " + pending.getName());
+        } else {
+            log("Copy failed or could not be verified - internal copy KEPT, try again.");
+        }
+        status(copiedToUsb ? "Done - copied to USB and verified" : "Copy failed - internal copy kept, retry when ready");
+        mainHandler.post(() -> {
+            btnStart.setEnabled(true);
+            checkForPendingInternalZip();
         });
     }
 
@@ -132,10 +256,11 @@ public class MainActivity extends Activity {
         mainHandler.post(() -> tvStatus.setText(s));
     }
 
-    private void runFullScan() {
+    private void runFullScan(boolean systemFilesFull) {
         log("========================================");
         log("JaeDriveProbe - scan starting");
         log("========================================");
+        log("System files: " + (systemFilesFull ? "ON (all desaysv/vds/tbox packages)" : "OFF (signal-decoding APKs only)"));
         log("Build.MANUFACTURER=" + Build.MANUFACTURER + " Build.BRAND=" + Build.BRAND);
         log("Build.MODEL=" + Build.MODEL + " Build.DEVICE=" + Build.DEVICE + " Build.PRODUCT=" + Build.PRODUCT);
         log("Build.DISPLAY=" + Build.DISPLAY);
@@ -154,15 +279,23 @@ public class MainActivity extends Activity {
         status("Desay VDB bus (this may take a minute)...");
         dumpVdbSweep();
 
+        status("TBox status (Neusoft ContentProvider)...");
+        dumpTboxProvider();
+
         status("Desay/VDS system APKs...");
-        dumpSystemApks();
+        dumpSystemApks(systemFilesFull);
 
         status("Packaging results...");
         String zipName = "JaeDriveProbe_" + DateFormat.format("yyyyMMdd_HHmmss", System.currentTimeMillis()) + ".zip";
         File localZip = buildPasswordProtectedZip(zipName);
 
         status("Copying to USB...");
-        boolean copiedToUsb = localZip != null && copyToUsb(localZip);
+        boolean copiedToUsb = localZip != null && copyToUsbVerified(localZip);
+        if (copiedToUsb) {
+            boolean deleted = localZip.delete();
+            log(deleted ? "Copy verified OK, internal copy removed."
+                : "Copy verified OK, but could not remove internal copy: " + localZip.getName());
+        }
 
         log("========================================");
         log("Scan complete.");
@@ -171,9 +304,12 @@ public class MainActivity extends Activity {
             : "ERROR: archive was not created, see log above");
         log("========================================");
         status(localZip == null ? "Done - archive creation failed, see log above"
-            : copiedToUsb ? "Done - copied to USB (" + zipName + ")"
-            : "Done - saved internally only (" + localZip.getAbsolutePath() + "), no writable USB volume found");
-        mainHandler.post(() -> btnStart.setEnabled(true));
+            : copiedToUsb ? "Done - copied to USB and verified (" + zipName + ")"
+            : "Done - saved internally only (" + localZip.getAbsolutePath() + "), no verified USB copy - use RETRY USB COPY later");
+        mainHandler.post(() -> {
+            btnStart.setEnabled(true);
+            checkForPendingInternalZip();
+        });
     }
 
     // ------------------------------------------------------------------
@@ -426,6 +562,39 @@ public class MainActivity extends Activity {
     }
 
     // ------------------------------------------------------------------
+    // 4b. TBox: query di sola lettura sul ContentProvider Neusoft (vedi costanti sopra).
+    // ContentResolver.query() non e' un'azione, e' l'equivalente di una GET - nessuna delle
+    // URI qui dentro compone chiamate, avvia OTA o tocca la batteria alta tensione. Se il
+    // provider non esiste su questo dispositivo (es. nessun TBox, o non e' questo il nome
+    // authority su un altro fornitore) query() lancia un'eccezione gestita per singola URI,
+    // cosi' un fallimento su una non blocca le altre.
+    // ------------------------------------------------------------------
+    private void dumpTboxProvider() {
+        log("--- TBOX (Neusoft ContentProvider, read-only status queries) ---");
+        for (String cmd : TBOX_STATUS_QUERIES) {
+            Uri uri = Uri.parse("content://" + TBOX_AUTHORITY + "/req?cmd=" + cmd);
+            try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+                if (c == null) {
+                    log("  " + cmd + " -> null cursor (provider not present or cmd unknown)");
+                    continue;
+                }
+                String[] columns = c.getColumnNames();
+                log("  " + cmd + " -> " + c.getCount() + " row(s), columns=" + Arrays.toString(columns));
+                while (c.moveToNext()) {
+                    StringBuilder row = new StringBuilder("    ");
+                    for (int i = 0; i < columns.length; i++) {
+                        if (i > 0) row.append(", ");
+                        row.append(columns[i]).append("=").append(c.getString(i));
+                    }
+                    log(row.toString());
+                }
+            } catch (Exception e) {
+                log("  " + cmd + " -> " + e.getClass().getSimpleName() + " " + e.getMessage());
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------
     // 5. Copia gli APK di sistema Desay/VDS installati su QUESTA vettura, cosi' si possono
     // decompilare offline esattamente come gia' fatto per la Jaecoo 7 (vedi
     // jaedrive_decompiled_apks in memoria) - senza bisogno di adb/USB debugging sull'altra
@@ -434,8 +603,11 @@ public class MainActivity extends Activity {
     // Jaecoo 7 dell'utente e' una build "user" completamente chiusa) - se fallisce, il resto
     // del dump resta comunque utile.
     // ------------------------------------------------------------------
-    private void dumpSystemApks() {
-        log("--- SYSTEM APKS (desaysv/desay/vds packages) ---");
+    private void dumpSystemApks(boolean systemFilesFull) {
+        log("--- SYSTEM APKS (desaysv/desay/vds/tbox/neusoft packages) ---");
+        log(systemFilesFull
+            ? "Mode: ALL matching system packages"
+            : "Mode: minimal set only (" + MINIMAL_APK_PACKAGES.length + " APKs needed to decode already-handled VDB signals)");
         PackageManager pm = getPackageManager();
         List<PackageInfo> allPackages;
         try {
@@ -447,7 +619,14 @@ public class MainActivity extends Activity {
         List<ApplicationInfo> matches = new ArrayList<>();
         for (PackageInfo pi : allPackages) {
             String pkg = pi.packageName.toLowerCase(Locale.US);
-            if (pkg.contains("desaysv") || pkg.contains("desay") || pkg.contains(".vds.")) {
+            // tbox/neusoft (2026-08-07, indagine climatizzazione remota): l'app che dispaccia
+            // davvero i comandi sul ContentProvider di dumpTboxProvider() non e' Desay - e'
+            // presumibilmente un pacchetto separato del fornitore del modulo telematico
+            // (Neusoft, vedi authority "tbox.automotive.neusoft.com"), mai vista finora.
+            boolean isDesaySystemPkg = pkg.contains("desaysv") || pkg.contains("desay") || pkg.contains(".vds.")
+                    || pkg.contains("tbox") || pkg.contains("neusoft");
+            if (!isDesaySystemPkg) continue;
+            if (systemFilesFull || isMinimalApkPackage(pkg)) {
                 matches.add(pi.applicationInfo);
             }
         }
@@ -467,6 +646,13 @@ public class MainActivity extends Activity {
         if (!matches.isEmpty()) {
             log("APKs copied (where successful) to: " + outDir.getAbsolutePath() + " - will be bundled into the export");
         }
+    }
+
+    private boolean isMinimalApkPackage(String pkg) {
+        for (String p : MINIMAL_APK_PACKAGES) {
+            if (pkg.equals(p)) return true;
+        }
+        return false;
     }
 
     private void copyApk(String sourcePath, File dest) {
@@ -490,8 +676,11 @@ public class MainActivity extends Activity {
     // 6. Archivio finale: uno zip AES-256 protetto da password (zip4j - richiesta esplicita
     // utente 2026-08-05) contenente il log completo e gli eventuali APK estratti sopra.
     // Salvato prima in storage interno dell'app (getFilesDir(), sempre scrivibile, nessun
-    // permesso richiesto) cosi' la scansione non va mai persa anche se poi la copia su USB
-    // fallisce - era un gap reale identificato prima di questo rework (vedi cronologia).
+    // permesso richiesto) e rimosso da li' SOLO dopo che copyToUsbVerified() conferma che la
+    // copia sulla chiavetta e' arrivata integra (vedi sotto) - se la copia fallisce o non si
+    // riesce a verificare, il file interno resta e puo' essere ricopiato in un secondo
+    // momento col pulsante RETRY USB COPY, senza dover rifare l'intera scansione (gap reale
+    // trovato sul campo 2026-08-08: un export da 1.7GB troncato a meta' copia).
     // La password stessa NON deve mai comparire nel log ne' un riferimento al fatto che
     // l'export sia protetto (richiesta esplicita utente): chi esegue la scansione su
     // un'auto non sua non ha bisogno di saperlo.
@@ -534,16 +723,23 @@ public class MainActivity extends Activity {
     // ------------------------------------------------------------------
     // 7. Export su USB - stesso approccio gia' verificato in JaeDrive (MainActivity.
     // writeToUsbRoot()): MANAGE_EXTERNAL_STORAGE + StorageVolume.getDirectory(), niente
-    // selettore SAF (assente su questo ROM). Copia il solo zip gia' costruito sopra.
+    // selettore SAF (assente su questo ROM). Copia il solo zip gia' costruito sopra, poi la
+    // VERIFICA byte per byte prima di dichiararla riuscita (vedi copyOneFileVerified) - trovato
+    // sul campo (2026-08-08) un export da 1.7GB su chiavetta FAT32 che risultava piu' grande
+    // dei dati reali e con in coda frammenti di file gia' cancellati: sintomo di una scrittura
+    // interrotta (chiavetta scollegata o app killata a meta' copia) senza che l'app se ne
+    // accorgesse, perche' il vecchio codice dichiarava successo appena il loop di copia finiva
+    // senza eccezioni, senza forzare il flush ne' controllare che i byte scritti corrispondessero
+    // davvero all'originale.
     // ------------------------------------------------------------------
-    private boolean copyToUsb(File localZip) {
+    private boolean copyToUsbVerified(File localZip) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            log("Needs the 'All files access' permission - opening settings, grant it and run the scan again");
+            log("Needs the 'All files access' permission - opening settings, grant it and run again");
             try {
                 Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
                 intent.setData(android.net.Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
-                mainHandler.post(() -> Toast.makeText(this, "Grant access and run the scan again", Toast.LENGTH_LONG).show());
+                mainHandler.post(() -> Toast.makeText(this, "Grant access and run again", Toast.LENGTH_LONG).show());
             } catch (Exception e) {
                 log("Could not open permission settings: " + e);
             }
@@ -554,21 +750,60 @@ public class MainActivity extends Activity {
             log("No removable USB volume found - result kept in app internal storage only: " + localZip.getAbsolutePath());
             return false;
         }
-        boolean saved = false;
+        long sourceLength = localZip.length();
+        long sourceCrc = computeCrc32(localZip);
+        if (sourceCrc < 0) {
+            log("Could not read back local archive to verify (" + localZip.getAbsolutePath() + ") - aborting USB copy");
+            return false;
+        }
+        boolean allVerified = true;
         for (File root : usbRoots) {
             File dest = new File(root, localZip.getName());
-            try (FileInputStream in = new FileInputStream(localZip);
-                 FileOutputStream out = new FileOutputStream(dest)) {
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
-                log("Copied to USB: " + dest.getAbsolutePath());
-                saved = true;
-            } catch (Exception e) {
-                log("Error copying to USB " + dest + ": " + e);
-            }
+            allVerified &= copyOneFileVerified(localZip, dest, sourceLength, sourceCrc);
         }
-        return saved;
+        return allVerified;
+    }
+
+    private boolean copyOneFileVerified(File source, File dest, long expectedLength, long expectedCrc) {
+        try (FileInputStream in = new FileInputStream(source);
+             FileOutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            out.flush();
+            // Forza la scrittura fisica sul supporto PRIMA di verificare - altrimenti su
+            // FAT32 uno scollegamento subito dopo l'ultimo write() puo' lasciare il file con
+            // la dimensione "dichiarata" giusta ma dati non ancora arrivati fisicamente sulla
+            // chiavetta, esponendo in coda blocchi vecchi non sovrascritti (esattamente quanto
+            // successo sul campo, vedi commento sopra).
+            out.getFD().sync();
+        } catch (Exception e) {
+            log("Error copying to USB " + dest + ": " + e);
+            return false;
+        }
+        long destLength = dest.length();
+        long destCrc = computeCrc32(dest);
+        if (destLength != expectedLength || destCrc != expectedCrc) {
+            log("Copy to " + dest.getAbsolutePath() + " FAILED verification (length " + destLength
+                + " vs " + expectedLength + " bytes, crc32 " + Long.toHexString(destCrc) + " vs "
+                + Long.toHexString(expectedCrc) + ") - USB write likely interrupted, keeping internal copy");
+            return false;
+        }
+        log("Copied and verified on USB: " + dest.getAbsolutePath());
+        return true;
+    }
+
+    private long computeCrc32(File file) {
+        CRC32 crc = new CRC32();
+        try (FileInputStream in = new FileInputStream(file)) {
+            byte[] buf = new byte[65536];
+            int n;
+            while ((n = in.read(buf)) != -1) crc.update(buf, 0, n);
+            return crc.getValue();
+        } catch (Exception e) {
+            log("CRC32 read error on " + file + ": " + e);
+            return -1;
+        }
     }
 
     private List<File> findRemovableVolumeRoots() {
